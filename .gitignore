@@ -1,0 +1,14 @@
+node_modules/
+.venv/
+.venv_old_to_delete/
+__pycache__/
+*.pyc
+.env
+cache/
+dist/
+seed_data.sql
+sql_parts/
+.vscode/
+.kilocode/
+.qodo/
+.streamlit/

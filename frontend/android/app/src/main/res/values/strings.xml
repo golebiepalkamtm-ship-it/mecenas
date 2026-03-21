@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LexMind</string>
+    <string name="title_activity_main">LexMind</string>
+    <string name="package_name">pl.lexmind.app</string>
+    <string name="custom_url_scheme">pl.lexmind.app</string>
+</resources>

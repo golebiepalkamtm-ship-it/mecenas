@@ -1,0 +1,43 @@
+# Kancelaria AI Pałka & Kaźmierczak — Dependencies (LangChain v1)
+# ================================================================
+
+# --- LangChain v1 Core ---
+langchain>=1.2.0
+langchain-core>=1.2.0
+langchain-community>=0.4.0
+langchain-text-splitters>=1.1.0
+langgraph>=1.1.0
+
+# --- Model Providers ---
+langchain-google-genai>=4.2.0
+google-genai>=1.68.0
+
+# --- MCP (Model Context Protocol) ---
+langchain-mcp-adapters>=0.2.2
+mcp>=1.26.0
+fastmcp>=3.1.0
+
+# --- Vector Store & Embeddings ---
+faiss-cpu>=1.9.0
+sentence-transformers>=2.7.0
+
+# --- PDF Processing ---
+pymupdf>=1.25.0
+
+# --- Web Framework ---
+fastapi>=0.115.0
+uvicorn>=0.32.0
+pydantic>=2.9.0
+python-multipart>=0.0.22
+
+# --- Desktop Packaging ---
+pyinstaller>=6.6.0
+pyinstaller-hooks-contrib>=2024.6
+
+# --- Desktop UI (PyWebView) ---
+pywebview>=5.3
+pywin32>=306; sys_platform == "win32"
+
+# --- Utilities ---
+python-dotenv>=1.0.1
+requests>=2.32.0
