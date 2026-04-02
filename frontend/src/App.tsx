@@ -1,436 +1,718 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Scale, 
+import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Terminal,
   Library,
-  Gavel,
-  Terminal, 
-  Sparkles, 
-  Sun,
-  Moon,
-  X,
+  FileText,
+  FolderOpen,
+  ChevronLeft,
+  Settings,
+  Scale,
+  Sparkles,
   ShieldAlert,
+  ShieldCheck,
+  User as UserIcon,
+  CreditCard,
+  Bell,
+  Cpu,
   LogOut,
-  ChevronRight,
-  User
-} from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+} from "lucide-react";
+import { useChatSettingsStore } from "./store/useChatSettingsStore";
 
-// Import Modular Components
-import { ChatView } from './components/Chat';
-import { KnowledgeView } from './components/Knowledge';
-import { PromptsView } from './components/Prompts';
-import { AuthView } from './components/Auth';
-import { AdminView } from './components/Admin';
-import { SettingsView } from './components/Settings';
-import { supabase } from './utils/supabaseClient';
-import type { Session } from '@supabase/supabase-js';
-import { ChatProvider } from './context/ChatContext';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { ChatView } from "./components/Chat";
+import { KnowledgeView } from "./components/Knowledge";
+import { DocumentsView } from "./components/Documents";
+import { LandingView } from "./components/Landing/LandingView";
+import { AdminView } from "./components/Admin";
+import { SettingsView } from "./components/Settings";
+import { DrafterView } from "./components/Drafter";
+import { supabase } from "./utils/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
+import { ChatProvider } from "./context/ChatContext";
+import { useOrchestratorSync } from "./hooks/useOrchestratorSync";
+import { BrandLogo } from "./components/Shared/BrandLogo";
 
-type Tab = 'chat' | 'knowledge' | 'api' | 'prompts' | 'admin' | 'settings';
+import { cn } from "./utils/cn";
 
-const NAV_ITEMS: { id: Tab; icon: React.ReactNode; label: string; sublabel: string; adminOnly?: boolean }[] = [
-  { id: 'chat',      icon: <Gavel size={18} />,    label: 'Rozprawa AI',    sublabel: 'Centrum Dowodzenia' },
-  { id: 'knowledge', icon: <Library size={18} />,  label: 'Biblioteka',     sublabel: 'Baza Wiedzy' },
-  { id: 'prompts',   icon: <Terminal size={18} />, label: 'System Prompts', sublabel: 'Konfiguracja Roli' },
-  { id: 'settings',  icon: <User size={18} />,     label: 'Moje Konto',     sublabel: 'Ustawienia Profilu' },
-  { id: 'admin',     icon: <ShieldAlert size={18} />, label: 'Panel Admina', sublabel: 'Zarządzanie Flotą', adminOnly: true },
+type Tab =
+  | "chat"
+  | "consilium"
+  | "knowledge"
+  | "prompts"
+  | "drafter"
+  | "documents"
+  | "admin"
+  | "settings";
+
+const NAV_ITEMS = [
+  {
+    id: "chat" as Tab,
+    icon: Terminal,
+    label: "Konsultacja AI",
+    sublabel: "Jednolity System Wsparcia",
+    color: "#06b6d4", // cyan
+    colorRgb: "6,182,212",
+  },
+  {
+    id: "knowledge" as Tab,
+    icon: Library,
+    label: "Centralna Baza Wiedzy",
+    sublabel: "Archives",
+    color: "#3b82f6", // blue
+    colorRgb: "59,130,246",
+  },
+  {
+    id: "drafter" as Tab,
+    icon: FileText,
+    label: "Kreator Pism",
+    sublabel: "Master Drafter",
+    color: "#a855f7", // purple
+    colorRgb: "168,85,247",
+  },
+  {
+    id: "documents" as Tab,
+    icon: FolderOpen,
+    label: "Dokumenty",
+    sublabel: "Secure",
+    color: "#f59e0b", // amber
+    colorRgb: "245,158,11",
+  },
+  {
+    id: "settings" as Tab,
+    icon: Settings,
+    label: "Profil",
+    sublabel: "Identity",
+    color: "#14b8a6", // teal
+    colorRgb: "20,184,166",
+  },
+  {
+    id: "admin" as Tab,
+    icon: ShieldAlert,
+    label: "Admin",
+    sublabel: "System",
+    color: "#ef4444", // red
+    colorRgb: "239,68,68",
+    adminOnly: true,
+  },
 ];
 
+const E: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('chat');
-  const [theme, setTheme] = useState(() => localStorage.getItem('prawnik_theme') || 'dark');
-  const [showNav, setShowNav] = useState(true);
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [userRole, setUserRole] = useState<string>('user');
+  const [userRole, setUserRole] = useState<string>("user");
+  const [collapsed, setCollapsed] = useState(false);
+  const { currentSettingsTab, setSettingsTab } = useChatSettingsStore();
+  useOrchestratorSync();
 
-  const fetchUserRole = async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('role').eq('id', userId).single();
-    if (data?.role) setUserRole(data.role);
+  const fetchRole = async (uid: string) => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", uid)
+        .single();
+      if (data) setUserRole(data.role);
+    } catch {
+      /* silent */
+    }
   };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) fetchRole(session.user.id);
       setAuthLoading(false);
-      if (session?.user.id) fetchUserRole(session.user.id);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session?.user.id) fetchUserRole(session.user.id);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      if (s) fetchRole(s.user.id);
+      setAuthLoading(false);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (theme === 'light') document.documentElement.classList.add('light');
-    else document.documentElement.classList.remove('light');
-    localStorage.setItem('prawnik_theme', theme);
-  }, [theme]);
+  /* ── Loading screen ── */
+  if (authLoading)
+    return (
+      <div className="h-screen w-screen flex items-center justify-center overflow-hidden">
+        <div className="aurora-bg" />
+        <div className="noise-overlay" />
+        <motion.div
+          initial={{ opacity: 0, scale: 0.85 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.2, ease: E }}
+          className="relative z-10 flex flex-col items-center gap-14"
+        >
+          {/* Logo */}
+          <div className="relative">
+            <motion.div
+              animate={{ rotate: 360 }}
+              transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
+              className="absolute -inset-10 rounded-full"
+              style={{ border: "1px dashed rgba(212,175,55,0.18)" }}
+            />
+            <motion.div
+              animate={{ rotate: -360 }}
+              transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
+              className="absolute -inset-5 rounded-full"
+              style={{ border: "1px solid rgba(212,175,55,0.08)" }}
+            />
+            <div
+              className="w-24 h-24 rounded-4xl flex items-center justify-center animate-glow-pulse"
+              style={{
+                background:
+                  "linear-gradient(145deg, rgba(255,255,255,0.12) 0%, rgba(6,14,8,0.7) 100%)",
+                borderTop: "1px solid rgba(255,255,255,0.6)",
+                borderLeft: "1px solid rgba(255,255,255,0.2)",
+                borderRight: "1px solid rgba(255,255,255,0.05)",
+                borderBottom: "1px solid rgba(0,0,0,0.7)",
+                boxShadow:
+                  "0 8px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.5), 0 0 60px rgba(255,255,255,0.05)",
+              }}
+            >
+              <Scale className="w-11 h-11 text-white" strokeWidth={1.5} />
+            </div>
+          </div>
 
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-  };
-
-  const handleTabClick = (id: Tab) => {
-    setActiveTab(id);
-    if (window.innerWidth < 1024) setShowNav(false);
-  };
-
-  if (authLoading) return (
-    <div className="h-screen w-screen flex items-center justify-center bg-[#020a13]">
-      <div className="flex flex-col items-center gap-6">
-        <div className="w-16 h-16 rounded-3xl bg-[rgba(255,215,128,0.95)] shadow-[0_0_60px_rgba(255,215,128,0.5)] flex items-center justify-center animate-pulse">
-          <Scale className="w-8 h-8 text-black" fill="currentColor" strokeWidth={1} />
-        </div>
-        <div className="flex gap-1.5">
-          {[0,1,2].map(i => (
-            <div key={i} className="w-1.5 h-1.5 rounded-full bg-[rgba(255,215,128,0.6)] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-          ))}
-        </div>
+          {/* Label */}
+          <div className="flex flex-col items-center gap-4">
+            <h1 className="shimmer-text text-[11px] font-black uppercase tracking-[1em]">
+              Initializing Prestige Core
+            </h1>
+            <div
+              className="w-52 h-px relative overflow-hidden"
+              style={{ background: "rgba(255,255,255,0.06)" }}
+            >
+              <motion.div
+                animate={{ x: ["-100%", "100%"] }}
+                transition={{
+                  duration: 2.2,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className="absolute inset-y-0 w-1/3"
+                style={{
+                  background:
+                    "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+                }}
+              />
+            </div>
+          </div>
+        </motion.div>
       </div>
-    </div>
-  );
+    );
 
-  if (!session) return <AuthView />;
+  if (!session) return <LandingView />;
 
-  const userEmail = session.user.email || '';
+  const userEmail = session.user.email || "";
   const userInitials = userEmail.slice(0, 2).toUpperCase();
+  const navItems = NAV_ITEMS.filter(
+    (i) => !i.adminOnly || userRole === "admin",
+  );
 
   return (
     <ChatProvider>
-    <div className="flex h-screen w-screen bg-transparent overflow-hidden relative selection:bg-gold-primary/30 selection:text-white">
-      {/* Aurora BG */}
-      <div className="aurora-bg" />
-      
-      {/* Noise Overlay */}
-      <div className="noise-overlay fixed inset-0 z-0 pointer-events-none" />
-      
-      {/* MOBILE NAV OVERLAY */}
-      <AnimatePresence>
-        {showNav && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => setShowNav(false)}
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 lg:hidden"
+      {/* ── Scene background ── */}
+      <div className="flex h-screen w-screen overflow-hidden relative selection:bg-white/20 selection:text-white font-inter text-white p-3 lg:p-5 xl:p-7">
+        <div className="aurora-bg">
+          <div className="aurora-layer" />
+        </div>
+        <div className="noise-overlay" />
+
+        {/* ambient orb cluster */}
+        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+          <div
+            className="orb orb-gold"
+            style={{
+              width: 700,
+              height: 700,
+              top: "-15%",
+              left: "-8%",
+              opacity: 0.6,
+            }}
           />
-        )}
-      </AnimatePresence>
+          <div
+            className="orb orb-gold"
+            style={{
+              width: 500,
+              height: 500,
+              bottom: "-15%",
+              right: "-10%",
+              opacity: 0.2,
+            }}
+          />
+          <div
+            className="orb orb-gold"
+            style={{
+              width: 350,
+              height: 350,
+              bottom: "15%",
+              left: "35%",
+              opacity: 0.3,
+            }}
+          />
+        </div>
 
-      {/* FLOATING EXPAND BUTTON */}
-      <AnimatePresence>
-        {!showNav && (
-          <motion.button
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -20, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-            onClick={() => setShowNav(true)}
-            className="absolute left-4 top-6 lg:left-4 lg:top-1/2 lg:-translate-y-1/2 z-50 p-3 glass-prestige bg-(--bg-top) rounded-2xl text-(--gold-primary) hover:scale-110 transition-all shadow-[0_0_30px_rgba(0,0,0,0.8)] interactive"
-            title="Rozwiń Nawigację"
-          >
-            <Scale size={18} />
-          </motion.button>
-        )}
-      </AnimatePresence>
+        {/* ════════════════════════════════════════
+            UNIFIED GLASS SHELL
+            ════════════════════════════════════════ */}
+        <div
+          className="relative w-full h-full flex overflow-hidden z-10 glass-prestige rounded-[2.5rem]"
+          style={{ background: "var(--glass-bg)" }}
+        >
+          {/* Top specular edge sweep */}
+          <div
+            className="absolute top-0 left-0 right-0 pointer-events-none z-100"
+            style={{
+              height: "1px",
+              background:
+                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 25%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.6) 75%, transparent 100%)",
+            }}
+          />
 
-      {/* SIDEBAR */}
-      <AnimatePresence>
-        {showNav && (
-          <motion.nav 
-            initial={{ x: -380, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -380, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-            className="fixed lg:relative inset-y-0 left-0 w-full xs:w-[300px] sm:w-[320px] lg:w-[300px] xl:w-[320px] lg:h-[calc(100%-2rem)] flex flex-col z-50 glass-prestige lg:rounded-[2.5rem] lg:my-4 lg:ml-4 shadow-[0_0_100px_rgba(0,0,0,0.9)] overflow-hidden bg-(--bg-top) backdrop-blur-3xl"
+          {/* Upper reflection layer */}
+          <div
+            className="absolute top-0 left-0 right-0 pointer-events-none z-50 rounded-t-[2.5rem]"
+            style={{
+              height: "38%",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.015) 50%, rgba(255,255,255,0) 100%)",
+            }}
+          />
+
+          {/* ── SIDEBAR ── */}
+          <motion.nav
+            animate={{ width: collapsed ? 80 : 300 }}
+            transition={{ type: "spring", stiffness: 240, damping: 30 }}
+            className="hidden lg:flex flex-col shrink-0 relative z-20"
+            style={{ borderRight: "1px solid rgba(255,255,255,0.055)" }}
           >
-            {/* Subtle edge glow */}
-            <div className="absolute inset-y-0 right-0 w-px bg-linear-to-b from-transparent via-gold-primary/20 to-transparent pointer-events-none" />
-            
-            {/* CLOSE BUTTON MOBILE */}
-            <button 
-              onClick={() => setShowNav(false)}
-              className="absolute top-5 right-5 p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-all lg:hidden"
+            {/* Logo zone */}
+            <div
+              className="h-20 flex items-center justify-between px-5 shrink-0"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}
             >
-              <X size={20} />
-            </button>
-
-            {/* LOGO */}
-            <div className="px-8 pt-10 pb-6 flex items-center gap-4">
-              <motion.div 
-                whileHover={{ scale: 1.05, rotate: 5 }}
-                whileTap={{ scale: 0.95 }}
-                className="w-14 h-14 rounded-2xl bg-gold-primary shadow-[0_0_40px_rgba(255,215,128,0.5)] flex items-center justify-center shrink-0 cursor-pointer animate-glow-pulse"
-              >
-                <Scale className="w-7 h-7 text-black" fill="currentColor" strokeWidth={1} />
-              </motion.div>
-              <div>
-                <h1 className="text-xl font-outfit font-black tracking-tight uppercase italic text-gold-gradient leading-none">
-                  LexMind AI
-                </h1>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#22c55e] animate-pulse" />
-                  <p className="text-[9px] font-inter text-white font-black uppercase tracking-[0.3em]">SYSTEM ONLINE</p>
+              <motion.div className="flex items-center gap-3 overflow-hidden min-w-0">
+                {/* Logo mark */}
+                 <div
+                  className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(145deg, rgba(255,255,255,0.12) 0%, rgba(2, 10, 19,0.7) 100%)",
+                    borderTop: "1px solid rgba(255,255,255,0.6)",
+                    borderLeft: "1px solid rgba(255,255,255,0.2)",
+                    borderRight: "1px solid rgba(255,255,255,0.05)",
+                    borderBottom: "1px solid rgba(0,0,0,0.7)",
+                    boxShadow:
+                      "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4), 0 0 20px rgba(255,255,255,0.05)",
+                  }}
+                >
+                  <Scale className="w-5 h-5 text-white" strokeWidth={1.5} />
                 </div>
-              </div>
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="min-w-0"
+                    >
+                      <div className="flex items-center min-w-[120px]">
+                        <BrandLogo size={13} className="scale-[0.8] origin-left" />
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[8px] font-bold uppercase tracking-[0.4em] text-white/25">
+                          Prestige Core
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+
+              {/* Collapse toggle */}
+              <motion.button
+                whileTap={{ scale: 0.92 }}
+                onClick={() => setCollapsed(!collapsed)}
+                className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-colors"
+                style={{
+                  background: "var(--glass-bg)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "rgba(255,255,255,0.3)",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = "rgba(255,255,255,0.7)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = "rgba(255,255,255,0.3)")
+                }
+              >
+                <ChevronLeft
+                  size={14}
+                  style={{
+                    transform: collapsed ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.4s",
+                  }}
+                />
+              </motion.button>
             </div>
 
-            {/* NAV LABEL */}
-            <div className="px-8 mb-3">
-              <p className="text-[8px] font-black uppercase tracking-[0.4em] text-white">Nawigacja</p>
-            </div>
-
-            {/* NAV ITEMS */}
-            <div className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar pb-4">
-              {NAV_ITEMS.filter(item => !item.adminOnly || userRole === 'admin').map((item) => (
-                <SidebarItem 
+            {/* Nav items */}
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
+              {navItems.map((item) => (
+                <NavItem
                   key={item.id}
-                  icon={item.icon}
-                  label={item.label}
-                  sublabel={item.sublabel}
+                  item={item}
                   active={activeTab === item.id}
-                  onClick={() => handleTabClick(item.id)}
-                  danger={item.id === 'admin'}
+                  collapsed={collapsed}
+                  onClick={() => setActiveTab(item.id)}
                 />
               ))}
             </div>
 
-            {/* SPACER LINE */}
-            <div className="mx-6 h-px bg-gold-muted/20" />
-
-            {/* BOTTOM */}
-            <div className="p-4 space-y-3">
-              {/* Update Button */}
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => window.dispatchEvent(new CustomEvent('prawnik_models_updated'))}
-                className="w-full py-3.5 text-[9px] font-black uppercase tracking-[0.25em] text-gold-primary border border-gold-primary/20 bg-gold-primary/5 rounded-2xl hover:bg-gold-primary/15 hover:border-gold-primary/40 transition-all flex items-center justify-center gap-2.5 relative overflow-hidden group"
+            {/* User footer */}
+            <div
+              className="p-4 shrink-0"
+              style={{ borderTop: "1px solid rgba(255,255,255,0.045)" }}
+            >
+              <div
+                className="flex items-center gap-3 p-2 rounded-2xl"
+                style={{ background: "var(--glass-bg)" }}
               >
-                <div className="absolute inset-x-0 bottom-0 h-px bg-linear-to-r from-transparent via-gold-primary/40 to-transparent" />
-                <Sparkles size={12} className="group-hover:rotate-12 transition-transform duration-300" />
-                Sprawdź Aktualizacje
-              </motion.button>
-
-              {/* User Card */}
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5 group">
-                <div className="w-9 h-9 rounded-xl bg-gold-primary/20 border border-gold-primary/30 flex items-center justify-center shrink-0">
-                  <span className="text-[11px] font-black text-gold-primary">{userInitials}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-black text-white truncate">{userEmail.split('@')[0]}</p>
-                  <p className="text-[8px] font-bold text-slate-300 uppercase tracking-wider">{userRole}</p>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={handleSignOut}
-                  title="Wyloguj"
-                  className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-400/10 transition-all"
+                {/* Avatar */}
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background:
+                      "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(2, 10, 19,0.65) 100%)",
+                    borderTop: "1px solid rgba(212,175,55,0.75)",
+                    borderLeft: "1px solid rgba(212,175,55,0.25)",
+                    borderRight: "1px solid rgba(212,175,55,0.07)",
+                    borderBottom: "1px solid rgba(0,0,0,0.65)",
+                    boxShadow:
+                      "inset 0 1px 0 rgba(212,175,55,0.5), 0 4px 12px rgba(0,0,0,0.45)",
+                  }}
                 >
-                  <LogOut size={14} />
-                </motion.button>
-              </div>
+                  <span className="text-[10px] font-black text-[#d4af37]">
+                    {userInitials}
+                  </span>
+                </div>
 
-              {/* Collapse */}
-              <button 
-                onClick={() => setShowNav(false)}
-                className="hidden lg:flex w-full py-3 text-[8px] font-black uppercase tracking-[0.3em] text-white/70 hover:text-white rounded-xl hover:bg-white/5 transition-all items-center justify-center gap-2 group/close"
-              >
-                <ChevronRight size={12} className="group-hover/close:-translate-x-0.5 transition-transform" />
-                Zwiń
-              </button>
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex-1 min-w-0"
+                    >
+                      <p className="text-[10px] font-bold text-white/70 truncate uppercase tracking-wider">
+                        {userEmail.split("@")[0]}
+                      </p>
+                      <p className="text-[7px] font-bold text-white/25 uppercase tracking-[0.2em]">
+                        {userRole}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+              </div>
             </div>
           </motion.nav>
-        )}
-      </AnimatePresence>
 
-      {/* MAIN CONTENT */}
-      <motion.main 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        className="flex-1 flex flex-col relative z-10 overflow-hidden m-2 lg:m-4 gap-2 lg:gap-3 will-animate"
-      >
-        {/* TOP STATUS BAR */}
-        <motion.header 
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1, type: 'spring', stiffness: 200, damping: 22 }}
-          className="h-16 lg:h-20 flex items-center px-4 md:px-8 lg:px-12 justify-between glass-prestige bg-(--bg-top) rounded-2xl lg:rounded-3xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.6)] relative overflow-hidden group/header shrink-0"
-        >
-          {/* Hover sweep */}
-          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/3 to-transparent -translate-x-full group-hover/header:translate-x-full transition-transform duration-1000 pointer-events-none" />
-          
-          <div className="flex items-center gap-3 md:gap-6 relative z-10 min-w-0">
-            {!showNav && <div className="w-8 lg:hidden shrink-0" />}
-            <div className="flex flex-col min-w-0">
-              <h1 className="text-base md:text-xl lg:text-2xl font-outfit font-black tracking-tight uppercase italic shimmer-text drop-shadow-2xl leading-none truncate">
-                Radca AI — LexMind
-              </h1>
-              <p className="text-[7px] md:text-[9px] font-inter font-black text-(--text-secondary) uppercase tracking-[0.3em] mt-0.5 opacity-60 truncate">
-                {NAV_ITEMS.find(n => n.id === activeTab)?.sublabel || 'Inteligentny System Prawny'}
-              </p>
-            </div>
-          </div>
-
-          {/* Disclaimer — only on wider screens */}
-          <div className="hidden xl:block absolute left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-            <p className="text-[8px] font-bold text-white/50 uppercase tracking-[0.2em] text-center leading-tight">
-              Serwis ma charakter wyłącznie informacyjny.<br />
-              Treści nie stanowią porady prawnej.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 md:gap-3 relative z-10">
-            {/* Active Tab Pill */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/5">
-              <div className="w-1.5 h-1.5 rounded-full bg-gold-primary animate-pulse" />
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                {NAV_ITEMS.find(n => n.id === activeTab)?.label}
-              </span>
-            </div>
-
-            {/* Theme Toggle */}
-            <motion.div 
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92, rotate: 20 }}
-              onClick={toggleTheme}
-              className="h-9 w-9 lg:h-10 lg:w-10 rounded-xl border-prestige bg-white/5 flex items-center justify-center text-slate-400 hover:text-gold-primary hover:bg-white/10 transition-colors cursor-pointer interactive"
+          {/* ── MAIN CONTENT ── */}
+          <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
+            {/* Top bar */}
+            <header
+              className="h-20 shrink-0 flex items-center justify-between px-8 lg:px-10 relative z-50"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}
             >
+              {/* Page title / Sub-nav */}
+              <div className="flex items-center gap-10">
+                <AnimatePresence mode="wait">
+                  {activeTab !== "settings" ? (
+                    <motion.div
+                      key="title"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.25, ease: E }}
+                    >
+                      <h1 className="text-lg lg:text-xl font-black tracking-tight italic leading-none font-outfit">
+                        {NAV_ITEMS.find((n) => n.id === activeTab)?.label}
+                      </h1>
+                      <p className="text-[8px] font-bold text-white/30 uppercase tracking-[0.45em] mt-1.5 font-outfit">
+                        {NAV_ITEMS.find((n) => n.id === activeTab)?.sublabel}
+                      </p>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="sub-nav"
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.25, ease: E }}
+                      className="flex items-center gap-4"
+                    >
+                       <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 shadow-inner">
+                        <ShieldCheck size={11} className="text-emerald-400" />
+                        <span className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em]">
+                          AES-256 Active
+                        </span>
+                       </div>
+
+                       <div className="w-px h-6 bg-white/10 self-center" />
+
+                       <div className="flex items-center gap-1 p-1 bg-black/20 backdrop-blur-xl border border-white/5 rounded-2xl">
+                          {[
+                            { id: 'Profil', icon: UserIcon, label: 'Profil' },
+                            { id: 'Modele AI', icon: Cpu, label: 'Modele AI' },
+                          ].map((tab) => (
+                            <button
+                              key={tab.id}
+                              onClick={() => setSettingsTab(tab.id)}
+                              className={cn(
+                                "relative flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300",
+                                currentSettingsTab === tab.id ? "text-gold-primary" : "text-white/25 hover:text-white/50"
+                              )}
+                            >
+                              {currentSettingsTab === tab.id && (
+                                <motion.div 
+                                  layoutId="header-subtab-bg"
+                                  className="absolute inset-0 bg-white/5 border border-white/10 rounded-xl shadow-inner"
+                                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                                />
+                              )}
+                              <tab.icon size={12} className="relative z-10" />
+                              <span className="relative z-10 text-[9px] font-black uppercase tracking-widest">{tab.label}</span>
+                            </button>
+                          ))}
+                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Right actions */}
+              <div className="flex items-center gap-6">
+                {/* Security badge (Always visible or in sequence) */}
+                {activeTab !== "settings" && (
+                  <div
+                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-white/5 bg-black/20"
+                  >
+                    <ShieldCheck size={11} className="text-emerald-400" />
+                    <span className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em]">
+                      AES-256 Active
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  {/* Logout Button (Requested to move to top bar) */}
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => supabase.auth.signOut()}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-400/5 transition-all border border-transparent hover:border-red-400/20"
+                  >
+                    <LogOut size={12} />
+                    <span className="text-[8px] font-black uppercase tracking-widest">Wyloguj</span>
+                  </motion.button>
+
+                  <div className="w-px h-4 bg-white/5 mx-1" />
+
+                  {/* Sparkle button */}
+                  <motion.button
+                    whileHover={{ scale: 1.08, rotate: 5 }}
+                    whileTap={{ scale: 0.94 }}
+                    className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                    style={{
+                      background:
+                        "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(2, 10, 19,0.65) 100%)",
+                      borderTop: "1px solid rgba(249,226,157,0.8)",
+                      borderLeft: "1px solid rgba(212,175,55,0.28)",
+                      borderRight: "1px solid rgba(212,175,55,0.08)",
+                      borderBottom: "1px solid rgba(0,0,0,0.6)",
+                      boxShadow:
+                        "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(212,175,55,0.55)",
+                    }}
+                  >
+                    <Sparkles
+                      size={14}
+                      style={{ color: "#d4af37" }}
+                      fill="currentColor"
+                    />
+                  </motion.button>
+                </div>
+              </div>
+            </header>
+
+            {/* Content viewport */}
+            <section className="flex-1 relative overflow-hidden">
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={theme}
-                  initial={{ rotate: -90, opacity: 0 }}
-                  animate={{ rotate: 0, opacity: 1 }}
-                  exit={{ rotate: 90, opacity: 0 }}
+                  key={activeTab}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
+                  className="absolute inset-0 overflow-hidden"
                 >
-                  {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+                  {activeTab === "chat" && <ChatView onNavigate={setActiveTab} />}
+                  {activeTab === "knowledge" && <KnowledgeView />}
+                  {activeTab === "drafter" && <DrafterView />}
+                  {activeTab === "documents" && <DocumentsView />}
+                  {activeTab === "settings" && <SettingsView />}
+                  {activeTab === "admin" && <AdminView />}
                 </motion.div>
               </AnimatePresence>
-            </motion.div>
 
-            {/* AI Status Badge */}
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="h-9 w-9 lg:h-10 lg:w-10 rounded-xl border-prestige bg-gold-primary/20 flex items-center justify-center cursor-pointer"
-            >
-              <Sparkles size={16} className="text-gold-primary" fill="currentColor" />
-            </motion.div>
-          </div>
-        </motion.header>
-
-        {/* CONTENT VIEW */}
-        <section className="flex-1 overflow-hidden relative glass-prestige rounded-2xl lg:rounded-3xl shadow-[0_0_60px_rgba(0,0,0,0.6)] bg-(--bg-top)/80">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 8, filter: 'blur(4px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
-              transition={{ 
-                duration: 0.25,
-                ease: [0.23, 1, 0.32, 1],
-              }}
-              className="w-full h-full will-animate"
-            >
-              {activeTab === 'chat' && <ChatView />}
-              {activeTab === 'knowledge' && <KnowledgeView />}
-              {activeTab === 'prompts' && <PromptsView />}
-              {activeTab === 'settings' && <SettingsView />}
-              {activeTab === 'admin' && <AdminView />}
-            </motion.div>
-          </AnimatePresence>
-        </section>
-      </motion.main>
-    </div>
+              {/* Inner ambient glow */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(212,175,55,0.04) 0%, transparent 70%)",
+                }}
+              />
+            </section>
+          </main>
+        </div>
+      </div>
     </ChatProvider>
   );
 }
 
-// ─── SIDEBAR ITEM ───
-
-interface SidebarItemProps {
-  icon: React.ReactNode;
-  label: string;
-  sublabel: string;
+/* ════════════════════════════════════
+   NAV ITEM
+   ════════════════════════════════════ */
+interface NavItemProps {
+  item: {
+    id: Tab;
+    icon: React.ElementType;
+    label: string;
+    sublabel: string;
+    color: string;
+    colorRgb: string;
+    adminOnly?: boolean;
+  };
   active: boolean;
+  collapsed: boolean;
   onClick: () => void;
-  danger?: boolean;
 }
 
-function SidebarItem({ icon, label, sublabel, active, onClick, danger = false }: SidebarItemProps) {
+function NavItem({ item, active, collapsed, onClick }: NavItemProps) {
+  const Icon = item.icon;
+  const c = item.color;
+  const rgb = item.colorRgb;
+
+  const activeStyle: React.CSSProperties = {
+    background: `linear-gradient(135deg, rgba(${rgb},0.12) 0%, rgba(4,2,2,0.5) 100%)`,
+    borderTop: `1px solid rgba(${rgb},0.65)`,
+    borderLeft: `1px solid rgba(${rgb},0.22)`,
+    borderRight: `1px solid rgba(${rgb},0.06)`,
+    borderBottom: "1px solid rgba(0,0,0,0.5)",
+    boxShadow: `0 4px 16px rgba(0,0,0,0.4), 0 0 24px rgba(${rgb},0.1), inset 0 1px 0 rgba(${rgb},0.5)`,
+  };
+
   return (
-    <motion.div 
-      onClick={onClick}
-      whileHover={{ x: 3 }}
+    <motion.button
       whileTap={{ scale: 0.97 }}
+      onClick={onClick}
       className={cn(
-        "group relative flex items-center gap-4 px-5 py-3.5 cursor-pointer rounded-2xl transition-colors duration-200 overflow-hidden",
-        active 
-          ? danger 
-            ? "bg-red-500/15 border border-red-500/30" 
-            : "bg-gold-primary/10 border border-gold-primary/25"
-          : "border border-transparent hover:bg-white/5"
+        "w-full flex items-center rounded-2xl transition-all relative overflow-hidden",
+        collapsed ? "justify-center p-3" : "gap-3 px-4 py-3.5",
       )}
-    >
-      {/* Active glow bloom */}
-      {active && !danger && (
-        <motion.div
-          layoutId="nav-glow"
-          className="absolute inset-0 bg-gold-primary/5 rounded-2xl blur-xl"
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        />
-      )}
-
-      <div className={cn(
-        "relative z-10 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 shrink-0",
+      style={
         active
-          ? danger 
-            ? "bg-red-500/20 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.25)]"
-            : "bg-gold-primary/20 text-gold-primary shadow-[0_0_20px_rgba(255,215,128,0.25)]"
-          : "bg-white/5 text-white/40 group-hover:text-white group-hover:bg-white/10"
-      )}>
-        {icon}
-      </div>
-
-      <div className="flex flex-col min-w-0 relative z-10 flex-1">
-        <span className={cn(
-          "text-[12px] font-black tracking-tight leading-none mb-0.5 truncate",
-          active ? (danger ? "text-red-300" : "text-gold-primary") : "text-(--text-secondary) group-hover:text-white"
-        )}>
-          {label}
-        </span>
-        <span className="text-[9px] font-bold text-white/40 uppercase tracking-wider truncate">
-          {sublabel}
-        </span>
-      </div>
-
-      {/* Active indicator */}
-      {active && (
-        <motion.div 
-          layoutId="active-dot"
-          transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-          className={cn(
-            "relative z-10 w-1.5 h-1.5 rounded-full shrink-0",
-            danger ? "bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "bg-gold-primary shadow-[0_0_10px_rgba(255,215,128,0.9)]"
-          )}
+          ? activeStyle
+          : { background: "transparent", border: "1px solid transparent" }
+      }
+      onMouseEnter={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = "rgba(255,255,255,0.035)";
+          e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.borderColor = "transparent";
+        }
+      }}
+    >
+      {/* Active indicator bar */}
+      {active && !collapsed && (
+        <motion.div
+          layoutId="nav-indicator"
+          className="absolute left-0 inset-y-3.5 w-[2px] rounded-r-full"
+          style={{ background: c }}
+          transition={{ 
+            type: "spring" as const, 
+            stiffness: 100, 
+            damping: 28,
+            mass: 1.2,
+            restDelta: 0.001
+          }}
         />
       )}
-    </motion.div>
+
+      {/* Icon */}
+      <div
+        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all"
+        style={
+          active
+            ? {
+                background: `rgba(${rgb},0.2)`,
+                color: c,
+                boxShadow: `inset 0 1px 0 rgba(${rgb},0.4), 0 0 12px rgba(${rgb},0.15)`,
+              }
+            : {
+                background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.35)",
+              }
+        }
+      >
+        <Icon size={15} strokeWidth={active ? 2.5 : 1.8} />
+      </div>
+
+      {/* Label */}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.18 }}
+            className="text-left flex-1 min-w-0"
+          >
+            <p
+              className="text-[11px] font-black uppercase tracking-wider leading-none font-outfit"
+              style={{ color: active ? "#fff" : "rgba(255,255,255,0.5)" }}
+            >
+              {item.label}
+            </p>
+            <p
+              className="text-[7px] font-bold uppercase tracking-[0.2em] mt-1 font-outfit"
+              style={{
+                color: active
+                  ? `rgba(${rgb},0.65)`
+                  : "rgba(255,255,255,0.2)",
+              }}
+            >
+              {item.sublabel}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.button>
   );
 }

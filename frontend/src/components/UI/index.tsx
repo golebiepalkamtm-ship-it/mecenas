@@ -18,12 +18,11 @@ export function GlassCard({ className, variant = 'default', hoverable = false, .
     return (
         <div 
             className={cn(
-                "glass-prestige",
                 variant === 'default' 
-                    ? "bg-(--bg-top)/40" 
-                    : "bg-(--bg-top)/80 shadow-[0_0_50px_rgba(66,192,206,0.15)]",
+                    ? "glass-prestige shadow-2xl" 
+                    : "glass-prestige-embossed shadow-[0_40px_140px_rgba(0,0,0,0.6)]",
                 "rounded-[2.5rem]",
-                hoverable && "cursor-pointer hover:-translate-y-0.5 hover:shadow-[0_40px_120px_rgba(0,0,0,0.8)] active:scale-[0.99] transition-all duration-200",
+                hoverable && "cursor-pointer hover:-translate-y-1 hover:brightness-110 active:scale-[0.98] transition-all duration-300",
                 className
             )}
             {...props}
@@ -47,19 +46,20 @@ export function NeonButton({ className, variant = 'primary', size = 'md', ...pro
                 size === 'lg' && "px-10 py-4 rounded-2xl text-[11px]",
                 variant === 'primary' && [
                     "bg-gold-primary text-black",
-                    "shadow-[0_8px_24px_-4px_rgba(255,215,128,0.35)]",
-                    "hover:shadow-[0_12px_36px_-4px_rgba(255,215,128,0.55)]",
-                    "hover:brightness-110",
+                    "shadow-[0_12px_40px_-5px_rgba(212,175,55,0.45)]",
+                    "hover:shadow-[0_20px_60px_-5px_rgba(212,175,55,0.65)]",
+                    "hover:scale-[1.03]",
+                    "border-t-2 border-white/60",
                 ],
                 variant === 'secondary' && [
-                    "glass-prestige bg-(--bg-top)/30 text-(--text-secondary) border-gold-muted/30",
-                    "hover:bg-(--bg-top)/60 hover:text-white hover:border-gold-primary/40",
-                    "shadow-lg",
+                    "glass-prestige text-white/90",
+                    "hover:text-white hover:glass-prestige-gold",
+                    "shadow-xl",
                 ],
                 variant === 'danger' && [
-                    "bg-red-500/15 text-red-400 border border-red-500/30",
-                    "hover:bg-red-500/25 hover:text-red-300",
-                    "shadow-lg",
+                    "bg-red-500/20 text-red-100 border-t-2 border-t-red-400/60 border-l border-l-red-400/30 border-r border-r-red-900/40 border-b-2 border-b-red-900/60",
+                    "hover:bg-red-500/30",
+                    "shadow-xl",
                 ],
                 className
             )}

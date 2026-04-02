@@ -1,0 +1,93 @@
+{
+  "models": [
+    {
+      "id": "anthropic/claude-3.5-sonnet",
+      "name": "Anthropic: Claude 3.5 Sonnet",
+      "provider": "ANTHROPIC",
+      "vision": true,
+      "description": "Najlepsza precyzja prawnicza i struktura."
+    },
+    {
+      "id": "openai/gpt-4o",
+      "name": "OpenAI: GPT-4o",
+      "provider": "OPENAI",
+      "vision": true,
+      "description": "Silna strukturyzacja i szybkość."
+    },
+    {
+      "id": "google/gemini-2.0-flash",
+      "name": "Google: Gemini 2.0 Flash",
+      "provider": "GOOGLE",
+      "vision": true,
+      "description": "Niezwykle szybki, ogromne okno kontekstowe."
+    },
+    {
+      "id": "google/gemini-2.1-flash-thinking-preview:free",
+      "name": "Google: Gemini Flash Thinking (Free)",
+      "provider": "GOOGLE",
+      "vision": true,
+      "description": "Model z procesem myślowym, darmowy."
+    },
+    {
+      "id": "meta-llama/llama-3.1-405b-instruct",
+      "name": "Meta: Llama 3.1 405B",
+      "provider": "META",
+      "vision": false,
+      "description": "Najpotężniejszy model open-source."
+    },
+    {
+      "id": "deepseek/deepseek-chat-v3",
+      "name": "DeepSeek: v3",
+      "provider": "DEEPSEEK",
+      "vision": false,
+      "description": "Wysoka jakość w stosunku do ceny."
+    },
+    {
+      "id": "openai/gpt-4o-mini",
+      "name": "OpenAI: GPT-4o Mini",
+      "provider": "OPENAI",
+      "vision": true,
+      "description": "Tani i szybki model pomocniczy."
+    }
+  ],
+  "presets": [
+    {
+      "id": "precision",
+      "name": "Precyzja",
+      "icon": "Sparkles",
+      "models": [
+        "anthropic/claude-3.5-sonnet",
+        "openai/gpt-4o",
+        "google/gemini-2.0-flash"
+      ],
+      "judge": "anthropic/claude-3.5-sonnet",
+      "color": "teal"
+    },
+    {
+      "id": "economy",
+      "name": "Ekonomiczny",
+      "icon": "Zap",
+      "models": [
+        "openai/gpt-4o-mini",
+        "google/gemini-2.0-flash",
+        "meta-llama/llama-3.3-70b-instruct"
+      ],
+      "judge": "openai/gpt-4o-mini",
+      "color": "amber"
+    },
+    {
+      "id": "maximum",
+      "name": "Maksymalny",
+      "icon": "Network",
+      "models": [
+        "anthropic/claude-3.5-sonnet",
+        "openai/gpt-4o",
+        "google/gemini-2.1-flash-thinking-preview:free",
+        "meta-llama/llama-3.1-405b-instruct",
+        "deepseek/deepseek-chat"
+      ],
+      "judge": "anthropic/claude-3.5-sonnet",
+      "color": "purple"
+    }
+  ]
+}

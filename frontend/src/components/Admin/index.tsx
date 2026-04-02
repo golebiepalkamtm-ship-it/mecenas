@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shield, 
   Key, 
@@ -6,10 +6,7 @@ import {
   Globe, 
   CheckCircle2, 
   AlertCircle, 
-  Building2, 
-  Layers, 
-  Check, 
-  ChevronDown,
+  ChevronRight,
   Users,
   Database,
   Activity,
@@ -35,11 +32,12 @@ function cn(...inputs: ClassValue[]) {
 type AdminTab = 'security' | 'models' | 'users' | 'system';
 
 interface Model {
-  id: string;
-  name: string;
-  active: boolean;
-  provider: string;
-  model_id?: string;
+    id: string;
+    name: string;
+    vision: boolean;
+    free?: boolean;
+    provider?: string;
+    enabled?: boolean;
 }
 
 interface Provider {
@@ -56,11 +54,257 @@ interface UserProfile {
     created_at: string;
 }
 
+function ModelManagement() {
+    const [allModels, setAllModels] = useState<Model[]>([]);
+    const [enabledModels, setEnabledModels] = useState<string[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['all']));
+    const [filterVision, setFilterVision] = useState(false);
+
+    const fetchAll = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch('http://localhost:8003/models/admin');
+            const data = await res.json();
+            setAllModels(Array.isArray(data) ? data : []);
+        } catch (e) {
+            console.error("Failed to fetch admin models:", e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchAll();
+        const saved = localStorage.getItem('prawnik_enabled_models');
+        if (saved) setEnabledModels(JSON.parse(saved));
+    }, []);
+
+    const toggleModel = (id: string) => {
+        const next = enabledModels.includes(id) 
+            ? enabledModels.filter(m => m !== id)
+            : [...enabledModels, id];
+        setEnabledModels(next);
+        localStorage.setItem('prawnik_enabled_models', JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent('prawnik_models_updated'));
+    };
+
+    const toggleGroup = (group: string) => {
+        const next = new Set(expandedGroups);
+        if (next.has(group)) {
+            next.delete(group);
+        } else {
+            next.add(group);
+        }
+        setExpandedGroups(next);
+    };
+
+    const groupModels = (models: Model[]) => {
+        const groups: { [key: string]: Model[] } = {
+            'OpenAI': [],
+            'Anthropic': [],
+            'Meta': [],
+            'Google': [],
+            'Mistral': [],
+            'NousResearch': [],
+            'Sao10K': [],
+            'WizardLM': [],
+            'Mancer': [],
+            'Inne': [],
+            'Vision': [],
+            'Free': []
+        };
+
+        models.forEach(model => {
+            const id = model.id;
+            
+            // Vision models
+            if (model.vision) {
+                groups['Vision'].push(model);
+                return;
+            }
+            
+            // Free models
+            if (id.includes(':free')) {
+                groups['Free'].push(model);
+                return;
+            }
+            
+            // Group by provider
+            if (id.includes('openai/')) groups['OpenAI'].push(model);
+            else if (id.includes('anthropic/')) groups['Anthropic'].push(model);
+            else if (id.includes('meta-llama/')) groups['Meta'].push(model);
+            else if (id.includes('google/')) groups['Google'].push(model);
+            else if (id.includes('mistralai/')) groups['Mistral'].push(model);
+            else if (id.includes('nousresearch/')) groups['NousResearch'].push(model);
+            else if (id.includes('sao10k/')) groups['Sao10K'].push(model);
+            else if (id.includes('microsoft/wizardlm')) groups['WizardLM'].push(model);
+            else if (id.includes('mancer/')) groups['Mancer'].push(model);
+            else groups['Inne'].push(model);
+        });
+
+        return groups;
+    };
+
+    const getGroupIcon = (groupName: string) => {
+        const icons: { [key: string]: string } = {
+            'OpenAI': '🤖',
+            'Anthropic': '🧠',
+            'Meta': '👥',
+            'Google': '🔍',
+            'Mistral': '🌊',
+            'NousResearch': '🧪',
+            'Sao10K': '⚡',
+            'WizardLM': '🧙‍♂️',
+            'Mancer': '🎮',
+            'Inne': '📦',
+            'Vision': '👁️',
+            'Free': '🆓'
+        };
+        return icons[groupName] || '📦';
+    };
+
+    const getGroupColor = (groupName: string) => {
+        const colors: { [key: string]: string } = {
+            'OpenAI': 'text-green-400',
+            'Anthropic': 'text-purple-400',
+            'Meta': 'text-blue-400',
+            'Google': 'text-yellow-400',
+            'Mistral': 'text-cyan-400',
+            'NousResearch': 'text-pink-400',
+            'Sao10K': 'text-orange-400',
+            'WizardLM': 'text-indigo-400',
+            'Mancer': 'text-red-400',
+            'Inne': 'text-gray-400',
+            'Vision': 'text-emerald-400',
+            'Free': 'text-lime-400'
+        };
+        return colors[groupName] || 'text-gray-400';
+    };
+
+    if (isLoading && allModels.length === 0) return <div className="p-4 text-center text-white/30 text-[10px] uppercase font-black animate-pulse">Pobieranie listy z OpenRouter...</div>;
+
+    const filteredModels = filterVision ? allModels.filter(model => model.vision) : allModels;
+    const groupedModels = groupModels(filteredModels);
+    const visionCount = allModels.filter(model => model.vision).length;
+
+    return (
+        <div className="space-y-3 pt-2">
+            {/* Filter Controls */}
+            <div className="flex items-center justify-between p-3 rounded-xl liquid-glass">
+                <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-white/80">Filtry</span>
+                    <button
+                        onClick={() => setFilterVision(!filterVision)}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                            filterVision 
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
+                        }`}
+                    >
+                        <span className="text-lg">👁️</span>
+                        <span>Tylko Vision</span>
+                        <span className="text-[8px] bg-emerald-500/30 px-1.5 py-0.5 rounded">({visionCount})</span>
+                    </button>
+                    {filterVision && (
+                        <span className="text-[8px] text-emerald-400 font-bold uppercase">
+                            Pokazano {filteredModels.length} z {allModels.length} modeli
+                        </span>
+                    )}
+                </div>
+                <button onClick={fetchAll} className="text-[8px] text-gold-primary/60 hover:text-gold-primary transition-colors">
+                    Odśwież
+                </button>
+            </div>
+
+            {allModels.length === 0 && !isLoading && (
+                <div className="p-10 text-center border border-dashed border-white/10 rounded-2xl">
+                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest">Błąd połączenia z API OpenRouter</p>
+                    <button onClick={fetchAll} className="mt-4 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[8px] font-black uppercase text-gold-primary transition-all">Spróbuj ponownie</button>
+                </div>
+            )}
+            
+            {Object.entries(groupedModels).filter(([, models]) => models.length > 0).map(([groupName, models]) => (
+                <div key={groupName} className="space-y-2">
+                    <div 
+                        onClick={() => toggleGroup(groupName)}
+                        className="flex items-center justify-between p-3 rounded-xl liquid-glass cursor-pointer hover:bg-white/10 transition-all group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <span className="text-lg">{getGroupIcon(groupName)}</span>
+                            <div>
+                                <span className={`text-[11px] font-black uppercase tracking-widest ${getGroupColor(groupName)}`}>
+                                    {groupName}
+                                </span>
+                                <p className="text-[7px] text-white/30 font-bold uppercase tracking-tighter">
+                                    {models.length} model{models.length !== 1 ? 'i' : ''}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[8px] text-white/20 font-bold uppercase">
+                                {models.filter(m => enabledModels.includes(m.id)).length}/{models.length}
+                            </span>
+                            <motion.div
+                                animate={{ rotate: expandedGroups.has(groupName) ? 180 : 0 }}
+                                className="text-white/20"
+                            >
+                                <ChevronRight size={14} />
+                            </motion.div>
+                        </div>
+                    </div>
+                    
+                    <AnimatePresence>
+                        {expandedGroups.has(groupName) && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                                className="space-y-1.5 pl-4 overflow-hidden"
+                            >
+                                {models.map(m => (
+                                    <div 
+                                        key={m.id} 
+                                        onClick={() => toggleModel(m.id)}
+                                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer group ${
+                                            enabledModels.includes(m.id) 
+                                            ? 'bg-gold-primary/10 border-gold-primary/20' 
+                                            : 'bg-white/5 border-white/5 hover:bg-white/10'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col min-w-0 pr-4">
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[10px] font-black uppercase tracking-tight truncate ${enabledModels.includes(m.id) ? 'text-gold-primary' : 'text-white/80'}`}>
+                                                    {m.name || m.id}
+                                                </span>
+                                                {m.vision && (
+                                                    <span className="text-[6px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase">Vision</span>
+                                                )}
+                                            </div>
+                                            <span className="text-[7px] font-bold text-white/20 uppercase tracking-tighter truncate">{m.id}</span>
+                                        </div>
+                                        <div className={`w-8 h-4 rounded-full transition-all flex items-center px-1 shrink-0 ${enabledModels.includes(m.id) ? 'bg-gold-primary' : 'bg-white/10'}`}>
+                                            <motion.div 
+                                                animate={{ x: enabledModels.includes(m.id) ? 16 : 0 }} 
+                                                className={`w-2 h-2 rounded-full ${enabledModels.includes(m.id) ? 'bg-black' : 'bg-white/20'}`} 
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function AdminView() {
   const [activeSubTab, setActiveSubTab] = useState<AdminTab>('system');
   const { providers, toggleProvider, updateKey } = useApiManagement();
   const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
-  const [allModels, setAllModels] = useState<Model[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [stats, setStats] = useState({
       users: 0,
@@ -69,25 +313,15 @@ export function AdminView() {
       tokens: 0
   });
 
-  const [expandedGroups, setExpandedGroups] = useState<{ [key: string]: boolean }>({});
-  
-  const [enabledModelIds, setEnabledModelIds] = useState<string[]>(() => {
-    const stored = localStorage.getItem('prawnik_enabled_models');
-    return stored ? JSON.parse(stored) : ['gemini', 'openrouter-gpt4mini', 'openrouter-gpt4o', 'openrouter-claude35', 'openrouter-llama3', 'consensus'];
-  });
-
   useEffect(() => {
     // Initial data fetch
     const fetchData = async () => {
         try {
-            const [modelsRes, profilesRes, kbCountRes] = await Promise.all([
-                fetch('http://127.0.0.1:8001/models'),
+            const [profilesRes, kbCountRes] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('knowledge_base').select('id', { count: 'exact', head: true })
             ]);
 
-            const modelsData = await modelsRes.json();
-            setAllModels(modelsData);
             if (profilesRes.data) setUsers(profilesRes.data);
             setStats({
                 users: profilesRes.data?.length || 0,
@@ -107,40 +341,12 @@ export function AdminView() {
       setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const toggleModel = (id: string) => {
-    const newIds = enabledModelIds.includes(id) 
-        ? enabledModelIds.filter(mid => mid !== id)
-        : [...enabledModelIds, id];
-    
-    setEnabledModelIds(newIds);
-    localStorage.setItem('prawnik_enabled_models', JSON.stringify(newIds));
-    window.dispatchEvent(new Event('prawnik_models_updated'));
-  };
 
-  const groupedHierarchy = useMemo(() => {
-    return allModels.reduce((acc: Record<string, Record<string, Model[]>>, m: Model) => {
-        const providerName = (m.provider || 'SYSTEM').toUpperCase();
-        if (!acc[providerName]) acc[providerName] = {};
-        
-        let vendor = 'INNE';
-        if (m.name.includes(':')) {
-            vendor = m.name.split(':')[0].trim().toUpperCase();
-        } else if (m.model_id?.includes('/')) {
-            vendor = m.model_id.split('/')[0].trim().toUpperCase();
-        } else if (providerName === 'GOOGLE') vendor = 'GOOGLE';
-        else if (providerName === 'OPENAI') vendor = 'OPENAI';
-        else if (providerName === 'SYSTEM') vendor = 'ZASOBY SYSTEMOWE';
-
-        if (!acc[providerName][vendor]) acc[providerName][vendor] = [];
-        acc[providerName][vendor].push(m);
-        return acc;
-    }, {});
-  }, [allModels]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-transparent">
         {/* SUB NAVIGATION */}
-        <div className="flex items-center px-8 lg:px-12 py-6 gap-8 shrink-0 overflow-x-auto no-scrollbar border-b border-white/5 bg-white/2">
+        <div className="flex items-center px-8 lg:px-12 py-6 gap-8 shrink-0 overflow-x-auto no-scrollbar border-b border-white/5 unified-glass-shell">
             <SubNavItem 
                 active={activeSubTab === 'system'} 
                 onClick={() => setActiveSubTab('system')} 
@@ -233,7 +439,7 @@ export function AdminView() {
                                 </NeonButton>
                             </header>
 
-                            <GlassCard className="overflow-hidden border-white/5 bg-black/10">
+                            <GlassCard className="overflow-hidden border-white/5 bg-transparent shadow-none">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-white/5">
@@ -286,14 +492,14 @@ export function AdminView() {
                                     <GlassCard 
                                         key={p.id}
                                         className={cn(
-                                            "p-4 px-8 rounded-3xl flex items-center gap-8 transition-all border-white/5 bg-black/20 hover:border-gold-primary/30",
+                                            "p-4 px-8 rounded-3xl flex items-center gap-8 transition-all border-white/5 unified-glass-shell hover:border-gold-primary/30",
                                             p.active && "border-gold-primary/20 bg-gold-primary/5"
                                         )}
                                     >
                                         <div className={cn(
                                             "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all",
-                                            p.active ? "bg-gold-primary text-black border-gold-primary shadow-lg" : "bg-white/5 border-white/10 text-slate-500"
-                                        )}>
+                                            p.active ? "bg-gold-primary text-black border-gold-primary shadow-lg" : "border-white/10 text-slate-500"
+                                        )} style={!p.active ? { background: "var(--glass-bg)" } : {}}>
                                             {p.name.includes('Google') ? <Globe size={20} /> : <Cpu size={20} />}
                                         </div>
 
@@ -312,7 +518,7 @@ export function AdminView() {
                                                     type={showKeys[p.id] ? 'text' : 'password'}
                                                     defaultValue={p.key}
                                                     placeholder="Wprowadź klucz..."
-                                                    className="bg-black/60 border border-white/10 rounded-2xl py-3 pl-12 pr-12 text-xs font-mono text-white outline-none focus:border-gold-primary/40 focus:bg-black/80 transition-all w-64 lg:w-96 shadow-inner tracking-widest"
+                                                    className="bg-transparent unified-glass-shell border border-white/10 rounded-2xl py-3 pl-12 pr-12 text-xs font-mono text-white outline-none focus:border-gold-primary/40 focus:backdrop-brightness-150 transition-all w-64 lg:w-96 shadow-inner tracking-widest"
                                                     onChange={(e) => updateKey(p.id, e.target.value)}
                                                 />
                                                 <button 
@@ -344,73 +550,16 @@ export function AdminView() {
                     {/* MODELS MANAGEMENT */}
                     {activeSubTab === 'models' && (
                         <div className="space-y-8">
-                             <header>
+                            <header>
                                 <Title subtitle="Zarządzanie flotą jednostek poznawczych">Arsenał AI</Title>
                             </header>
 
-                            <div className="flex flex-col gap-4">
-                                {Object.entries(groupedHierarchy).map(([provider, subProviders]) => (
-                                    <div key={provider} className="flex flex-col gap-2">
-                                        <button 
-                                            onClick={() => setExpandedGroups(prev => ({ ...prev, [provider]: !prev[provider] }))}
-                                            className={cn(
-                                                "w-full flex items-center justify-between p-6 rounded-3xl glass-prestige bg-white/2 hover:bg-white/5 transition-all group",
-                                                expandedGroups[provider] && "border-gold-primary/30 bg-gold-primary/5"
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-4">
-                                                <Building2 size={20} className={expandedGroups[provider] ? "text-gold-primary" : "text-slate-600"} />
-                                                <span className="text-sm font-black text-white uppercase tracking-widest">{provider}</span>
-                                            </div>
-                                            <ChevronDown className={cn("transition-transform duration-300", expandedGroups[provider] && "rotate-180")} />
-                                        </button>
-
-                                        <AnimatePresence>
-                                            {expandedGroups[provider] && (
-                                                <motion.div 
-                                                    initial={{ height: 0, opacity: 0 }}
-                                                    animate={{ height: 'auto', opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }}
-                                                    className="overflow-hidden space-y-4 px-4 pt-2"
-                                                >
-                                                    {Object.entries(subProviders).map(([vendor, models]) => (
-                                                        <div key={vendor} className="space-y-3">
-                                                            <div className="flex items-center gap-3 px-2">
-                                                                <Layers size={14} className="text-slate-600" />
-                                                                <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">{vendor}</span>
-                                                            </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                                                                {models.map((m: Model) => (
-                                                                    <div
-                                                                        key={m.id}
-                                                                        onClick={() => m.active && toggleModel(m.id)}
-                                                                        className={cn(
-                                                                            "p-4 rounded-2xl border flex items-center justify-between cursor-pointer transition-all duration-300 relative overflow-hidden group/m bg-white/2 hover:bg-white/5",
-                                                                            enabledModelIds.includes(m.id) && m.active
-                                                                                ? "bg-gold-primary/10 border-gold-primary/30 shadow-lg" 
-                                                                                : "border-transparent opacity-60",
-                                                                            !m.active && "opacity-20 cursor-not-allowed"
-                                                                        )}
-                                                                    >
-                                                                        <div className="flex flex-col min-w-0 z-10">
-                                                                            <span className={cn(
-                                                                                "text-[10px] uppercase tracking-widest font-black transition-colors",
-                                                                                enabledModelIds.includes(m.id) && m.active ? "text-gold-primary" : "text-slate-400"
-                                                                            )}>
-                                                                                {m.name.includes(':') ? m.name.split(':').pop()?.trim() : m.name}
-                                                                            </span>
-                                                                        </div>
-                                                                        {enabledModelIds.includes(m.id) && m.active && <Check size={14} className="text-gold-primary" />}
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
-                                ))}
+                            <div className="glass-ultra-morphism glass-chromatic-edge rounded-[2.5rem] p-8 space-y-6 shadow-2xl">
+                                <h2 className="text-xl font-black text-white italic tracking-tight uppercase text-gold-gradient">Modele AI (OpenRouter)</h2>
+                                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mb-4">Wybierz modele dostępne w sekcji czatu</p>
+                                <div className="grid grid-cols-1 gap-3 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+                                    <ModelManagement />
+                                </div>
                             </div>
                         </div>
                     )}

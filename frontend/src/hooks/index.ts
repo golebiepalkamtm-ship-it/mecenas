@@ -1,101 +1,181 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { supabase } from '../utils/supabaseClient';
+import { useState, useCallback, useEffect, useRef } from "react";
+import { supabase } from "../utils/supabaseClient";
+import { API_BASE } from "../config";
 
+interface KnowledgeDocument {
+  id: string;
+  name: string;
+  chunks: number;
+  status: string;
+  created_at: string;
+}
+
+interface KnowledgeBaseRow {
+  id: string;
+  metadata: {
+    filename?: string;
+  };
+  created_at: string;
+}
+
+interface ApiProvider {
+  id: string;
+  name: string;
+  active: boolean;
+  key: string;
+}
+
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  sources?: string[];
+}
+
+interface ChatSession {
+  id: string;
+  title: string;
+  updated_at: string;
+}
+
+interface ChatModel {
+  id: string;
+  name: string;
+  active: boolean;
+  provider: string;
+  vision: boolean;
+}
 
 /**
  * Hook do zarządzania bazą wiedzy (RAG) przez Supabase.
  */
 export function useKnowledgeBase() {
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   const fetchDocuments = useCallback(async () => {
-      // Paginate to bypass Supabase's 1000-row default per-request limit
-      let allData: any[] = [];
-      let from = 0;
-      const step = 1000;
-      
-      while (true) {
-          const { data, error } = await supabase
-              .from('knowledge_base')
-              .select('id, metadata, created_at')
-              .range(from, from + step - 1);
-          
-          if (error) { console.error('Knowledge fetch error:', error); break; }
-          if (!data || data.length === 0) break;
-          
-          allData = allData.concat(data);
-          if (data.length < step) break;
-          from += step;
+    // Paginate to bypass Supabase's 1000-row default per-request limit
+    let allData: KnowledgeBaseRow[] = [];
+    let from = 0;
+    const step = 1000;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("knowledge_base")
+        .select("id, metadata, created_at")
+        .range(from, from + step - 1);
+
+      if (error) {
+        console.error("Knowledge fetch error:", error);
+        break;
       }
-      
-      if (allData.length > 0) {
-          // Group by filename — always accumulate chunk count
-          const docMap = new Map<string, { id: string; name: string; chunks: number; created_at: string }>();
-          
-          for (const d of allData) {
-              const filename = d.metadata?.filename || "Dokument bez nazwy";
-              const existing = docMap.get(filename);
-              if (!existing) {
-                  docMap.set(filename, {
-                      id: d.id,
-                      name: filename,
-                      chunks: 1,
-                      created_at: d.created_at
-                  });
-              } else {
-                  docMap.set(filename, {
-                      ...existing,
-                      chunks: existing.chunks + 1,
-                      created_at: d.created_at < existing.created_at ? d.created_at : existing.created_at
-                  });
-              }
-          }
-          
-          const docs = Array.from(docMap.values()).sort((a, b) => 
-              a.name.localeCompare(b.name, 'pl')
-          );
-          
-          setDocuments(docs.map(d => ({
-              id: d.id,
-              name: d.name,
-              chunks: d.chunks,
-              status: 'ready',
-              created_at: d.created_at
-          })));
+      if (!data || data.length === 0) break;
+
+      allData = allData.concat(data);
+      if (data.length < step) break;
+      from += step;
+    }
+
+    if (allData.length > 0) {
+      // Group by filename — always accumulate chunk count
+      const docMap = new Map<
+        string,
+        { id: string; name: string; chunks: number; created_at: string }
+      >();
+
+      for (const d of allData) {
+        const filename = d.metadata?.filename || "Dokument bez nazwy";
+        const existing = docMap.get(filename);
+        if (!existing) {
+          docMap.set(filename, {
+            id: d.id,
+            name: filename,
+            chunks: 1,
+            created_at: d.created_at,
+          });
+        } else {
+          docMap.set(filename, {
+            ...existing,
+            chunks: existing.chunks + 1,
+            created_at:
+              d.created_at < existing.created_at
+                ? d.created_at
+                : existing.created_at,
+          });
+        }
       }
+
+      const docs = Array.from(docMap.values()).sort((a, b) =>
+        a.name.localeCompare(b.name, "pl"),
+      );
+
+      setDocuments(
+        docs.map((d) => ({
+          id: d.id,
+          name: d.name,
+          chunks: d.chunks,
+          status: "ready",
+          created_at: d.created_at,
+        })),
+      );
+    }
   }, []);
 
   useEffect(() => {
     fetchDocuments();
   }, [fetchDocuments]);
 
-  const uploadFile = async (content: string, filename: string) => {
-    setIsUploading(true);
-    try {
-        const { error } = await supabase.functions.invoke('knowledge-manager', {
-            body: { 
-                action: 'upload', 
-                content, 
-                metadata: { filename, type: 'manual' } 
-            }
+  const uploadPDF = useCallback(
+    async (file: File) => {
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        // Use local API for PDF processing (it handles background embeddings)
+        const res = await fetch(`${API_BASE}/upload`, {
+          method: "POST",
+          body: formData,
         });
-        if (error) throw error;
-        await fetchDocuments();
-    } catch (error) {
-        console.error("Upload failed:", error);
-    } finally {
+
+        if (!res.ok) throw new Error("Upload failed on server");
+
+        // Refresh after a small delay to allow background task to start/finish
+        setTimeout(fetchDocuments, 2000);
+      } catch (error) {
+        console.error("PDF Upload failed:", error);
+        alert("Błąd wgrywania pliku PDF. Sprawdź czy serwer API działa.");
+      } finally {
         setIsUploading(false);
-    }
-  };
+      }
+    },
+    [fetchDocuments],
+  );
 
-  const removeFile = async (id: string) => {
-      await supabase.from('knowledge_base').delete().eq('id', id);
-      await fetchDocuments();
-  };
+  const removeFile = useCallback(
+    async (filename: string) => {
+      try {
+        // Use local API to clean up both local storage and Supabase cloud
+        const res = await fetch(`${API_BASE}/documents/${filename}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error("Delete failed");
 
-  return { documents, uploadFile, removeFile, isUploading };
+        await fetchDocuments();
+      } catch (error) {
+        console.error("Failed to remove file:", error);
+      }
+    },
+    [fetchDocuments],
+  );
+
+  return {
+    documents,
+    uploadPDF,
+    removeFile,
+    isUploading,
+    refresh: fetchDocuments,
+  };
 }
 
 /**
@@ -103,376 +183,307 @@ export function useKnowledgeBase() {
  * Ten hook jest uproszczony do zarządzania widocznością dostawców w UI.
  */
 export function useApiManagement() {
-    const [providers, setProviders] = useState<any[]>([
-        { id: 'google', name: 'Google Gemini 2.0', active: true, key: '••••••••' },
-        { id: 'openrouter', name: 'OpenRouter / Claude', active: true, key: '••••••••' }
-    ]);
+  const [providers, setProviders] = useState<ApiProvider[]>([
+    {
+      id: "openrouter",
+      name: "OpenRouter (Master Engine)",
+      active: true,
+      key: "••••••••",
+    },
+  ]);
 
-    const toggleProvider = (id: string) => {
-        setProviders(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
-    };
-    
-    const updateKey = async (id: string, key: string) => {
-        setProviders(prev => prev.map(p => p.id === id ? { ...p, key } : p));
-    };
+  const toggleProvider = (id: string) => {
+    setProviders((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, active: !p.active } : p)),
+    );
+  };
 
-    return { providers, toggleProvider, updateKey };
+  const updateKey = async (id: string, key: string) => {
+    setProviders((prev) => prev.map((p) => (p.id === id ? { ...p, key } : p)));
+  };
+
+  return { providers, toggleProvider, updateKey };
 }
-
 
 /**
  * Hook do zarządzania instrukcjami systemowymi (System Prompt) przez Supabase.
  */
 export function useSystemPrompt() {
-    const [prompt, setPrompt] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-    useEffect(() => {
-        const fetchPrompt = async () => {
-             const { data: { user } } = await supabase.auth.getUser();
-             if (!user) return;
+  useEffect(() => {
+    const fetchPrompt = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-             const { data, error } = await supabase
-                .from('profiles')
-                .select('system_prompt')
-                .eq('id', user.id)
-                .single();
-            
-            if (!error && data) {
-                setPrompt(data.system_prompt || '');
-            }
-        };
-        fetchPrompt();
-    }, []);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("system_prompt")
+        .eq("id", user.id)
+        .single();
 
-    const savePrompt = useCallback(async (newPrompt: string) => {
-        setIsLoading(true);
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error("Not authenticated");
+      if (!error && data) {
+        setPrompt(data.system_prompt || "");
+      }
+    };
+    fetchPrompt();
+  }, []);
 
-            const { error } = await supabase
-                .from('profiles')
-                .update({ system_prompt: newPrompt })
-                .eq('id', user.id);
-            
-            if (error) throw error;
-            setPrompt(newPrompt);
-        } catch (error: any) {
-            console.error("Save prompt failed:", error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
+  const savePrompt = useCallback(async (newPrompt: string) => {
+    setIsLoading(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-    return { prompt, savePrompt, isLoading };
+      const { error } = await supabase
+        .from("profiles")
+        .update({ system_prompt: newPrompt })
+        .eq("id", user.id);
+
+      if (error) throw error;
+      setPrompt(newPrompt);
+    } catch (err) {
+      console.error("Save prompt failed:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  return { prompt, savePrompt, isLoading };
 }
 
 /**
  * Hook do obsługi czatu i serializacji historii.
  */
 
-
 /**
  * Hook do obsługi czatu przez Supabase Edge Functions.
  */
 export function useChat() {
-    const [messages, setMessages] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const abortControllerRef = useRef<AbortController | null>(null);
-    
-    // Sessions & Models
-    const [sessions, setSessions] = useState<any[]>([]);
-    const [sessionId, setSessionId] = useState<string>(() => {
-        const saved = localStorage.getItem('prawnik_session_id');
-        // Validation: If it's the old invalid format (session_...), discard it
-        if (saved && saved.startsWith('session_')) {
-            localStorage.removeItem('prawnik_session_id');
-            return '';
-        }
-        return saved || '';
-    });
-    const [availableModels, setAvailableModels] = useState<any[]>([
-        { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', active: true, provider: 'openrouter', model_id: 'google/gemini-2.5-flash' }
-    ]);
-    const [selectedModel, setSelectedModel] = useState<string>('google/gemini-2.5-flash');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-    const fetchModels = useCallback(async () => {
-        try {
-            const res = await fetch('http://127.0.0.1:8001/models');
-            if (res.ok) {
-                const data = await res.json();
-                const enabledIdsRaw = localStorage.getItem('prawnik_enabled_models');
-                const enabledIds = enabledIdsRaw ? JSON.parse(enabledIdsRaw) : [];
-                
-                let filtered = data;
-                if (enabledIds.length > 0) {
-                    filtered = data.filter((m: any) => enabledIds.includes(m.id));
-                } else {
-                    // Default fallback if no settings are saved
-                    filtered = data.filter((m: any) => 
-                        m.id === 'google/gemini-2.5-flash' || 
-                        m.id === 'anthropic/claude-3.5-sonnet' || 
-                        m.id === 'openai/gpt-4o-mini'
-                    );
-                }
-                
-                if (filtered.length > 0) {
-                    setAvailableModels(filtered);
-                    // Automatically select a valid model if the current one isn't in the list
-                    setSelectedModel(prev => {
-                        return filtered.find((m: any) => m.id === prev) ? prev : filtered[0].id;
-                    });
-                }
-            }
-        } catch (err) {
-            console.error('Failed to fetch models, using defaults.', err);
-            // Fallback
-            const defaultModels = [
-                { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', active: true, provider: 'openrouter', model_id: 'google/gemini-2.5-flash' },
-                { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', active: true, provider: 'openrouter', model_id: 'anthropic/claude-3.5-sonnet' },
-                { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', active: true, provider: 'openrouter', model_id: 'openai/gpt-4o-mini' }
-            ];
-            
-            const enabledIdsRaw = localStorage.getItem('prawnik_enabled_models');
-            const enabledIds = enabledIdsRaw ? JSON.parse(enabledIdsRaw) : [];
-            let filtered = defaultModels;
-            if (enabledIds.length > 0) {
-                filtered = defaultModels.filter(m => enabledIds.includes(m.id)) as any;
-                if(filtered.length === 0) filtered = defaultModels;
-            }
-            setAvailableModels(filtered);
-            setSelectedModel(filtered[0].id);
-        }
-    }, []);
+  // Sessions & Models
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [sessionId, setSessionId] = useState<string>(() => {
+    const saved = localStorage.getItem("prawnik_session_id");
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (saved && !uuidRegex.test(saved)) {
+      localStorage.removeItem("prawnik_session_id");
+      return "";
+    }
+    return saved || "";
+  });
 
-    useEffect(() => {
-        fetchModels();
-        const handleUpdate = () => fetchModels();
-        window.addEventListener('prawnik_models_updated', handleUpdate);
-        return () => window.removeEventListener('prawnik_models_updated', handleUpdate);
-    }, [fetchModels]);
+  const [availableModels, setAvailableModels] = useState<ChatModel[]>([
+    {
+      id: "google/gemini-2.5-flash",
+      name: "Google: Gemini 2.5 Flash",
+      active: true,
+      provider: "openrouter",
+      vision: true,
+    },
+    {
+      id: "openai/gpt-4o-2024-11-20",
+      name: "OpenAI: GPT-4o",
+      active: true,
+      provider: "openrouter",
+      vision: true,
+    },
+    {
+      id: "anthropic/claude-3.7-sonnet",
+      name: "Anthropic: Claude 3.7 Sonnet",
+      active: true,
+      provider: "openrouter",
+      vision: true,
+    },
+  ]);
+  const [selectedModel, setSelectedModel] = useState<string>(''); // No default model - user must choose
 
-    // Fetch sessions from Supabase
-    const fetchSessions = useCallback(async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+  // Enhanced setSelectedModel that preserves conversation context
+  const setSelectedModelWithContext = useCallback(
+    (newModel: string) => {
+      setSelectedModel(newModel);
+      // Store the change timestamp to trigger context refresh on next message
+      localStorage.setItem(
+        "prawnik_model_change_timestamp",
+        Date.now().toString(),
+      );
+      localStorage.setItem("prawnik_previous_model", selectedModel);
+    },
+    [selectedModel],
+  );
 
-        const { data, error } = await supabase
-            .from('sessions')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
-        if (!error && data) {
-            setSessions(data);
-        }
-    }, []);
+  const fetchModels = useCallback(async () => {
+    console.log("🔄 Fetching models from API...");
+    try {
+      const res = await fetch(`${API_BASE}/models/all`);
+      const data = await res.json();
+      console.log("📦 Models received:", data.length, "models");
 
-    useEffect(() => {
-        fetchSessions();
-    }, [fetchSessions]);
+      if (Array.isArray(data) && data.length > 0) {
+        // For chat: show ALL vision models regardless of admin filters
+        // Admin panel can still filter, but chat gets full access for legal docs
+        const formatted = data.map((m: ChatModel) => ({
+          id: m.id,
+          name: `${m.id.split("/")[0].toUpperCase()}: ${m.name || m.id.split("/").slice(-1)[0]}`.trim(),
+          active: true,
+          provider: "openrouter",
+          vision: m.vision || false,
+        }));
 
-    // Fetch message history for current session from Supabase
-    useEffect(() => {
-        if (!sessionId) return;
-        
-        const loadMessages = async () => {
-            const { data, error } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('session_id', sessionId)
-                .order('created_at', { ascending: true });
-            
-            if (!error && data) {
-                setMessages(data);
-            }
-        };
+        console.log(
+          "✅ Models updated successfully:",
+          formatted.length,
+          "models available",
+        );
+        setAvailableModels(formatted);
+        setSelectedModel((prev) => {
+          const firstAvailable = formatted[0]?.id || "google/gemini-2.5-flash";
+          const prevExists = formatted.find((m: ChatModel) => m.id === prev);
+          const selected = prevExists ? prev : firstAvailable;
+          console.log("🎯 Selected model:", selected);
+          return selected;
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch models, using defaults.", error);
+    }
+  }, []);
 
-        loadMessages();
-    }, [sessionId]);
+  useEffect(() => {
+    console.log("🚀 Initializing chat hook - fetching models...");
+    console.log("🔗 API Base URL:", API_BASE);
+    fetchModels();
+    // Add event listener for settings updates
+    window.addEventListener("prawnik_models_updated", fetchModels);
+    return () =>
+      window.removeEventListener("prawnik_models_updated", fetchModels);
+  }, [fetchModels]);
 
-    const stopGeneration = useCallback(() => {
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-            abortControllerRef.current = null;
-            setIsLoading(false);
-        }
-    }, []);
+  const fetchSessions = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sessions`);
+      if (!res.ok) throw new Error("Failed to fetch sessions");
+      const data: ChatSession[] = await res.json();
+      setSessions(data || []);
+    } catch (err) {
+      console.error("fetchSessions error:", err);
+    }
+  }, []);
 
-    const sendMessage = useCallback(async (content: string) => {
-        stopGeneration();
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            alert("Musisz być zalogowany, aby wysłać wiadomość.");
-            return;
-        }
+  // Fetch message history for current session from Backend
+  useEffect(() => {
+    if (!sessionId) {
+      setMessages([]);
+      return;
+    }
 
-        // 1. Create session if doesn't exist
-        let currentSessionId = sessionId;
-        if (!currentSessionId) {
-            const { data, error } = await supabase
-                .from('sessions')
-                .insert({ 
-                    user_id: session.user.id,
-                    title: content.substring(0, 40) + "..."
-                })
-                .select()
-                .single();
-            
-            if (error) {
-                console.error("Błąd tworzenia sesji:", error);
-                return;
-            }
-            currentSessionId = data.id;
-            setSessionId(data.id);
-            localStorage.setItem('prawnik_session_id', data.id);
-        }
-
-        // 2. Add user message locally
-        const userMsg = { 
-            id: 'temp-' + Date.now(), 
-            role: 'user', 
-            content,
-            created_at: new Date().toISOString()
-        };
-        setMessages(prev => [...prev, userMsg]);
-        setIsLoading(true);
-
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
-        
-        try {
-            // 3. Ensure fresh auth token
-            const { data: { session: freshSession } } = await supabase.auth.refreshSession();
-            if (!freshSession) {
-                // If refresh fails, force re-login
-                await supabase.auth.signOut();
-                alert("Sesja wygasła. Zaloguj się ponownie.");
-                return;
-            }
-
-            // 4. Prepare proper OpenRouter Model ID
-            const modelObj = availableModels.find(m => m.id === selectedModel);
-            let finalModelId = modelObj ? (modelObj.model_id || modelObj.id) : selectedModel;
-            
-            // Map legacy/internal IDs to proper OpenRouter IDs
-            if (finalModelId === 'gemini') finalModelId = 'google/gemini-2.5-flash';
-            if (finalModelId === 'gemini-2.5-flash') finalModelId = 'google/gemini-2.5-flash';
-            if (finalModelId === 'multi-agent-consensus') finalModelId = 'google/gemini-2.5-flash';
-            if (finalModelId === 'consensus') finalModelId = 'google/gemini-2.5-flash';
-            if (finalModelId.startsWith('openrouter-')) finalModelId = finalModelId.replace('openrouter-', '');
-
-            // Call Edge Function
-            const res = await supabase.functions.invoke('chat-ai-proxy', {
-                body: { 
-                    prompt: content,
-                    sessionId: currentSessionId,
-                    model: finalModelId,
-                    history: messages.slice(-5).map(m => ({ role: m.role, content: m.content }))
-                }
-            });
-
-            if (res.error) {
-                let errMsg = res.error.message;
-                if (res.error.context && typeof res.error.context.json === 'function') {
-                    try {
-                        const errBody = await res.error.context.json();
-                        errMsg = errBody.error || errMsg;
-                    } catch (e) {
-                         // Nie udało się przeparsować JSON
-                    }
-                }
-                console.error("Diagnostic error body:", errMsg);
-                throw new Error(errMsg);
-            }
-
-            // 5. Update messages with the result from function (which already saved to DB)
-            setMessages(prev => [...prev.filter(m => m.id !== userMsg.id)]); // Remove temp user msg if needed, or just refresh
-            
-            // Re-fetch to get both user and assistant messages with DB IDs
-            const { data: newMsgs } = await supabase
-                .from('messages')
-                .select('*')
-                .eq('session_id', currentSessionId)
-                .order('created_at', { ascending: true });
-            
-            if (newMsgs) setMessages(newMsgs);
-            fetchSessions();
-
-        } catch (error: any) {
-            console.error("Chat error:", error);
-            setMessages(prev => [...prev, { 
-                id: Date.now().toString(), 
-                role: 'assistant', 
-                content: `Błąd komunikacji: ${error.message || "Brak szczegółów."}`, 
-                sources: [] 
-            }]);
-        } finally {
-            setIsLoading(false);
-            abortControllerRef.current = null;
-        }
-    }, [messages, selectedModel, stopGeneration, sessionId, fetchSessions, availableModels]);
-
-
-    const clearHistory = useCallback(async () => {
-        stopGeneration();
-        try {
-            await supabase.from('messages').delete().eq('session_id', sessionId);
-            setMessages([]);
-            fetchSessions();
-        } catch (error) {
-            console.error("Failed to clear messages:", error);
-        }
-    }, [sessionId, stopGeneration, fetchSessions]);
-
-    const newChat = useCallback(() => {
-        setSessionId('');
-        setMessages([]);
-        localStorage.removeItem('prawnik_session_id');
-    }, []);
-
-    const switchSession = useCallback(async (id: string) => {
-        setMessages([]); // Clear current messages immediately
-        setSessionId(id);
-        localStorage.setItem('prawnik_session_id', id);
-        // Explicitly load messages for the new session
-        const { data } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('session_id', id)
-            .order('created_at', { ascending: true });
-        if (data) setMessages(data);
-    }, []);
-
-    const removeSession = useCallback(async (id: string) => {
-        const confirmed = window.confirm('Czy na pewno chcesz usunąć tę sesję? Wszystkie wiadomości zostaną utracone.');
-        if (!confirmed) return;
-        try {
-            await supabase.from('messages').delete().eq('session_id', id);
-            await supabase.from('sessions').delete().eq('id', id);
-            if (sessionId === id) {
-                newChat();
-            }
-            fetchSessions();
-        } catch (error) {
-            console.error("Failed to delete session:", error);
-        }
-    }, [sessionId, newChat, fetchSessions]);
-
-    return { 
-        messages, 
-        sendMessage, 
-        isLoading, 
-        clearHistory,
-        stopGeneration,
-        availableModels,
-        selectedModel,
-        setSelectedModel,
-        sessions,
-        sessionId,
-        newChat,
-        switchSession,
-        removeSession
+    const loadMessages = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}/messages`);
+        if (!res.ok) throw new Error("Failed to load messages");
+        const data: ChatMessage[] = await res.json();
+        setMessages(data || []);
+      } catch (err) {
+        console.error("loadMessages error:", err);
+      }
     };
+
+    loadMessages();
+  }, [sessionId]);
+
+  const stopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+  }, []);
+
+  const sendMessage = useCallback(
+    async () => {
+      // NOTE: sendMessage is now deprecated in favor of useChatMutation
+      console.warn("useChat.sendMessage is deprecated. Use useChatMutation instead.");
+    },
+    [],
+  );
+
+  const newChat = useCallback(() => {
+    setSessionId("");
+    setMessages([]);
+    localStorage.removeItem("prawnik_session_id");
+  }, []);
+
+  const clearHistory = useCallback(async () => {
+    stopGeneration();
+    if (!sessionId) return;
+    try {
+      await fetch(`${API_BASE}/sessions/${sessionId}`, { method: 'DELETE' });
+      setMessages([]);
+      fetchSessions();
+      newChat();
+    } catch (error) {
+      console.error("Failed to clear messages:", error);
+    }
+  }, [sessionId, stopGeneration, fetchSessions, newChat]);
+
+  const switchSession = useCallback(async (id: string) => {
+    setMessages([]); // Clear current messages immediately
+    setSessionId(id);
+    localStorage.setItem("prawnik_session_id", id);
+    // Effects will handle loading messages
+  }, []);
+
+  const removeSession = useCallback(
+    async (id: string) => {
+      const confirmed = window.confirm(
+        "Czy na pewno chcesz usunąć tę sesję? Wszystkie wiadomości zostaną utracone.",
+      );
+      if (!confirmed) return;
+      try {
+        await fetch(`${API_BASE}/sessions/${id}`, {
+          method: "DELETE",
+        });
+        if (sessionId === id) {
+          newChat();
+        }
+        fetchSessions();
+      } catch (error) {
+        console.error("Failed to delete session:", error);
+      }
+    },
+    [sessionId, newChat, fetchSessions],
+  );
+
+  return {
+    messages,
+    setMessages,
+    sendMessage,
+    isLoading,
+    setIsLoading,
+    clearHistory,
+    stopGeneration,
+    availableModels,
+    selectedModel,
+    setSelectedModel: setSelectedModelWithContext,
+    sessions,
+    sessionId,
+    setSessionId,
+    newChat,
+    switchSession,
+    removeSession,
+    fetchSessions,
+  };
 }

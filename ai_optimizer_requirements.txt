@@ -1,0 +1,5 @@
+# AI Optimizer Requirements
+# Install with: pip install -r ai_optimizer_requirements.txt
+
+httpx>=0.25.0
+asyncio-compat>=0.1.0

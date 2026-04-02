@@ -1,0 +1,10 @@
+﻿        backdrop-filter var(--t-base);
+}
+
+/* Layer 2: upper reflection sweep */
+@utility glass-reflection {
+    &::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;

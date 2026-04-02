@@ -12,3 +12,8 @@ sql_parts/
 .kilocode/
 .qodo/
 .streamlit/
+
+.fake
+embeddings_1536d.json
+request_test.json*.exe
+mobile_apps/

@@ -1,7 +1,7 @@
 import requests
 import json
 
-url = "http://localhost:8001/chat"
+url = "http://localhost:8003/chat"
 data = {
     "message": "Ile to jest (45 * 12) + 234 i jaka jest pogoda w Warszawie?",
     "history": [],

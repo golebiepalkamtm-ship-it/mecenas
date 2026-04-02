@@ -13,20 +13,23 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
     "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/react-query": "^5.95.2",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.577.0",
+    "mermaid": "^11.14.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^3.5.0"
+    "tailwind-merge": "^3.5.0",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.2.0",
-    "@capacitor/cli": "^8.2.0",
-    "@capacitor/core": "^8.2.0",
-    "@capacitor/ios": "^8.2.0",
+    "@capacitor/android": "^5.7.8",
+    "@capacitor/cli": "^5.7.8",
+    "@capacitor/core": "^5.7.8",
+    "@capacitor/ios": "^5.7.8",
     "@eslint/js": "^9.39.4",
     "@tailwindcss/postcss": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",

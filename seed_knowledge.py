@@ -1,140 +1,136 @@
-import fitz
+import asyncio
 import os
-import json
-import requests
-import time
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+import fitz
+import httpx
 from pathlib import Path
 from dotenv import load_dotenv
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 
-# --- CONFIGURATION ---
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = "openai/text-embedding-3-large"
+OPENROUTER_MODEL = "openai/text-embedding-3-small"
+EMBEDDING_DIMENSIONS = 1536
 PDF_DIR = Path("pdfs")
-SQL_OUTPUT = Path("seed_data.sql")
-PROCESS_ONLY = [] # Empty list = process ALL PDFs
-BATCH_SIZE = 25
-# ---------------------
+EDGE_FUNC_URL = "https://dhyvxspgsktpbjonejek.supabase.co/functions/v1/import-knowledge"
 
-def get_batch_embeddings(texts, retries=5):
+SB_KEY = "sb_publishable_8HlO3_J1CxhWN27Vmoq2FA_HzZE0Jac"
+
+
+async def get_batch_embeddings(
+    texts: list[str], client: httpx.AsyncClient
+) -> list[list[float]]:
     """Fetches embeddings for a batch of texts from OpenRouter."""
-    url = "https://openrouter.ai/api/v1/embeddings"
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:3000",
         "X-OpenRouter-Title": "LexMind AI",
     }
     payload = {
         "model": OPENROUTER_MODEL,
-        "input": texts
+        "input": texts,
+        "dimensions": EMBEDDING_DIMENSIONS,
     }
 
-    for i in range(retries):
+    for attempt in range(5):
         try:
-            res = requests.post(url, json=payload, headers=headers, timeout=60)
+            res = await client.post(
+                "https://openrouter.ai/api/v1/embeddings",
+                json=payload,
+                headers=headers,
+                timeout=60,
+            )
             data = res.json()
-            
-            if "error" in data:
-                error_msg = data.get("error", {})
-                if isinstance(error_msg, dict) and error_msg.get("code") in [429, 503, 502]:
-                    wait_time = (i + 1) * 3
-                    print(f"      API Busy... retrying {len(texts)} chunks in {wait_time}s")
-                    time.sleep(wait_time)
-                    continue
-                print(f"Error getting batch embeddings: {data}")
-                return None
-
             if "data" in data:
-                # Return embeddings list in original order
-                return [item["embedding"] for item in sorted(data["data"], key=lambda x: x["index"])]
-            
-            print(f"Unknown Response format: {data}")
-            return None
-            
-        except Exception as e:
-            print(f"      Request failed for batch: {e}")
-            time.sleep(2)
-            
-    return None
+                return [
+                    item["embedding"]
+                    for item in sorted(data["data"], key=lambda x: x["index"])
+                ]
 
-def main():
-    if not OPENROUTER_API_KEY:
-        print("Błąd: Brak OPENROUTER_API_KEY w pliku .env")
-        return
-
-    pdf_files = list(PDF_DIR.glob("*.pdf"))
-    if not pdf_files:
-        print("No PDFs found in pdfs/")
-        return
-
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
-    EDGE_FUNC_URL = "https://dhyvxspgsktpbjonejek.supabase.co/functions/v1/import-knowledge"
-
-    print(f"🚀 SEEDING BEZPOŚREDNIO DO SUPABASE ({OPENROUTER_MODEL}) | Batch: {BATCH_SIZE}")
-
-    for pdf_path in pdf_files:
-        if PROCESS_ONLY and pdf_path.name not in PROCESS_ONLY:
-            continue
-            
-        print(f"📄 Processing {pdf_path.name}...")
-        try:
-            doc = fitz.open(str(pdf_path))
-            text = "".join([page.get_text() for page in doc])
-            doc.close()
-            
-            chunks = splitter.create_documents([text], metadatas=[{"filename": pdf_path.name}])
-            print(f"   Extracted {len(chunks)} chunks.")
-
-            # Per-file Cleanup directly via Edge Function
-            try:
-                res = requests.post(EDGE_FUNC_URL, json={"action": "delete", "filename": pdf_path.name}, timeout=30)
-                res.raise_for_status()
-            except Exception as e:
-                print(f"   ❌ FAILED to delete old records for {pdf_path.name}: {e}")
+            error_code = data.get("error", {}).get("code")
+            if error_code in [429, 503]:
+                await asyncio.sleep((attempt + 1) * 2)
                 continue
 
-            # Batch Processing
-            for i in range(0, len(chunks), BATCH_SIZE):
-                batch_chunks = chunks[i : i + BATCH_SIZE]
-                print(f"    ⭐ Embedding & Uploading batch {i//BATCH_SIZE + 1}/{(len(chunks)-1)//BATCH_SIZE + 1} ({len(batch_chunks)} chunks)...")
-                
-                batch_texts = [c.page_content for c in batch_chunks]
-                embeddings = get_batch_embeddings(batch_texts)
-                
-                if not embeddings:
-                    print(f"      ❌ FAILED BATCH {i}. Skipping.")
-                    continue
-                
-                # Write results to Supabase via Edge function
-                records = []
-                for chunk, embedding in zip(batch_chunks, embeddings):
-                    records.append({
-                        "content": chunk.page_content,
-                        "metadata": chunk.metadata,
-                        "embedding": embedding
-                    })
-                
-                for retry in range(3):
-                    try:
-                        res = requests.post(EDGE_FUNC_URL, json={"action": "insert", "records": records}, timeout=60)
-                        res.raise_for_status()
-                        break
-                    except Exception as e:
-                        print(f"      Upload error: {e}. Retrying ({retry+1}/3)...")
-                        time.sleep(2)
-                
-                # Tiny pause just to be nice to the pipe
-                time.sleep(0.1)
-
-            print(f"   ✅ Fully uploaded: {pdf_path.name}")
-                    
+            print(f"❌ Embedding Error: {data}")
+            break
         except Exception as e:
-            print(f"   ❌ Error {pdf_path.name}: {e}")
+            print(f"⚠️ Request failed: {e}. Retry {attempt + 1}")
+            await asyncio.sleep(2)
+    return []
 
-    print("\n🏁 Wszystkie wybrane dokumenty zostały przetworzone i wysłane bezbłędnie na serwer Supabase!")
+
+def process_file_sync(filename: str):
+    """Wrapper for background tasks that need synchronous entry."""
+    asyncio.run(process_file(filename))
+
+
+async def process_file(filename: str):
+    """Full RAG ingestion pipeline for a single file."""
+    if not OPENROUTER_API_KEY:
+        print("❌ ERR: Missing OPENROUTER_API_KEY")
+        return
+
+    pdf_path = PDF_DIR / filename
+    if not pdf_path.exists():
+        print(f"❌ File not found: {pdf_path}")
+        return
+
+    print(f"📄 Indeksowanie: {filename}...")
+    try:
+        # 1. Extract Text
+        doc = fitz.open(str(pdf_path))
+        text = "".join([page.get_text() for page in doc])
+        doc.close()
+
+        # 2. Split into Chunks
+        splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
+        chunks = splitter.create_documents([text], metadatas=[{"filename": filename}])
+        print(f"   - {len(chunks)} fragmentów wygenerowanych.")
+
+        async with httpx.AsyncClient(timeout=120) as client:
+            sb_headers = {"Authorization": f"Bearer {SB_KEY}"}
+            # 3. Cleanup existing records for this file
+            await client.post(
+                EDGE_FUNC_URL,
+                headers=sb_headers,
+                json={"action": "delete", "filename": filename},
+            )
+
+            # 4. Batch Embedding & Insertion
+            batch_size = 20
+            for i in range(0, len(chunks), batch_size):
+                batch_chunks = chunks[i : i + batch_size]
+                batch_texts = [c.page_content for c in batch_chunks]
+
+                embeddings = await get_batch_embeddings(batch_texts, client)
+                if not embeddings:
+                    print(f"   ❌ Batch {i} failed.")
+                    continue
+
+                records = [
+                    {"content": c.page_content, "metadata": c.metadata, "embedding": e}
+                    for c, e in zip(batch_chunks, embeddings)
+                ]
+
+                # Insert to Supabase
+                res = await client.post(
+                    EDGE_FUNC_URL,
+                    headers=sb_headers,
+                    json={"action": "insert", "records": records},
+                )
+                res.raise_for_status()
+
+            print(f"✅ Indeksowanie zakończone: {filename}")
+
+    except Exception as e:
+        print(f"❌ Pipeline Failure for {filename}: {e}")
+
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    if len(sys.argv) > 1:
+        process_file_sync(sys.argv[1])
+    else:
+        print("Usage: python seed_knowledge.py <filename>")
