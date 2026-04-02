@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, History, Cpu, Network, Shield, Target, Zap } from "lucide-react";
+import { History, Cpu, Network, Shield, Target, Zap } from "lucide-react";
 
 const MAX_ATTACHMENTS = 10;
 
@@ -18,7 +18,8 @@ import { FeatureCard } from "./components/FeatureCard";
 import { WelcomeView } from "./components/WelcomeView";
 
 // Shared Tools
-import type { Attachment, Message } from "./types";
+import type { Attachment, Message, QueuedAttachment } from "./types";
+import { API_BASE } from "../../config";
 
 import { cn } from "../../utils/cn";
 
@@ -48,9 +49,10 @@ export function ChatView({
 
   // Component State
   const [input, setInput] = useState("");
-  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<QueuedAttachment[]>([]);
   const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null);
-
+  
+  const processingQueue = useRef<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,29 +62,91 @@ export function ChatView({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const startOCRProcessing = async (id: string, file: File) => {
+    if (processingQueue.current.has(id)) return;
+    processingQueue.current.add(id);
+
+    try {
+      // Phase 1: Uploading
+      setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'uploading', progress: 10 } : a));
+      
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`${API_BASE}/upload-document`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      
+      // Phase 2: Processing (OCR)
+      setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'processing', progress: 50 } : a));
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setAttachments(prev => prev.map(a => a.id === id ? { 
+          ...a, 
+          status: 'ready', 
+          progress: 100, 
+          extractedText: data.extracted_text 
+        } : a));
+      } else {
+        throw new Error(data.error || 'Błąd OCR');
+      }
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Wystąpił nieznany błąd OCR';
+      console.error("OCR Error:", err);
+      setAttachments(prev => prev.map(a => a.id === id ? { 
+        ...a, 
+        status: 'error', 
+        progress: 0, 
+        error: errorMessage 
+      } : a));
+    } finally {
+      processingQueue.current.delete(id);
+    }
+  };
+
   // Actions
   const handleSend = async () => {
     if (chatMutation.isPending) {
       stopGeneration();
       return;
     }
+
+    const isAnyProcessing = attachments.some(a => a.status === 'uploading' || a.status === 'processing');
+    if (isAnyProcessing) {
+      setAttachmentWarning("Poczekaj na zakończenie OCR dokumentów...");
+      return;
+    }
+
     if (!input.trim() && attachments.length === 0) return;
 
-    // Convert files to base64
+    // Aggregate extracted texts for the backend
+    const combinedDocText = attachments
+      .filter(a => a.status === 'ready' && a.extractedText)
+      .map((a, idx) => `--- STRONA ${idx + 1} (Plik: ${a.file.name}) ---\n${a.extractedText}`)
+      .join("\n\n");
+
+    // Convert images to base64 for vision models
     const attachmentData: Attachment[] = [];
     if (attachments.length > 0) {
-      for (const file of attachments) {
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        attachmentData.push({
-          name: file.name,
-          type: file.type,
-          content: base64,
-        });
+      for (const a of attachments) {
+        if (a.file.type.startsWith("image/")) {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(a.file);
+          });
+          attachmentData.push({
+            name: a.file.name,
+            type: a.file.type,
+            content: base64,
+          });
+        }
       }
     }
 
@@ -104,12 +168,13 @@ export function ChatView({
       message: currentInput,
       history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
       sessionId: sessionId || undefined,
-      attachments: attachmentData
+      attachments: attachmentData,
+      document_text: combinedDocText
     }, {
       onSuccess: (data) => {
         const assistantMsg: Message = {
           id: data.id,
-          role: "assistant", // Always assistant in response
+          role: "assistant",
           content: data.content,
           sources: data.sources || [],
           consensus_used: isConsensusMode,
@@ -118,13 +183,12 @@ export function ChatView({
         };
         setMessages((prev: Message[]) => [...prev, assistantMsg]);
         
-        // Update sessionId if we didn't have one
         if (!sessionId && data.sessionId) {
           setSessionId(data.sessionId);
           localStorage.setItem("prawnik_session_id", data.sessionId);
         }
         
-        fetchSessions(); // Refresh sessions list to show new session if it was just created
+        fetchSessions();
       },
       onError: (error: Error) => {
         setMessages((prev: Message[]) => [
@@ -138,6 +202,24 @@ export function ChatView({
       }
     });
   };
+
+  const activeOCRCount = useRef(0);
+  const ocrQueue = useRef<Array<{id: string, file: File}>>([]);
+
+  const processNextInQueue = useCallback(async () => {
+    if (activeOCRCount.current >= 3 || ocrQueue.current.length === 0) return;
+
+    const next = ocrQueue.current.shift();
+    if (!next) return;
+
+    activeOCRCount.current++;
+    try {
+      await startOCRProcessing(next.id, next.file);
+    } finally {
+      activeOCRCount.current--;
+      processNextInQueue(); // Pick up next
+    }
+  }, []);
 
   const addAttachment = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -162,7 +244,6 @@ export function ChatView({
       return isValidByType || isValidByExtension;
     });
     
-    // Ogranicz rozmiar plików do 15MB
     const validSizeFiles = validFiles.filter(file => file.size <= 15 * 1024 * 1024);
     
     if (validSizeFiles.length !== validFiles.length) {
@@ -171,19 +252,30 @@ export function ChatView({
 
     if (validSizeFiles.length === 0) return;
 
-    setAttachments((prev) => {
-      const remainingSlots = MAX_ATTACHMENTS - prev.length;
-      if (remainingSlots <= 0) {
-        setAttachmentWarning(`Osiągnięto limit ${MAX_ATTACHMENTS} załączników`);
-        return prev;
-      }
-      const filesToAdd = validSizeFiles.slice(0, remainingSlots);
-      if (filesToAdd.length < validSizeFiles.length) {
-        setAttachmentWarning(`Dodano ${filesToAdd.length} z ${validSizeFiles.length} plików — limit ${MAX_ATTACHMENTS} załączników`);
-      }
-      return [...prev, ...filesToAdd];
-    });
-  }, []);
+    const remainingSlots = MAX_ATTACHMENTS - attachments.length;
+    if (remainingSlots <= 0) {
+      setAttachmentWarning(`Osiągnięto limit ${MAX_ATTACHMENTS} załączników`);
+      return;
+    }
+
+    const filesToAdd = validSizeFiles.slice(0, remainingSlots);
+    const newAttachments: QueuedAttachment[] = filesToAdd.map(file => ({
+      id: Math.random().toString(36).substring(7),
+      file,
+      status: 'uploading',
+      progress: 0
+    }));
+
+    setAttachments(prev => [...prev, ...newAttachments]);
+
+    // Add to internal queue and start processing
+    ocrQueue.current.push(...newAttachments.map(a => ({ id: a.id, file: a.file })));
+    
+    // Próbujemy odpalić proces dla całej dostępnej puli (max 3)
+    for (let i = 0; i < 3; i++) {
+      processNextInQueue();
+    }
+  }, [attachments.length, processNextInQueue]);
 
   const removeAttachment = (idx: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== idx));
@@ -197,7 +289,6 @@ export function ChatView({
 
   return (
     <div className="h-full flex relative overflow-hidden bg-transparent">
-      {/* Sessions History Sidebar on the Left */}
       <ChatSidebar 
         showHistory={showHistory}
         setShowHistory={setShowHistory}
@@ -208,7 +299,6 @@ export function ChatView({
       />
 
       <div className="flex-1 flex flex-col relative h-full overflow-hidden">
-        {/* Toggle Controls */}
         {!showHistory && (
           <motion.button
             initial={{ opacity: 0, x: -20 }}
@@ -238,7 +328,6 @@ export function ChatView({
           </motion.button>
         )}
 
-        {/* Message Area */}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-3 md:px-8 lg:px-12 xl:px-16 py-3 space-y-3 scroll-smooth custom-scrollbar"
@@ -264,58 +353,66 @@ export function ChatView({
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex gap-3 max-w-[85%] pr-4"
+              className="flex gap-4 max-w-[90%] pr-4"
             >
-              <div className="w-8 h-8 rounded-xl glass-prestige shrink-0 flex items-center justify-center border border-white/10">
-                <Loader2 className="w-3.5 h-3.5 text-white/40 animate-spin" />
+              <div className="w-10 h-10 rounded-2xl glass-prestige shrink-0 flex items-center justify-center border border-white/10 relative overflow-hidden">
+                <div className="absolute inset-0 neural-orb opacity-40" />
+                <Zap className="w-4 h-4 text-white/50 relative z-10 animate-pulse" />
               </div>
-              <div className="liquid-glass px-5 py-4 rounded-2xl relative overflow-hidden flex-1">
-                <div className="absolute top-0 left-0 w-full h-px bg-linear-to-r from-transparent via-white/20 to-transparent" />
+              
+              <div className="liquid-glass px-6 py-5 rounded-4xl relative overflow-hidden flex-1 border border-white/5 shadow-2xl">
+                {/* Background Liquid Shimmer */}
+                <div className="absolute inset-x-0 bottom-0 h-1 liquid-progress opacity-60" />
                 
                 {isConsensusMode ? (
-                  <>
-                    <p className="text-[9px] font-black text-white/40 mb-3 uppercase tracking-[0.2em]">
-                      Konsylium MOA — Analiza w toku...
-                    </p>
-                    <div className="flex items-center gap-3">
-                      {/* Phase 1: Retrieval */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white/40 animate-pulse" />
-                        <span className="text-[7px] font-bold text-white/40 uppercase tracking-wider">Baza</span>
-                      </div>
-                      <div className="w-4 h-px bg-white/10" />
-                      {/* Phase 2: Experts */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                        <Network className="w-3 h-3 text-white/30" />
-                        <span className="text-[7px] font-bold text-white/30 uppercase tracking-wider">Eksperci</span>
-                      </div>
-                      <div className="w-4 h-px bg-white/10" />
-                      {/* Phase 3: Judge */}
-                      <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
-                        <span className="text-[7px] font-bold text-white/20 uppercase tracking-wider">Synteza</span>
-                      </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.3em] italic flex items-center gap-2">
+                         <Network className="w-3 h-3 text-blue-400 animate-pulse" />
+                         Konsylium Prawne MOA — Proces Myślowy...
+                      </p>
+                      <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest hidden sm:block">Legal Reasoning Pipeline</span>
                     </div>
-                  </>
+                    
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                      {/* Detailed Phases */}
+                      {[
+                        { label: "Baza Danych" },
+                        { label: "Zespół Ekspertów" },
+                        { label: "Synteza Końcowa" }
+                      ].map((phase, idx) => (
+                        <div key={idx} className="flex items-center gap-2 sm:gap-3">
+                           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 glass-prestige">
+                             <div className="w-1 h-1 rounded-full bg-blue-500 animate-ping" />
+                             <span className="text-[8px] font-black text-white/60 uppercase tracking-wider">{phase.label}</span>
+                           </div>
+                           {idx < 2 && <div className="hidden sm:block w-4 h-px bg-white/10" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 ) : (
-                  <>
-                    <p className="text-[8px] font-black text-white/40 mb-2 uppercase tracking-[0.2em] italic">
-                      Analiza prawna w toku...
-                    </p>
-                    <div className="space-y-1.5">
-                      <div className="h-1.5 w-[200px] bg-white/5 rounded-full" />
-                      <div className="h-1.5 w-[150px] bg-white/5 rounded-full" />
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                      <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] italic">
+                        Generowanie strategii procesowej...
+                      </p>
                     </div>
-                  </>
+                    <div className="space-y-2">
+                       <div className="skeleton-legal w-[75%]" />
+                       <div className="skeleton-legal w-[55%]" />
+                       <div className="skeleton-legal w-[40%]" />
+                    </div>
+                  </div>
                 )}
               </div>
             </motion.div>
           )}
         </div>
 
-        {/* Input Bar Section */}
         <div className="px-2 md:px-4 lg:px-6 pt-0 pb-8 bg-transparent relative z-20">
           <div className="w-full flex flex-col gap-2">
-             {/* Feature Badges */}
              <div className="flex flex-row items-center justify-center gap-2 sm:gap-3 px-2 mb-1 overflow-x-auto no-scrollbar">
                 <FeatureCard icon={<Shield size={14} className="text-white/60" />} title="Prywatność" bgColor="glass-prestige" />
                 <FeatureCard icon={<Target size={14} className="text-white/60" />} title="Precyzja" bgColor="glass-prestige" />
@@ -349,7 +446,6 @@ export function ChatView({
         </div>
       </div>
 
-      {/* Unified Model Configurator on the Right */}
       <AnimatePresence>
         {isOpen && (
           <motion.div

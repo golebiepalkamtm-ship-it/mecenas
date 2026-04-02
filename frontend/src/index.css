@@ -153,9 +153,7 @@ body {
     transition: all var(--t-fast);
 }
 
-.shimmer-text {
-    /* Shimmer animation disabled */
-}
+
 
 @utility orb {
     position: absolute;
@@ -410,4 +408,45 @@ body {
 .animate-border-shimmer {
     animation: glass-shimmer 3s ease-in-out infinite;
     border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ─── Premium Loading Animations ─── */
+@keyframes neural-pulse {
+    0% { transform: scale(1); opacity: 0.3; filter: blur(4px); }
+    50% { transform: scale(1.15); opacity: 0.6; filter: blur(8px); }
+    100% { transform: scale(1); opacity: 0.3; filter: blur(4px); }
+}
+
+@keyframes liquid-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes skeleton-shimmer {
+    0% { opacity: 0.05; transform: translateX(-100%); }
+    50% { opacity: 0.15; }
+    100% { opacity: 0.05; transform: translateX(100%); }
+}
+
+.neural-orb {
+    animation: neural-pulse 2s ease-in-out infinite;
+    background: radial-gradient(circle, #3b82f6 0%, transparent 70%);
+}
+
+.liquid-progress {
+    background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent);
+    background-size: 200% 100%;
+    animation: liquid-flow 2s linear infinite;
+}
+
+.skeleton-legal {
+    @apply h-2 bg-white/5 rounded-full relative overflow-hidden;
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        animation: skeleton-shimmer 2s infinite;
+    }
 }

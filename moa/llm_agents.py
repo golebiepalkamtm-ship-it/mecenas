@@ -40,7 +40,7 @@ from moa.prompts import TASK_PROMPTS, MASTER_PROMPT, SYSTEM_ROLES
 ANALYST_SYSTEM_PROMPT = """## ZASADY ANALIZY I LEGAL REASONING:
 
 1. **BAZUJ NA DOSTARCZONYCH ŹRÓDŁACH** — Twoje źródła prawdy to:
-   - `<user_document>` — dokument użytkownika (stan faktyczny i treść klauzul).
+   - `<user_document>` — dokument użytkownika (stan faktyczny i treść klauzul). Może on składać się z wielu stron/zdjęć (np. kilka zdjęć jednej umowy) połączonych w jeden ciągły tekst. Analizuj go jako spójną całość — np. podpis ze strony 10 odnosi się do warunków ze strony 1.
    - `<legal_context>` — kontekst prawny, w którego skład wchodzi baza kodeksów i ustaw RAG oraz orzecznictwo sądowe i wyroki pobrane z API SAOS.
    NIE korzystaj z wiedzy domniemanej, pracuj ZAWSZE na tym wejściu.
 

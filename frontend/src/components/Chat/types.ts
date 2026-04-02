@@ -6,6 +6,15 @@ export interface Attachment {
   content: string; // Base64
 }
 
+export interface QueuedAttachment {
+  id: string;
+  file: File;
+  status: 'uploading' | 'processing' | 'ready' | 'error';
+  progress: number;
+  extractedText?: string;
+  error?: string;
+}
+
 export interface ExpertAnalysis {
   model: string;
   response: string;

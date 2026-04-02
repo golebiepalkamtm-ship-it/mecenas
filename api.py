@@ -261,9 +261,13 @@ async def chat_endpoint(request: ChatRequest):
     if is_legal:
         try:
             doc_text = request.document_text or ""
-            # Ekstrahuj tekst z załączników (jeśli są)
+            # Ekstrahuj tekst z załączników (jeśli są i nie ma ich jeszcze w doc_text)
             for att in request.attachments:
                 if not att.type.startswith("image/"):
+                    # Jeśli nazwa pliku już jest w doc_text, to prawdopodobnie został przetworzony na froncie
+                    if f"({att.name})" in doc_text:
+                        continue
+
                     try:
                         import base64
 
@@ -410,6 +414,10 @@ async def chat_consensus_endpoint(request: ChatRequest):
     combined_doc_text = request.document_text or ""
 
     for att in request.attachments:
+        # Pomiń jeśli tekst tego załącznika już został przesłany (np. przez nowy system poczekalni)
+        if f"({att.name})" in combined_doc_text:
+            continue
+            
         try:
             import base64
 
@@ -575,9 +583,9 @@ async def upload_document(
         # Odczytaj zawartość pliku
         file_content = await file.read()
 
-        # Przetwórz dokument
-        extracted_text, error = process_document(
-            file_content, file.filename or "unknown", file.content_type or ""
+        # Przetwórz dokument asynchronicznie, aby nie blokować event loop (szczególnie przy ciężkim OCR)
+        extracted_text, error = await asyncio.to_thread(
+            process_document, file_content, file.filename or "unknown", file.content_type or ""
         )
 
         if error:

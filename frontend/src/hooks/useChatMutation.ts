@@ -52,15 +52,17 @@ export function useChatMutation() {
     message: string, 
     history: ChatMessage[], 
     sessionId?: string,
-    attachments?: Attachment[]
+    attachments?: Attachment[],
+    document_text?: string
   }>({
-    mutationFn: async ({ message, history, sessionId, attachments }) => {
+    mutationFn: async ({ message, history, sessionId, attachments, document_text }) => {
       const endpoint = isConsensusMode && experts.length > 0 ? '/chat-consensus' : '/chat';
       const payload = {
         message,
         history,
         sessionId,
         attachments,
+        document_text,
         model: (isConsensusMode && experts.length > 0) ? judge : (activeModels[0] || selectedSingleModel),
         selected_models: (isConsensusMode && experts.length > 0) ? experts : undefined,
         aggregator_model: (isConsensusMode && experts.length > 0) ? judge : undefined,

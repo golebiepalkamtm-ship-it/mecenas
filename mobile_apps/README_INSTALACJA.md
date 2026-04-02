@@ -1,8 +1,8 @@
-# Asesor AI - Wersje Mobilne
+# LexMind AI - Wersje Mobilne i Desktop
 
 ## 📱 Android APK
-**Plik**: `AsesorAI_Android.apk`
-**Rozmiar**: ~250MB (zawiera wszystkie modele AI i PDF-y)
+**Plik**: `LexMind_Android.apk`
+**Rozmiar**: ~4MB
 **Wymagania**: Android 8.0+
 
 ### Instalacja:
@@ -11,9 +11,28 @@
 3. Kliknij plik APK i zainstaluj
 4. Uruchom aplikację
 
+## 🖥️ Windows Desktop (Electron)
+**Plik**: `LexMind_Electron.exe`
+**Rozmiar**: ~132MB
+**Wymagania**: Windows 10+
+
+### Instalacja:
+1. Pobierz plik instalacyjny
+2. Kliknij dwukrotnie `LexMind_Electron.exe`
+3. Postępuj zgodnie z instrukcjami instalatora
+
+## 🖥️ Windows Desktop (Tauri)
+**Plik**: `LexMind_Windows.exe`
+**Rozmiar**: ~2MB
+**Wymagania**: Windows 10+
+
+### Instalacja:
+1. Pobierz plik instalacyjny
+2. Kliknij dwukrotnie `LexMind_Windows.exe`
+3. Postępuj zgodnie z instrukcjami instalatora
+
 ## 🍎 iOS IPA
-**Plik**: `AsesorAI_iOS.ipa`
-**Rozmiar**: ~280MB (zawiera wszystkie modele AI i PDF-y)
+**Status**: Wymaga macOS + Xcode do zbudowania
 **Wymagania**: iOS 14.0+
 
 ### Instalacja (wymaga macOS + Xcode):

@@ -1,16 +1,18 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Paperclip, Square, Send, Stamp, X, Image as ImageIcon, FileText, AlertTriangle } from "lucide-react";
+import { Plus, Paperclip, Square, Send, Stamp, X, Image as ImageIcon, FileText, AlertTriangle, CheckCircle2, Loader2, RefreshCcw } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useChatSettingsStore } from "../../../store/useChatSettingsStore";
 import { useState, useLayoutEffect } from "react";
+import type { QueuedAttachment } from "../types";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 // Komponent do podglądu pliku/obrazu
-function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
+function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; onRemove: () => void }) {
+  const { file, status, progress, error } = attachment;
   const [imageUrl, setImageUrl] = useState<string>('');
   const isImage = file.type.startsWith('image/');
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -42,13 +44,17 @@ function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-md rounded-xl flex items-center gap-3 text-[10px] font-bold group border border-white/10 shadow-xl overflow-hidden max-w-[200px]">
+    <div className={cn(
+      "bg-white/5 backdrop-blur-md rounded-xl flex items-center gap-3 text-[10px] font-bold group border shadow-xl overflow-hidden max-w-[220px] transition-all relative",
+      status === 'ready' ? "border-green-500/30" : "border-white/10",
+      status === 'error' ? "border-red-500/30" : ""
+    )}>
       {isImage && imageUrl ? (
         <div className="relative w-12 h-12 shrink-0">
           <img 
             src={imageUrl} 
             alt={file.name}
-            className="w-full h-full object-cover rounded-l-xl"
+            className={cn("w-full h-full object-cover rounded-l-xl", status !== 'ready' && "opacity-40 grayscale")}
           />
           <div className="absolute inset-0 bg-linear-to-br from-white/10 to-transparent rounded-l-xl" />
           <div className="absolute right-0 top-0 bottom-0 w-px bg-white/10" />
@@ -56,24 +62,48 @@ function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
       ) : (
         <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-white/5 rounded-l-xl">
           {getIcon()}
+          {status !== 'ready' && <div className="absolute inset-0 bg-black/20" />}
         </div>
       )}
       
-      <div className="flex-1 min-w-0 pr-2">
-        <div className="text-(--text-primary) truncate font-medium">
+      <div className="flex-1 min-w-0 pr-1">
+        <div className="text-(--text-primary) truncate font-medium flex items-center gap-1.5">
           {file.name}
+          {status === 'ready' && <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />}
         </div>
-        <div className="text-gray-400 text-[8px]">
-          {formatFileSize(file.size)}
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-[8px]">{formatFileSize(file.size)}</span>
+          <span className={cn(
+            "text-[7px] uppercase tracking-tighter",
+            status === 'uploading' && "text-sky-400",
+            status === 'processing' && "text-amber-400 animate-pulse",
+            status === 'ready' && "text-green-500",
+            status === 'error' && "text-red-500"
+          )}>
+            {status === 'uploading' ? (
+              <span className="flex items-center gap-1"><Loader2 className="w-2 h-2 animate-spin" /> Upload...</span>
+            ) : status === 'processing' ? (
+              <span className="flex items-center gap-1"><RefreshCcw className="w-2 h-2 animate-spin" /> OCR...</span>
+            ) : status === 'ready' ? (
+              "Gotowy"
+            ) : (
+              "Błąd"
+            )}
+          </span>
         </div>
       </div>
       
       <button
         onClick={onRemove}
-        className="w-6 h-6 mr-2 rounded-full flex items-center justify-center text-slate-500 hover:text-white hover:bg-red-500/20 transition-all shrink-0"
+        className="w-6 h-6 mr-2 rounded-full flex items-center justify-center text-slate-500 hover:text-white hover:bg-red-500/20 transition-all shrink-0 z-10"
       >
         <X size={12} />
       </button>
+
+      {/* Progress Bar overlay */}
+      {(status === 'uploading' || status === 'processing') && (
+        <div className="absolute bottom-0 left-0 h-0.5 bg-sky-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+      )}
     </div>
   );
 }
@@ -82,7 +112,7 @@ interface ChatInputProps {
   input: string;
   setInput: (val: string) => void;
   isLoading: boolean;
-  attachments: File[];
+  attachments: QueuedAttachment[];
   addAttachment: (e: React.ChangeEvent<HTMLInputElement>) => void;
   removeAttachment: (idx: number) => void;
   handleSend: () => void;
@@ -120,10 +150,10 @@ export function ChatInput({
             exit={{ height: 0, opacity: 0 }}
             className="flex flex-wrap gap-2 lg:gap-3 overflow-hidden px-2"
           >
-            {attachments.map((file, idx) => (
+            {attachments.map((att, idx) => (
               <FilePreview
-                key={idx}
-                file={file}
+                key={att.id || idx}
+                attachment={att}
                 onRemove={() => removeAttachment(idx)}
               />
             ))}
