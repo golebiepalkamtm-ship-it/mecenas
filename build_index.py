@@ -1,8 +1,5 @@
 from langchain_core.embeddings import Embeddings
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-
-import os, pickle
+import pickle
 from pathlib import Path
 from dotenv import load_dotenv
 import fitz
@@ -82,7 +79,7 @@ def extract_chunks_from_pdfs(progress_cb=None) -> List[Document]:
             chunks = splitter.create_documents([text], metadatas=[{"source": pdf_path.name}])
             all_chunks.extend(chunks)
         except Exception as e:
-            print(f"Błąd PDF {pdf_path.name}: {e}")
+            pass
     
     if all_chunks:
         CACHE_DIR.mkdir(exist_ok=True)
@@ -98,7 +95,6 @@ def build_index(progress_cb=None):
             progress_cb("Ładowanie modelu AI...", 0.1)
         emb = get_embeddings()
     except Exception as e:
-        print(f"Error initializing embeddings: {e}")
         return
     
     if progress_cb:
@@ -106,7 +102,6 @@ def build_index(progress_cb=None):
     
     chunks_raw = extract_chunks_from_pdfs(progress_cb)
     if not chunks_raw:
-        print("No chunks found")
         return
     
     texts = [doc.page_content for doc in chunks_raw]
@@ -135,13 +130,12 @@ def load_index(progress_cb=None):
         
         if progress_cb:
             progress_cb("Wczytywanie indeksu FAISS...", 0.6)
-        vs = FAISS.load_local(str(FAISS_INDEX_PATH), emb, allow_dangerous_deserialization=True)
+        vs = FAISS.load_local(str(FAISS_INDEX_PATH), emb, allow_dangerous_deserialization=False)
         
         if progress_cb:
             progress_cb("Gotowe!", 1.0)
         return vs
     except Exception as e:
-        print(f"Error loading index: {e}")
         return None
 
 
