@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/version-4.1-blue)
 ![Status](https://img.shields.io/badge/status-online-green)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Web%20%7C%20Android-lightgrey)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Android%20%7C%20iOS%20%7C%20Web-lightgrey)
 
 **LexMind AI** to inteligentny asystent prawny oparty na sztucznej inteligencji, stworzony dla **Kancelarii Pałka & Kaźmierczak**. System wykorzystuje najnowsze modele językowe (LLM) oraz techniki RAG (Retrieval-Augmented Generation) do analizy i odpowiadania na pytania prawne na podstawie polskiego prawodawstwa.
 
@@ -16,7 +16,8 @@
 2. [Architektura Systemu](#architektura-systemu)
 3. [Wymagania](#wymagania)
 4. [Instalacja i Uruchomienie](#instalacja-i-uruchomienie)
-5. [Struktura Projektu](#struktura-projektu)
+5. [Instalacja Aplikacji Mobilnych i Desktop](#instalacja-aplikacji-mobilnych-i-desktop)
+6. [Struktura Projektu](#struktura-projektu)
 6. [API Endpoints](#api-endpoints)
 7. [Konfiguracja](#konfiguracja)
 8. [System RAG i Indeksowanie](#system-rag-i-indeksowanie)
@@ -196,6 +197,59 @@ Przed pierwszym użyciem systemu RAG należy zbudować indeks dokumentów:
 ```bash
 python build_index.py
 ```
+
+---
+
+## 📱 Instalacja Aplikacji Mobilnych i Desktop
+
+### Android APK
+**Plik**: `mobile_apps/LexMind_Android.apk`
+**Rozmiar**: ~4MB
+**Wymagania**: Android 8.0+
+
+#### Instalacja:
+1. Pobierz plik `LexMind_Android.apk` z katalogu `mobile_apps/`
+2. Przenieś na urządzenie Android
+3. W ustawieniach włącz "Instalację z nieznanych źródeł"
+4. Kliknij plik APK i zainstaluj
+5. Uruchom aplikację
+
+### Windows Desktop (Tauri)
+**Plik**: `mobile_apps/LexMind_Windows.exe`
+**Rozmiar**: ~2MB
+**Wymagania**: Windows 10+
+
+#### Instalacja:
+1. Pobierz plik `LexMind_Windows.exe` z katalogu `mobile_apps/`
+2. Kliknij dwukrotnie plik instalacyjny
+3. Postępuj zgodnie z instrukcjami instalatora
+
+### Windows Desktop (Electron)
+**Plik**: `mobile_apps/LexMind_Electron.exe`
+**Rozmiar**: ~132MB
+**Wymagania**: Windows 10+
+
+#### Instalacja:
+1. Pobierz plik `LexMind_Electron.exe` z katalogu `mobile_apps/`
+2. Kliknij dwukrotnie plik instalacyjny
+3. Postępuj zgodnie z instrukcjami instalatora
+
+### iOS (wymaga macOS + Xcode)
+**Status**: Wymaga kompilacji na macOS z Xcode
+**Wymagania**: iOS 14.0+
+
+#### Instalacja:
+1. Podłącz urządzenie iOS do komputera Mac
+2. Otwórz Xcode
+3. Przeciągnij plik IPA do biblioteki urządzeń
+4. Wybierz urządzenie i zainstaluj
+
+### Funkcje wszystkich wersji mobilnych:
+- 🤖 AI Ekspert Prawny oparty na 3 źródłach prawnych
+- 📚 Wszystkie PDF-y wbudowane (tryb offline)
+- 🎨 Nowoczesny interfejs z ciemnym motywem
+- ⚡ Szybkie odpowiedzi dzięki lokalnym modelom
+- 🔒 Prywatność - wszystko działa lokalnie
 
 ---
 
@@ -431,6 +485,19 @@ cd "C:\Users\Marcin_Palka\moj prawnik"
 desktop_compile_windows.bat
 ```
 
+### Optymalizacja Buildu
+
+Build został zoptymalizowany dla produkcji:
+
+- **4 chunki** zamiast jednego dużego pliku
+- **Terser minification** dla mniejszego rozmiaru
+- **Relative paths** (`base: "./"`) dla poprawnego ładowania assets
+- **Rozmiary plików**:
+  - Główny bundle: ~688KB (gzip: ~194KB)
+  - Framer Motion: ~134KB (gzip: ~43KB)
+  - Lucide icons: ~15KB (gzip: ~5KB)
+  - Vendor libs: ~4KB (gzip: ~1KB)
+
 > Upewnij się, że masz zainstalowane: Node.js, Rust, Visual Studio Build Tools oraz zależności Python (`.venv` + `requirements.txt`).
 
 ## �🔧 Rozwiązywanie Problemów
@@ -454,6 +521,25 @@ dir pdfs
 ### Błąd: "Baza danych zablokowana"
 
 Zamknij wszystkie inne instancje aplikacji lub usuń plik `cache/prawnik.db`.
+
+### Błąd: "invalid source release: 21" (Android Build)
+
+Problem z kompilacją Android - niezgodność wersji Java:
+
+```bash
+# Rozwiązanie: Zainstaluj Java 17 zamiast Java 21
+# Lub dodaj kompatybilność Java 17 w konfiguracji Gradle
+```
+
+### Błąd: "Visual Studio Build Tools" (Desktop Build)
+
+Problem z kompilacją desktop - wymagane narzędzia VS:
+
+```bash
+# Rozwiązanie: Zainstaluj Visual Studio Build Tools
+# Następnie zrestartuj środowisko (cmd/powershell)
+# Sprawdź czy zmienne środowiskowe są ustawione
+```
 
 ### Resetowanie Aplikacji
 
