@@ -29,15 +29,15 @@ const FEATURES = [
     badge: "16 aktów prawnych",
     title: "System RAG",
     desc: "Kodeks Karny, Cywilny, Pracy, KPC, KPK, Handlowy, Morski, Rodzinny, Konstytucja RP i 7 innych — system przeszukuje wyłącznie oficjalne, zweryfikowane akty. Zero danych z internetu.",
-    accent: "rgba(59,130,246,0.12)",
-    border: "rgba(59,130,246,0.25)",
-    iconBg: "rgba(59,130,246,0.15)",
-    iconColor: "#93c5fd",
-    badgeColor: "#93c5fd",
+    accent: "rgba(212,175,55,0.10)",
+    border: "rgba(212,175,55,0.22)",
+    iconBg: "rgba(212,175,55,0.15)",
+    iconColor: "#f0cc5a",
+    badgeColor: "#f0cc5a",
   },
   {
     icon: <GitMerge size={18} />,
-    badge: "Claude 3.7 · GPT-4o · Gemini 2.5",
+    badge: "Analiza równoległa · 3 niezależne modele",
     title: "Konsensus 3 Modeli AI",
     desc: "Każde pytanie trafia równolegle do trzech niezależnych modeli. Agregator syntetyzuje odpowiedzi — wynik pojawia się tylko tam, gdzie eksperci są zgodni.",
     accent: "rgba(139,92,246,0.12)",
@@ -80,11 +80,11 @@ const STATS = [
 const TICKER = [
   "RAG · Retrieval-Augmented Generation",
   "Kodeks Karny",
-  "Claude 3.7 Sonnet · Analiza równoległa",
+  "Analiza równoległa · 3 niezależne silniki AI",
   "Kodeks Cywilny",
-  "GPT-4o · OpenAI",
+  "Konsensus Wielu Modeli · Zero Halucynacji",
   "Kodeks Pracy",
-  "Gemini 2.5 Flash · Google",
+  "Weryfikacja krzyżowa · Najwyższa dokładność",
   "Kodeks Postępowania Cywilnego",
   "Konsensus Wielu Modeli · Zero Halucynacji",
   "Kodeks Spółek Handlowych",
@@ -141,15 +141,15 @@ function Background() {
       
       {/* Ultra-Smooth Mesh Orbs with High Blur */}
       <div
-        className="absolute -top-[20%] -left-[20%] w-[100%] h-[100%] rounded-full opacity-30 blur-[160px] animate-aurora-slow"
+        className="absolute -top-[20%] -left-[20%] w-full h-full rounded-full opacity-30 blur-[160px] animate-aurora-slow"
         style={{
-          background: "radial-gradient(circle, rgba(66,192,206,0.18) 0%, transparent 65%)",
+          background: "radial-gradient(circle, rgba(212,175,55,0.14) 0%, transparent 65%)",
         }}
       />
       <div
         className="absolute top-[10%] -right-[20%] w-[80%] h-[80%] rounded-full opacity-25 blur-[140px] animate-aurora-medium"
         style={{
-          background: "radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 65%)",
+          background: "radial-gradient(circle, rgba(212,175,55,0.12) 0%, transparent 65%)",
         }}
       />
       <div
@@ -513,7 +513,7 @@ export function LandingView() {
                   className="absolute bottom-0 left-0 w-48 h-48 translate-y-1/2 -translate-x-1/3 pointer-events-none rounded-full"
                   style={{
                     background:
-                      "radial-gradient(ellipse, rgba(42,192,206,0.05) 0%, transparent 65%)",
+                      "radial-gradient(ellipse, rgba(212,175,55,0.05) 0%, transparent 65%)",
                   }}
                 />
 

@@ -1,0 +1,17 @@
+[
+  {
+    "model": "google/gemini-2.5-flash",
+    "response": "Wszystkie modele są tymczasowo niedostępne (rate limit). Spróbuj ponownie za chwilę.",
+    "sources": []
+  },
+  {
+    "model": "openai/gpt-4o-2024-11-20",
+    "response": "Wszystkie modele są tymczasowo niedostępne (rate limit). Spróbuj ponownie za chwilę.",
+    "sources": []
+  },
+  {
+    "model": "anthropic/claude-3.7-sonnet",
+    "response": "Wszystkie modele są tymczasowo niedostępne (rate limit). Spróbuj ponownie za chwilę.",
+    "sources": []
+  }
+]

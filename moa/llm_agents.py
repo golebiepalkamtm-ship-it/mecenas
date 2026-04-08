@@ -1,19 +1,11 @@
 # ===========================================================================
 # MOA LLM Agents — Równoległa analiza przez wielu ekspertów z retry
 # ===========================================================================
-"""
-Odpowiada za:
-  1. Wywołanie N modeli analitycznych RÓWNOLEGLE (asyncio.gather)
-  2. Connection Pooling (dzielenie sesji HTTP między próbami)
-  3. Exponential backoff z jitter dla 429/5xx
-  4. Globalny Timeout dla całego konsylium
-"""
 
 import asyncio
 import random
 import time
 from typing import Optional, cast
-
 from openai import AsyncOpenAI, APIStatusError, APIConnectionError, APITimeoutError
 
 from moa.config import (
@@ -29,153 +21,102 @@ from moa.config import (
     GLOBAL_MOA_TIMEOUT,
 )
 from moa.models import AnalystResult
+from moa.prompt_builder import (
+    build_moa_prompts,
+    PromptConfig,
+    IdentityMode,
+    DEFENSE_UNIVERSE,
+    PROSECUTION_UNIVERSE,
+)
 
+ANALYST_SYSTEM_PROMPT = """[ROLE: LEGAL_EXPERT_ANALYST]
+Jesteś wybitnym ekspertem prawnym powołanym do rygorystycznej analizy stanu faktycznego i prawnego.
+TWOJE ZADANIA:
+1. Przeanalizuj dostarczony <legal_context> oraz <user_document> pod kątem zapytania.
+2. Zidentyfikuj konkretne podstawy prawne (artykuły, paragrafy) mające zastosowanie.
+3. Wskaż ryzyka i szanse procesowe wynikające z Twojej specjalizacji.
+4. Przedstaw logiczne wnioskowanie, które doprowadziło Cię do konkluzji.
 
-from moa.prompts import TASK_PROMPTS, MASTER_PROMPT, SYSTEM_ROLES
-
-
-# ---------------------------------------------------------------------------
-# System Prompt — RYGORYSTYCZNY, zero-hallucynacji
-# ---------------------------------------------------------------------------
-ANALYST_SYSTEM_PROMPT = """## ZASADY ANALIZY I LEGAL REASONING:
-
-1. **BAZUJ NA DOSTARCZONYCH ŹRÓDŁACH** — Twoje źródła prawdy to:
-   - `<user_document>` — dokument użytkownika (stan faktyczny i treść klauzul). Może on składać się z wielu stron/zdjęć (np. kilka zdjęć jednej umowy) połączonych w jeden ciągły tekst. Analizuj go jako spójną całość — np. podpis ze strony 10 odnosi się do warunków ze strony 1.
-   - `<legal_context>` — kontekst prawny, w którego skład wchodzi baza kodeksów i ustaw RAG oraz orzecznictwo sądowe i wyroki pobrane z API SAOS.
-   NIE korzystaj z wiedzy domniemanej, pracuj ZAWSZE na tym wejściu.
-
-2. **SZUKAJ STRATEGII I ROZWIĄZAŃ (Legal Reasoning)** — 
-   - Twoim głównym zadaniem jest nie tylko "recenzować", ale znaleźć konkretne wyjścia z kłopotu i opracować strategię! 
-   - Np.: "Jak przedawnić roszczenie?", "Jak uznać zapis za klauzulę abuzywną?". Używaj wyroków z SAOS jako twardej broni i kierunkowskazu. Jeśli dostarczone są starsze wyroki w podobnych sprawach, wskaż, by klient skorzystał z podobnej argumentacji w sądzie.
-
-3. **ZAKAZ KONFABULACJI** — NIE wymyślaj artykułów, NIE wymyślaj sygnatur ani treści wyroków. Posługuj się jedynie tym, co widzisz w kontekście.
-
-4. **ANALIZA DOKUMENTU** — Gdy dostarczony jest `<user_document>`:
-   - Zbadaj pod lupą poszczególne akapity pod kątem nadużyć.
-
-5. **STRUKTURA ODPOWIEDZI**:
-   - Od razu uderzaj do setki: gdzie jest błąd / wada? Jak tę lukę w aktach wykorzystać lub obronić?
-   - Wskaż na konkretne artykuły ustaw czy sygnatury z SAOS, aby Sędzia Agregacji wiedział z czego to wyciągnąłeś.
+WYMOGI FORMALNE:
+- Pisz w sposób profesjonalny, surowy i precyzyjny.
+- Każde twierdzenie prawne musi mieć zakotwiczenie w dostarczonym kontekście.
+- Jeśli Twoja analiza koliduje z poprzednimi ustaleniami (patrz: expert_memory_cache), wyjaśnij dlaczego nowa interpretacja jest właściwsza.
 """
-
 
 def _build_analyst_user_prompt(
     context: str,
     query: str,
     has_legal_context: bool = True,
     document_text: str | None = None,
+    history_summary: str | None = None,
+    history: list[dict[str, str]] | None = None,
+    expert_memory: str | None = None,
 ) -> str:
-    """Buduje prompt użytkownika dla analityka z kontekstem, dokumentem i pytaniem."""
+    """Buduje prompt użytkownika dla analityka z kontekstem, dokumentem, historią i pamięcią."""
+    
+    memory_section = ""
+    if expert_memory:
+        memory_section = f"<expert_memory_cache>\n## TWOJE POPRZEDNIE USTALENIA Z TEJ SESJI:\n{expert_memory}\n</expert_memory_cache>\n\n"
 
-    # Gdy użytkownik dostarczył dokument — jest on źródłem głównym
     doc_section = ""
     if document_text and document_text.strip():
-        doc_section = f"""<user_document>
-{document_text}
-</user_document>
+        doc_section = f"<user_document>\n{document_text}\n</user_document>\n\n"
 
----
+    history_section = ""
+    if history_summary:
+        history_section += f"<conversation_summary>\n{history_summary}\n</conversation_summary>\n\n"
 
-"""
+    if history:
+        history_section += "## OSTATNIE WIADOMOŚCI:\n"
+        for msg in history:
+            role = "Klient" if msg.get("role") == "user" else "Twoja poprzednia odpowiedź"
+            history_section += f"- {role}: {msg.get('content', '')}\n"
+        history_section += "\n"
 
+    rag_section = ""
     if has_legal_context and context.strip():
-        return f"""{doc_section}<legal_context>
-{context}
-</legal_context>
-
----
-
-## PYTANIE UŻYTKOWNIKA:
-{query}
-
----
-
-## TWOJA ANALIZA PRAWNA (Context Enrichment):
-{("Oto powyżej dokument użytkownika oraz przywołane przepisy prawne z bazy kodeksów i ustaw RAG, a także historyczne wyroki pobrane z API SAOS. \nZadanie: Zidentyfikuj niewygodne dla klienta interpretacje w dokumencie i bazując na prawie ugruntowanym oraz wyrokach, zaproponuj na tej bazie konkretne rozwiązania obronne (strategię).") if (document_text and document_text.strip()) else "Opierając się w 100% o dostarczone przepisy z bazy kodeksów i ustaw RAG oraz na orzecznictwie z SAOS API, zaproponuj strategię wyjścia krok po kroku i wskaż najlepszą opcję obrony dla klienta."}"""
+        rag_section = f"<legal_context>\n{context}\n</legal_context>\n\n"
+        instruction = "Zaproponuj konkretną strategię w oparciu o dostarczony RAG i fakty."
     else:
-        if document_text and document_text.strip():
-            return f"""<user_document>
-{document_text}
-</user_document>
+        instruction = "Odpowiedz merytorycznie na podstawie dostępnych informacji."
 
----
+    return f"{memory_section}{doc_section}{rag_section}{history_section}## PYTANIE UŻYTKOWNIKA:\n{query}\n\n--- ZADANIE: {instruction} ---"
 
-## PYTANIE UŻYTKOWNIKA:
-{query}
-
----
-
-## TWOJA ANALIZA PRAWNA (analizuj dokument użytkownika — brak dodatkowego kontekstu prawnego):"""
-        else:
-            return f"""## PYTANIE UŻYTKOWNIKA:
-{query}
-
----
-
-## TWOJA ANALIZA (Brak kontekstu prawnego - odpowiadaj jako ogólny asystent AI):"""
-
-
-# ---------------------------------------------------------------------------
-# Retry z Connection Pooling
-# ---------------------------------------------------------------------------
 async def _call_with_retry(
     client: AsyncOpenAI,
     model: str,
     system_prompt: str,
     user_prompt: str,
+    history: list[dict[str, str]] | None = None,
+    max_tokens: int = 2500,
 ) -> tuple[str, int]:
-    """Wywołuje model LLM wykorzystując przekazany, współdzielony klient."""
-    last_error: Optional[Exception] = None
+    """Retry z obsługą historii i eliminacją podwójnych wiadomości użytkownika."""
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    if history:
+        hist_subset = history[-10:]
+        if hist_subset and hist_subset[-1].get("role") == "user":
+             hist_subset = hist_subset[:-1]
+        messages.extend(hist_subset)
+    
+    messages.append({"role": "user", "content": user_prompt})
 
     for attempt in range(MAX_RETRIES + 1):
         try:
             response = await client.chat.completions.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+                messages=messages,
                 temperature=LLM_TEMPERATURE,
+                max_tokens=max_tokens,
             )
             return response.choices[0].message.content or "", attempt
-
-        except APIStatusError as e:
-            last_error = e
-            status = e.status_code
-            if status in RETRYABLE_STATUS_CODES and attempt < MAX_RETRIES:
-                delay = min(
-                    RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1),
-                    RETRY_MAX_DELAY,
-                )
-                print(
-                    f"⚡ {model}: HTTP {status}, retry {attempt + 1}/{MAX_RETRIES} za {delay:.1f}s"
-                )
-                await asyncio.sleep(delay)
-                continue
-            raise
-
-        except (APIConnectionError, APITimeoutError) as e:
-            last_error = e
+        except Exception as e:
             if attempt < MAX_RETRIES:
-                delay = min(
-                    RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 1),
-                    RETRY_MAX_DELAY,
-                )
-                print(
-                    f"⚡ {model}: Błąd/Timeout ({type(e).__name__}), retry {attempt + 1}/{MAX_RETRIES} za {delay:.1f}s"
-                )
-                await asyncio.sleep(delay)
+                await asyncio.sleep(RETRY_BASE_DELAY * (2**attempt))
                 continue
-            raise
-
-    if last_error is not None:
-        raise last_error
+            raise e
     raise Exception(f"{model}: Wyczerpano próby")
 
-
-# ---------------------------------------------------------------------------
-# Analiza jednym modelem
-# ---------------------------------------------------------------------------
 async def _analyze_single(
     client: AsyncOpenAI,
     model: str,
@@ -184,43 +125,20 @@ async def _analyze_single(
     system_prompt: str,
     has_legal_context: bool = True,
     document_text: str | None = None,
+    history_summary: str | None = None,
+    history: list[dict[str, str]] | None = None,
+    expert_memory: str | None = None,
 ) -> AnalystResult:
-    """Kontener na pojedyncze wywołanie modelu."""
     start = time.perf_counter()
     user_prompt = _build_analyst_user_prompt(
-        context, query, has_legal_context, document_text
+        context, query, has_legal_context, document_text, history_summary, history=None, expert_memory=expert_memory
     )
-
     try:
-        response, retries = await _call_with_retry(
-            client, model, system_prompt, user_prompt
-        )
-        latency = (time.perf_counter() - start) * 1000
-        print(f"✅ {model}: OK ({latency:.0f}ms, retries: {retries})")
-        return AnalystResult(
-            model_id=model,
-            response=response,
-            success=True,
-            latency_ms=latency,
-            retries_used=retries,
-        )
-
+        response, retries = await _call_with_retry(client, model, system_prompt, user_prompt, history=history)
+        return AnalystResult(model_id=model, response=response, success=True, latency_ms=(time.perf_counter()-start)*1000, retries_used=retries)
     except Exception as e:
-        latency = (time.perf_counter() - start) * 1000
-        error_msg = f"{type(e).__name__}: {str(e)[:300]}"
-        print(f"❌ {model}: FAILED ({latency:.0f}ms) — {error_msg}")
-        return AnalystResult(
-            model_id=model,
-            response="",
-            success=False,
-            error=error_msg,
-            latency_ms=latency,
-        )
+        return AnalystResult(model_id=model, response="", success=False, error=str(e), latency_ms=(time.perf_counter()-start)*1000)
 
-
-# ---------------------------------------------------------------------------
-# GŁÓWNA FUNKCJA: Równoległa analiza
-# ---------------------------------------------------------------------------
 async def run_parallel_analysis(
     context: str,
     query: str,
@@ -229,102 +147,27 @@ async def run_parallel_analysis(
     custom_task_prompt: Optional[str] = None,
     architect_prompt: Optional[str] = None,
     system_role_prompt: Optional[str] = None,
+    expert_roles: list[str] | None = None,
+    expert_role_prompts: dict[str, str] | None = None,
     client: Optional[AsyncOpenAI] = None,
     has_legal_context: bool = True,
     document_text: Optional[str] = None,
+    history_summary: Optional[str] = None,
+    history: list[dict[str, str]] | None = None,
+    expert_memory: str | None = None,
+    mode: IdentityMode = IdentityMode.ADVOCATE,
 ) -> list[AnalystResult]:
-    """Wysyła zapytanie do N modeli RÓWNOLEGLE z współdzieloną sesją HTTP (Connection Pooling)."""
     models = models or DEFAULT_ANALYST_MODELS
-    task = task or "general"
-
-    # Budowa promptu
-    base_architect = architect_prompt or MASTER_PROMPT
-    base_role = system_role_prompt or SYSTEM_ROLES.get(
-        task, SYSTEM_ROLES.get("navigator", "")
-    )
-    base_task = custom_task_prompt or TASK_PROMPTS.get(
-        task, TASK_PROMPTS.get("general", "")
-    )
-
-    # Dostosuj system prompt gdy nie ma kontekstu prawnego
-    if has_legal_context:
-        final_system_prompt = (
-            f"{base_architect}\n\n{base_role}\n\n{base_task}\n\n{ANALYST_SYSTEM_PROMPT}"
-        )
-    else:
-        # Uproszczony prompt dla trybu ogólnego LLM
-        final_system_prompt = f"{base_architect}\n\n{base_role}\n\n{base_task}\n\nJesteś pomocnym asystentem AI. Odpowiedz na pytanie użytkownika w sposób zwięzły i merytoryczny."
-
-    print(f"\n🔬 MOA: {len(models)} modeli równolegle (Task: {task})")
+    pb_config = PromptConfig(mode=mode, task=task or "general", has_legal_context=has_legal_context, has_document=bool(document_text))
+    model_prompts = build_moa_prompts(models, pb_config)
+    
     start = time.perf_counter()
-
     async def _execute_with_client(shared_client: AsyncOpenAI):
-        # Create concrete tasks to track them clearly
-        tasks = [
-            asyncio.create_task(
-                _analyze_single(
-                    shared_client,
-                    model,
-                    context,
-                    query,
-                    final_system_prompt,
-                    has_legal_context,
-                    document_text,
-                )
-            )
-            for model in models
-        ]
-
-        # Wait with total timeout, allowing partial results to be collected
-        done, pending = await asyncio.wait(tasks, timeout=GLOBAL_MOA_TIMEOUT)
-
-        results = []
-        for i, task in enumerate(tasks):
-            model_name = models[i]
-            if task in done:
-                try:
-                    results.append(task.result())
-                except Exception as e:
-                    results.append(
-                        AnalystResult(
-                            model_id=model_name,
-                            response="",
-                            success=False,
-                            error=str(e),
-                        )
-                    )
-            else:
-                # Non-finished tasks are cancelled and reported as timeout
-                print(
-                    f"⚠️ {model_name}: GLOBAL TIMEOUT ({GLOBAL_MOA_TIMEOUT}s) przekroczony. Przerywam zadanie."
-                )
-                task.cancel()
-                results.append(
-                    AnalystResult(
-                        model_id=model_name,
-                        response="[Błąd: Timeout globalny konsylium]",
-                        success=False,
-                        error=f"Timeout globalny > {GLOBAL_MOA_TIMEOUT}s",
-                    )
-                )
-
-        return results
+        tasks = [asyncio.create_task(_analyze_single(shared_client, model, context, query, model_prompts.get(model, ""), has_legal_context, document_text, history_summary, history, expert_memory)) for model in models]
+        done, _ = await asyncio.wait(tasks, timeout=GLOBAL_MOA_TIMEOUT)
+        return [t.result() if t in done else AnalystResult(model_id=models[i], response="", success=False, error="Timeout") for i, t in enumerate(tasks)]
 
     if client:
-        results = await _execute_with_client(client)
-    else:
-        # Tworzymy lokalny klient tylko jeśli nie przekazano globalnego (np. w API dla Single Model)
-        async with AsyncOpenAI(
-            api_key=OPENROUTER_API_KEY,
-            base_url=OPENROUTER_BASE_URL,
-            timeout=LLM_TIMEOUT,
-            default_headers={
-                "HTTP-Referer": "http://127.0.0.1:8003",
-                "X-Title": "LexMind AI",
-            },
-        ) as new_client:
-            results = await _execute_with_client(new_client)
-
-    total = (time.perf_counter() - start) * 1000
-    print(f"📊 MOA zakończone po {total:.0f}ms")
-    return results
+        return await _execute_with_client(client)
+    async with AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL) as new_client:
+        return await _execute_with_client(new_client)

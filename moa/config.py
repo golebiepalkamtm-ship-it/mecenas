@@ -159,8 +159,8 @@ DEFAULT_ANALYST_MODELS = [
 # Retrieval defaults
 # ---------------------------------------------------------------------------
 DEFAULT_MATCH_THRESHOLD = 0.05
-DEFAULT_MATCH_COUNT = 12  # Więcej fragmentów → lepszy kontekst
-MAX_CONTEXT_CHARS = 48_000  # ~12k tokenów — bezpieczny limit
+DEFAULT_MATCH_COUNT = 25  # ZWIĘKSZONO: Więcej fragmentów → głębsza analiza prawna
+MAX_CONTEXT_CHARS = 80_000  # ZWIĘKSZONO: ~20k tokenów — szerszy kontekst prawny
 MAX_CONTEXT_TOKENS_ESTIMATE = 12_000
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { 
-  Search
+  FileText
 } from "lucide-react";
 import { useKnowledgeBase } from "../../hooks";
 import { NeonButton } from "../UI";
@@ -47,7 +47,7 @@ export function KnowledgeView() {
         type="file"
         ref={fileInputRef}
         onChange={handleFileUpload}
-        accept=".pdf"
+        accept=".pdf,.doc,.docx,.txt,.odt,.rtf"
         className="hidden"
       />
 
@@ -65,18 +65,20 @@ export function KnowledgeView() {
           />
         </div>
 
-        <AnimatePresence mode="popLayout">
-          {filteredDocuments.map((doc: KnowledgeDocument, idx: number) => (
-            <DocumentCard 
-               key={doc.id} 
-               doc={doc} 
-               index={idx} 
-               onDelete={(name) => {
-                 if (confirm(`Czy na pewno usunąć ${name}?`)) removeFile(name);
-               }}
-            />
-          ))}
-        </AnimatePresence>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <AnimatePresence mode="popLayout">
+            {filteredDocuments.map((doc: KnowledgeDocument, idx: number) => (
+              <DocumentCard 
+                 key={doc.id} 
+                 doc={doc} 
+                 index={idx} 
+                 onDelete={(name) => {
+                   if (confirm(`Czy na pewno usunąć ${name}?`)) removeFile(name);
+                 }}
+              />
+            ))}
+          </AnimatePresence>
+        </div>
 
         {filteredDocuments.length === 0 && (
           <motion.div 
@@ -85,7 +87,7 @@ export function KnowledgeView() {
             className="h-full flex flex-col items-center justify-center text-center space-y-6 glass-prestige rounded-[3rem] shadow-2xl relative overflow-hidden group py-16"
           >
             <div className="w-24 h-24 rounded-3xl glass-prestige-gold flex items-center justify-center text-gold-primary relative z-10 animate-nodeFloat mb-2 border border-white/10 shrink-0">
-              <Search size={24} />
+              <FileText size={32} />
               <div className="absolute -inset-2 border border-gold-primary/20 rounded-4xl animate-ping opacity-20" />
             </div>
 

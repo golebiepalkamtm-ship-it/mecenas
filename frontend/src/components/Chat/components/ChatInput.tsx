@@ -1,18 +1,17 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Paperclip, Square, Send, Stamp, X, Image as ImageIcon, FileText, AlertTriangle, CheckCircle2, Loader2, RefreshCcw } from "lucide-react";
+import { Square, Send, X, Image as ImageIcon, FileText, AlertTriangle, CheckCircle2, Loader2, RefreshCcw, Mic, Database } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { useChatSettingsStore } from "../../../store/useChatSettingsStore";
-import { useState, useLayoutEffect } from "react";
+import { useState, useLayoutEffect, useCallback, useEffect, useRef } from "react";
 import type { QueuedAttachment } from "../types";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// Komponent do podglądu pliku/obrazu
+/* ─── File Preview Chip ─── */
 function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; onRemove: () => void }) {
-  const { file, status, progress, error } = attachment;
+  const { file, status, progress } = attachment;
   const [imageUrl, setImageUrl] = useState<string>('');
   const isImage = file.type.startsWith('image/');
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -21,88 +20,115 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
     if (isImage) {
       const url = URL.createObjectURL(file);
       Promise.resolve().then(() => setImageUrl(url));
-      return () => {
-        URL.revokeObjectURL(url);
-      };
+      return () => URL.revokeObjectURL(url);
     }
   }, [file, isImage]);
 
   const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB'];
+    if (bytes === 0) return '0 B';
+    const k = 1024, sizes = ['B', 'KB', 'MB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const getIcon = () => {
-    if (isImage && imageUrl) return null;
-    if (extension === 'pdf') return <FileText className="w-6 h-6 text-rose-500" />;
-    if (extension === 'docx' || extension === 'doc') return <FileText className="w-6 h-6 text-blue-500" />;
-    if (extension === 'txt') return <FileText className="w-6 h-6 text-slate-400" />;
-    return <ImageIcon className="w-6 h-6 text-sky-400" />;
+  const getFileIcon = () => {
+    if (extension === 'pdf')  return <FileText className="w-5 h-5 text-rose-400" />;
+    if (extension === 'docx' || extension === 'doc') return <FileText className="w-5 h-5 text-gold-primary" />;
+    if (extension === 'txt')  return <FileText className="w-5 h-5 text-slate-400" />;
+    return <ImageIcon className="w-5 h-5 text-gold-primary" />;
+  };
+
+  const statusColors: Record<string, string> = {
+    uploading:  'text-gold-primary',
+    processing: 'text-amber-400',
+    ready:       'text-gold-primary',
+    error:      'text-red-400',
+  };
+
+  const borderColors: Record<string, string> = {
+    uploading:  'rgba(212,175,55,0.20)',
+    processing: 'rgba(251,191,36,0.20)',
+    ready:      'rgba(212,175,55,0.25)',
+    error:      'rgba(248,113,113,0.25)',
   };
 
   return (
-    <div className={cn(
-      "bg-white/5 backdrop-blur-md rounded-xl flex items-center gap-3 text-[10px] font-bold group border shadow-xl overflow-hidden max-w-[220px] transition-all relative",
-      status === 'ready' ? "border-green-500/30" : "border-white/10",
-      status === 'error' ? "border-red-500/30" : ""
-    )}>
-      {isImage && imageUrl ? (
-        <div className="relative w-12 h-12 shrink-0">
-          <img 
-            src={imageUrl} 
-            alt={file.name}
-            className={cn("w-full h-full object-cover rounded-l-xl", status !== 'ready' && "opacity-40 grayscale")}
-          />
-          <div className="absolute inset-0 bg-linear-to-br from-white/10 to-transparent rounded-l-xl" />
-          <div className="absolute right-0 top-0 bottom-0 w-px bg-white/10" />
-        </div>
-      ) : (
-        <div className="w-12 h-12 shrink-0 flex items-center justify-center bg-white/5 rounded-l-xl">
-          {getIcon()}
-          {status !== 'ready' && <div className="absolute inset-0 bg-black/20" />}
-        </div>
-      )}
-      
-      <div className="flex-1 min-w-0 pr-1">
-        <div className="text-(--text-primary) truncate font-medium flex items-center gap-1.5">
-          {file.name}
-          {status === 'ready' && <CheckCircle2 className="w-3 h-3 text-green-500 shrink-0" />}
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-gray-400 text-[8px]">{formatFileSize(file.size)}</span>
-          <span className={cn(
-            "text-[7px] uppercase tracking-tighter",
-            status === 'uploading' && "text-sky-400",
-            status === 'processing' && "text-amber-400 animate-pulse",
-            status === 'ready' && "text-green-500",
-            status === 'error' && "text-red-500"
-          )}>
-            {status === 'uploading' ? (
-              <span className="flex items-center gap-1"><Loader2 className="w-2 h-2 animate-spin" /> Upload...</span>
-            ) : status === 'processing' ? (
-              <span className="flex items-center gap-1"><RefreshCcw className="w-2 h-2 animate-spin" /> OCR...</span>
-            ) : status === 'ready' ? (
-              "Gotowy"
-            ) : (
-              "Błąd"
-            )}
-          </span>
-        </div>
-      </div>
-      
-      <button
-        onClick={onRemove}
-        className="w-6 h-6 mr-2 rounded-full flex items-center justify-center text-slate-500 hover:text-white hover:bg-red-500/20 transition-all shrink-0 z-10"
+    <div className="relative group/wrapper">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 4 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.85, y: -4 }}
+        className="relative flex items-center gap-2.5 rounded-xl overflow-hidden max-w-[200px] group/chip"
+        style={{
+          background: "rgba(3, 3, 5, 0.90)",
+          border: `1px solid ${borderColors[status] || "rgba(255,255,255,0.10)"}`,
+          boxShadow: "0 2px 10px rgba(0,0,0,0.50)",
+        }}
       >
-        <X size={12} />
-      </button>
+        {/* Thumbnail / Icon */}
+        {isImage && imageUrl ? (
+          <div className="relative w-10 h-10 shrink-0">
+            <img 
+              src={imageUrl} alt={file.name}
+              className={cn("w-full h-full object-cover", status !== 'ready' && "opacity-40 grayscale")}
+            />
+            <div className="absolute inset-0 bg-linear-to-br from-white/10 to-transparent" />
+            <div className="absolute right-0 inset-y-0 w-px bg-white/10" />
+          </div>
+        ) : (
+          <div className="w-10 h-10 shrink-0 flex items-center justify-center bg-white/4">
+            {getFileIcon()}
+          </div>
+        )}
 
-      {/* Progress Bar overlay */}
-      {(status === 'uploading' || status === 'processing') && (
-        <div className="absolute bottom-0 left-0 h-0.5 bg-sky-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+        {/* Info */}
+        <div className="flex-1 min-w-0 py-2 pr-1">
+          <div className="text-[10px] font-semibold text-white/75 truncate flex items-center gap-1">
+            {file.name}
+            {status === 'ready' && <CheckCircle2 className="w-3 h-3 text-gold-primary shrink-0" />}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[8px] text-white/25">{formatFileSize(file.size)}</span>
+            <span className={cn("text-[7px] uppercase tracking-wide font-bold", statusColors[status])}>
+              {status === 'uploading' && <span className="flex items-center gap-0.5"><Loader2 className="w-2 h-2 animate-spin inline" /> Upload</span>}
+              {status === 'processing' && <span className="flex items-center gap-0.5"><RefreshCcw className="w-2 h-2 animate-spin inline" /> OCR</span>}
+              {status === 'ready' && "Gotowy"}
+              {status === 'error' && "Błąd"}
+            </span>
+          </div>
+        </div>
+
+        {/* Remove */}
+        <button
+          onClick={onRemove}
+          className="w-5 h-5 mr-2 rounded-full flex items-center justify-center text-white/25 hover:text-white hover:bg-red-500/30 transition-all shrink-0 z-10"
+        >
+          <X size={10} />
+        </button>
+
+        {/* Progress Bar */}
+        {(status === 'uploading' || status === 'processing') && (
+          <div
+            className="absolute bottom-0 left-0 h-[2px] rounded-full transition-all duration-700"
+            style={{
+              width: `${progress}%`,
+              background: "linear-gradient(90deg, rgba(212,175,55,0.8), rgba(240,204,90,0.8))",
+            }}
+          />
+        )}
+      </motion.div>
+
+      {/* Tooltip for Extracted Text (Hover Preview) */}
+      {status === 'ready' && attachment.extractedText && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 w-[260px] p-3 rounded-2xl glass-prestige text-left opacity-0 translate-y-2 group-hover/wrapper:opacity-100 group-hover/wrapper:translate-y-0 pointer-events-none transition-all duration-300 z-50 shadow-2xl border border-white/10" style={{ background: "rgba(10, 12, 16, 0.95)" }}>
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/5">
+            <FileText className="w-3.5 h-3.5 text-gold-primary" />
+            <span className="text-[9px] font-black uppercase tracking-widest text-white/50">Podgląd Oraz OCR</span>
+          </div>
+          <div className="text-[11px] text-white/80 leading-relaxed font-sans line-clamp-6 whitespace-pre-wrap break-all">
+            {attachment.extractedText}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -110,17 +136,40 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
 
 interface ChatInputProps {
   input: string;
-  setInput: (val: string) => void;
+  setInput: React.Dispatch<React.SetStateAction<string>> | ((val: string | ((prev: string) => string)) => void);
   isLoading: boolean;
   attachments: QueuedAttachment[];
-  addAttachment: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  addAttachment?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional if handled via refs
   removeAttachment: (idx: number) => void;
   handleSend: () => void;
   stopGeneration: () => void;
   newChat: () => void;
   onNavigateToDrafter: () => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
+  imageInputRef: React.RefObject<HTMLInputElement | null>;
   attachmentWarning?: string | null;
+  useRag: boolean;
+  onOpenLibrary: () => void;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  onerror: (event: SpeechRecognitionErrorEvent) => void;
+  onend: () => void;
+  start: () => void;
+  stop: () => void;
 }
 
 export function ChatInput({
@@ -128,27 +177,77 @@ export function ChatInput({
   setInput,
   isLoading,
   attachments,
-  addAttachment,
   removeAttachment,
   handleSend,
   stopGeneration,
-  newChat,
-  onNavigateToDrafter,
   fileInputRef,
+  imageInputRef,
   attachmentWarning,
+  onOpenLibrary,
+  useRag,
 }: ChatInputProps) {
-  const { mode } = useChatSettingsStore();
-  const isConsensus = mode === 'consensus';
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const win = window as any;
+      const SpeechRecognitionConstructor = win.SpeechRecognition || win.webkitSpeechRecognition;
+      if (SpeechRecognitionConstructor && !recognitionRef.current) {
+        const reco = new SpeechRecognitionConstructor() as SpeechRecognition;
+        reco.continuous = true;
+        reco.interimResults = true;
+        reco.lang = 'pl-PL';
+
+        reco.onresult = (event: SpeechRecognitionEvent) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+          }
+          if (finalTranscript) {
+             const setter = setInput as (val: string | ((prev: string) => string)) => void;
+             setter((prev: string) => (prev ? prev + ' ' : '') + finalTranscript);
+          }
+        };
+
+        reco.onerror = (event: SpeechRecognitionErrorEvent) => {
+          console.error("Speech recognition error", event.error);
+          setIsListening(false);
+        };
+
+        reco.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = reco;
+      }
+    }
+  }, [setInput]);
+
+  const toggleListen = useCallback(() => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
+  }, [isListening]);
 
   return (
-    <div className="w-full flex flex-col gap-4 px-2">
+    <div className="w-full flex flex-col gap-3 px-2">
+
+      {/* ── Attachments & Warnings ── */}
       <AnimatePresence>
         {attachments.length > 0 && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="flex flex-wrap gap-2 lg:gap-3 overflow-hidden px-2"
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="flex flex-wrap gap-2 px-2 overflow-hidden"
           >
             {attachments.map((att, idx) => (
               <FilePreview
@@ -157,44 +256,90 @@ export function ChatInput({
                 onRemove={() => removeAttachment(idx)}
               />
             ))}
-            <span className="text-[10px] text-white/40 font-medium self-center ml-1">
-              {attachments.length}/10
+            <span className="text-[9px] text-white/25 font-bold uppercase tracking-wider self-center ml-1">
+              Plików: {attachments.length}
             </span>
+
           </motion.div>
         )}
+
         {attachmentWarning && (
           <motion.div
-            initial={{ opacity: 0, y: -4 }}
+            initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[11px] font-medium mx-2"
+            exit={{ opacity: 0, y: -4 }}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl mx-2 border text-[11px] font-medium"
+            style={{
+              background: "rgba(245,158,11,0.08)",
+              borderColor: "rgba(245,158,11,0.20)",
+              color: "rgba(252,211,77,0.9)",
+            }}
           >
-            <AlertTriangle size={14} />
+            <AlertTriangle size={13} className="shrink-0" />
             {attachmentWarning}
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="relative glass-prestige p-2 lg:p-2.5 rounded-[2.5rem] flex flex-col sm:flex-row items-center justify-center gap-2 group/input transition-all shadow-2xl border border-transparent animate-border-shimmer">
-        {/* Left Actions */}
-        <div className="flex items-center gap-1.5 px-1">
-          <motion.button
-            onClick={() => {
-              newChat();
-              setInput("");
-            }}
-            whileHover={{ scale: 1.05, rotate: 15 }}
-            whileTap={{ scale: 0.95 }}
-            className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all shrink-0 flex items-center justify-center"
-            title="Nowa sprawa"
-          >
-            <Plus className="w-4 h-4" />
-          </motion.button>
-        </div>
+      {/* ── Main Input Shell ── */}
+      <div className="relative w-full rounded-[2.5rem] border flex items-end p-2 transition-all group/input glass-liquid-convex shadow-2xl">
+         
+         {/* Left Icons inside input - ARCHITECTURAL SEPARATION */}
+         <div className="flex items-center gap-1 pb-1 pl-1 shrink-0 text-white/40">
+            {/* 1. ZAŁĄCZ ZDJĘCIE (Photos) */}
+            <button 
+              title="Załącz Zdjęcie / Obraz" 
+              onClick={() => imageInputRef.current?.click()} 
+              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-photo"
+            >
+               <ImageIcon size={18} className="group-hover/btn-photo:scale-110 transition-transform" />
+            </button>
 
-        {/* Center: Input Field */}
-        <div className="flex-1 relative glass-prestige-input rounded-[1.8rem] group-focus-within/input:border-white/30 transition-all">
-          <textarea
+            {/* 2. ZAŁĄCZ DOKUMENT (Local Docs) */}
+            <button 
+              title="Załącz Dokument / Pismo" 
+              onClick={() => fileInputRef.current?.click()} 
+              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-doc"
+            >
+               <FileText size={18} className="group-hover/btn-doc:scale-110 transition-transform" />
+            </button>
+
+            {/* 3. BIBLIOTEKA AKT (RAG / Central Knowledge Base) */}
+            <button 
+              title="Biblioteka Akt (RAG)" 
+              onClick={onOpenLibrary} 
+              className={cn(
+                "p-2 rounded-xl transition-all flex items-center justify-center -mt-1 relative group/btn-rag",
+                useRag ? "text-emerald-500 bg-emerald-500/5 border border-emerald-500/10 shadow-lg" : "text-white/15 hover:bg-white/5"
+              )}
+            >
+               <Database size={18} className={cn("transition-transform group-hover/btn-rag:scale-110", useRag ? "animate-pulse" : "")} />
+               <div className={cn("absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20", useRag ? "bg-emerald-500" : "bg-white/10")} />
+            </button>
+
+            <button 
+              title="Dyktuj" 
+              onClick={toggleListen}
+              className={cn(
+                "p-2 rounded-xl transition-all flex items-center justify-center relative shadow-xs -mt-1",
+                isListening ? "text-red-500 bg-red-500/10 border border-red-500/20" : "hover:bg-red-500/10 hover:text-red-500"
+              )}
+            >
+               {isListening && (
+                 <motion.div 
+                   layoutId="mic-pulse"
+                   initial={{ scale: 0.8, opacity: 0 }}
+                   animate={{ scale: [1, 1.6, 1], opacity: [0, 0.4, 0] }}
+                   transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                   className="absolute inset-0 bg-red-500 rounded-xl"
+                 />
+               )}
+               <Mic size={18} className="relative z-10" />
+            </button>
+         </div>
+
+         {/* Center Auto-resizing Textarea */}
+         <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -203,81 +348,35 @@ export function ChatInput({
                 handleSend();
               }
             }}
-            placeholder={
-              isConsensus
-                ? "Zapytaj Konsylium... Zespół ekspercki przeanalizuje ten problem."
-                : "Zadaj pytanie prawne do głównego asystenta..."
-            }
-            className="w-full bg-transparent px-5 py-4 pr-12 text-[14px] text-(--text-primary) focus:outline-hidden min-h-[80px] max-h-[400px] resize-none overflow-hidden placeholder:text-white/20 font-medium"
-            rows={2}
-          />
-          <div className="absolute right-2.5 bottom-2.5">
+            placeholder={isListening ? "Słucham..." : "Opisz swój problem prawny..."}
+            className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 resize-none px-3 pt-2.5 pb-3.5 text-sm text-white placeholder-white/40 min-h-[46px] max-h-[200px] overflow-y-auto"
+            rows={1}
+            style={{ caretColor: "#d4af37" }}
+         />
+
+         {/* Right Send Button inside input */}
+         <div className="shrink-0 pb-1 pr-1 pl-1">
             <motion.button
-              onClick={() => fileInputRef.current?.click()}
-              whileHover={{ scale: 1.1, rotate: -15 }}
-              whileTap={{ scale: 0.9 }}
-              className="p-2 text-sky-400 hover:text-white hover:bg-sky-500 rounded-xl glass-prestige transition-all shadow-md group/paper"
+               whileHover={{ scale: 1.05 }}
+               whileTap={{ scale: 0.95 }}
+               disabled={isLoading || (!input.trim() && attachments.length === 0)}
+               onClick={isLoading ? stopGeneration : handleSend}
+               className={cn(
+                  "h-10 w-10 flex items-center justify-center rounded-2xl transition-all",
+                  isLoading 
+                    ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                    : (!input.trim() && attachments.length === 0)
+                      ? "bg-black/10 text-black/30 cursor-not-allowed"
+                       : "glass-prestige-button-gold"
+               )}
             >
-              <Paperclip className="w-5 h-5 group-hover/paper:rotate-12 transition-transform" />
+               {isLoading ? (
+                  <Square size={16} fill="currentColor" />
+               ) : (
+                  <Send size={16} fill="currentColor" className="-mt-1 mr-0.5" />
+               )}
             </motion.button>
-            <input
-              type="file"
-              multiple
-              accept="image/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,.pdf,.docx,.txt"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={addAttachment}
-            />
-          </div>
-        </div>
-
-        {/* Right Actions */}
-        <div className="flex items-center gap-1.5 px-1">
-          <AnimatePresence>
-            {isLoading && (
-              <motion.button
-                initial={{ width: 0, opacity: 0, scale: 0.8 }}
-                animate={{ width: "auto", opacity: 1, scale: 1 }}
-                exit={{ width: 0, opacity: 0, scale: 0.8 }}
-                onClick={stopGeneration}
-                className="h-8 sm:h-9 px-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 flex items-center gap-1.5 transition-all font-black text-[8px] tracking-widest uppercase overflow-hidden hover:bg-red-500 hover:text-white shadow-lg shadow-red-500/10"
-              >
-                <Square
-                  className="w-3 h-3"
-                  fill="currentColor"
-                />
-                STOP
-              </motion.button>
-            )}
-          </AnimatePresence>
-
-          <motion.button
-            onClick={handleSend}
-            disabled={isLoading}
-            whileHover={isLoading ? {} : { scale: 1.05, y: -2 }}
-            whileTap={isLoading ? {} : { scale: 0.95 }}
-            className={cn(
-              "h-8 sm:h-9 px-4 rounded-xl flex items-center justify-center transition-all group relative overflow-hidden font-black text-[10px] tracking-widest shadow-xl",
-              isLoading
-                ? "bg-white/5 text-white/20 border border-white/5"
-                : "bg-linear-to-br from-amber-300 to-amber-600 text-black hover:shadow-amber-500/30",
-            )}
-          >
-            <Send size={14} fill="currentColor" />
-            <span className="hidden lg:inline ml-1.5">WYŚLIJ</span>
-          </motion.button>
-
-          <motion.button
-            onClick={onNavigateToDrafter}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="h-8 sm:h-9 px-3 rounded-xl flex items-center gap-1.5 font-black uppercase text-[8px] tracking-widest transition-all border bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-white hover:text-blue-500 hover:border-white shadow-lg shadow-blue-500/10"
-            title="Kreator Pism Prawnych"
-          >
-            <Stamp size={13} />
-            <span className="hidden lg:inline">KREATOR</span>
-          </motion.button>
-        </div>
+         </div>
       </div>
     </div>
   );

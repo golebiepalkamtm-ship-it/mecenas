@@ -24,6 +24,7 @@ from moa.models import MOARequest, MOAResult
 from moa.retrieval import retrieve_legal_context
 from moa.llm_agents import run_parallel_analysis
 from moa.synthesizer import synthesize_judgment
+from moa.prompt_builder import IdentityMode
 
 
 async def run_moa_pipeline(request: MOARequest) -> MOAResult:
@@ -65,6 +66,40 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
             context_text = ""
             has_legal_context = False
 
+        # --- KROK 1.2: Podsumowanie historii (Summarization) ---
+        history_summary = ""
+        if request.history and len(request.history) > 3:
+            try:
+                from moa.llm_agents import _call_with_retry
+                print("   [*] Generowanie podsumowania historii...")
+                hist_text = "\n".join([f"{m['role']}: {m['content'][:500]}" for m in request.history[-15:]])
+                sum_prompt = f"Podsumuj krótko dotychczasowe ustalenia prawne i fakty z tej rozmowy:\n\n{hist_text}"
+                
+                async with AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL) as sum_client:
+                    history_summary, _ = await _call_with_retry(
+                        sum_client, 
+                        model="google/gemini-2.0-flash", 
+                        system_prompt="Jesteś asystentem prawnym streszczającym kluczowe fakty.",
+                        user_prompt=sum_prompt,
+                        max_tokens=600
+                    )
+                print("   [OK] History summarized.")
+            except Exception as sum_err:
+                print(f"   [WARN] History summary failed: {sum_err}")
+
+        # --- KROK 1.5: Pobieranie Pamięci Ekspertów (Active Case Memory) ---
+        expert_memory = ""
+        if request.session_id:
+            try:
+                from database import get_messages
+                past_msgs = get_messages(request.session_id, limit=30)
+                past_reasonings = [m["reasoning"] for m in past_msgs if m.get("role") == "assistant" and m.get("reasoning")]
+                if past_reasonings:
+                    expert_memory = "\n\n".join(past_reasonings[-3:])
+                    print(f"   [OK] Expert Memory cached: {len(expert_memory)} chars")
+            except Exception as mem_err:
+                print(f"   [WARN] Failed to fetch expert memory: {mem_err}")
+
         # Inicjalizacja współdzielonego klienta (Connection Pooling)
         async with AsyncOpenAI(
             api_key=OPENROUTER_API_KEY,
@@ -87,6 +122,10 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                 client=shared_client,
                 has_legal_context=has_legal_context,
                 document_text=request.document_text,
+                history_summary=history_summary,
+                history=request.history[-10:],
+                expert_memory=expert_memory,
+                mode=IdentityMode(request.mode or "advocate"),
             )
 
             # 3. SYNTHESIS (Re-ranking Judge)
@@ -98,6 +137,10 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                 judge_model=judge_model,
                 has_legal_context=has_legal_context,
                 document_text=request.document_text,
+                history_summary=history_summary,
+                history=request.history[-10:],
+                expert_memory=expert_memory,
+                mode=IdentityMode(request.mode or "advocate"),
             )
 
         pipeline_latency = (time.perf_counter() - pipeline_start) * 1000

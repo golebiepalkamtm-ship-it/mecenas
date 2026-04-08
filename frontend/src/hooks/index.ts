@@ -85,6 +85,13 @@ export function useKnowledgeBase() {
 
       for (const d of allData) {
         const filename = d.metadata?.filename || "Dokument bez nazwy";
+        
+        // --- STRICT DOCUMENT FILTERING ---
+        const extension = filename.split('.').pop()?.toLowerCase() || '';
+        const isLegalDoc = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(extension);
+        
+        if (!isLegalDoc) continue; // EXCLUDE images, photos, and other non-legal files
+
         const existing = docMap.get(filename);
         if (!existing) {
           docMap.set(filename, {

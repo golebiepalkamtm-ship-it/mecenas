@@ -1,588 +1,454 @@
-import React, { useState, useEffect } from "react";
+// LexMind App v1.1.0 - Refactored
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Terminal,
   Library,
   FileText,
   FolderOpen,
-  ChevronLeft,
   Settings,
-  Scale,
   Sparkles,
   ShieldAlert,
-  ShieldCheck,
   User as UserIcon,
-  CreditCard,
-  Bell,
   Cpu,
-  LogOut,
+  PanelRight,
+  History,
 } from "lucide-react";
+
 import { useChatSettingsStore } from "./store/useChatSettingsStore";
-
-
-import { ChatView } from "./components/Chat";
-import { KnowledgeView } from "./components/Knowledge";
-import { DocumentsView } from "./components/Documents";
-import { LandingView } from "./components/Landing/LandingView";
-import { AdminView } from "./components/Admin";
-import { SettingsView } from "./components/Settings";
-import { DrafterView } from "./components/Drafter";
-import { supabase } from "./utils/supabaseClient";
-import type { Session } from "@supabase/supabase-js";
 import { ChatProvider } from "./context/ChatContext";
 import { useOrchestratorSync } from "./hooks/useOrchestratorSync";
-import { BrandLogo } from "./components/Shared/BrandLogo";
-
+import { PrestigeLoading } from "./components/Shared/PrestigeLoading";
+import { Sidebar } from "./components/Layout/Sidebar";
+import { MobileNavigation } from "./components/Layout/MobileNavigation";
 import { cn } from "./utils/cn";
+import type { Tab, NavItem } from "./types/navigation";
+import { lazy, Suspense } from "react";
+import { supabase } from "./utils/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
+import { LandingView } from "./components/Landing/LandingView";
 
-type Tab =
-  | "chat"
-  | "consilium"
-  | "knowledge"
-  | "prompts"
-  | "drafter"
-  | "documents"
-  | "admin"
-  | "settings";
+const ChatView = lazy(() => import("./components/Chat").then(m => ({ default: m.ChatView })));
+const KnowledgeView = lazy(() => import("./components/Knowledge").then(m => ({ default: m.KnowledgeView })));
+const DocumentsView = lazy(() => import("./components/Documents").then(m => ({ default: m.DocumentsView })));
+const SettingsView = lazy(() => import("./components/Settings").then(m => ({ default: m.SettingsView })));
+const DrafterView = lazy(() => import("./components/Drafter").then(m => ({ default: m.DrafterView })));
+const PromptsView = lazy(() => import("./components/Prompts").then(m => ({ default: m.PromptsView })));
+const AdminView = lazy(() => import("./components/Admin").then(m => ({ default: m.AdminView })));
 
-const NAV_ITEMS = [
+const NAV_ITEMS: NavItem[] = [
   {
-    id: "chat" as Tab,
+    id: "chat",
     icon: Terminal,
     label: "Konsultacja AI",
     sublabel: "Jednolity System Wsparcia",
-    color: "#06b6d4", // cyan
-    colorRgb: "6,182,212",
+    color: "#d4af37", // Gold
+    colorRgb: "212,175,55",
   },
   {
-    id: "knowledge" as Tab,
-    icon: Library,
-    label: "Centralna Baza Wiedzy",
-    sublabel: "Archives",
-    color: "#3b82f6", // blue
-    colorRgb: "59,130,246",
-  },
-  {
-    id: "drafter" as Tab,
+    id: "drafter",
     icon: FileText,
     label: "Kreator Pism",
     sublabel: "Master Drafter",
-    color: "#a855f7", // purple
-    colorRgb: "168,85,247",
+    color: "#b8860b", // Dark Goldenrod (Brass)
+    colorRgb: "184,134,11",
   },
   {
-    id: "documents" as Tab,
+    id: "prompts",
+    icon: Sparkles,
+    label: "Prompty",
+    sublabel: "AI Instructions",
+    color: "#fbbf24", // Amber (Goldish)
+    colorRgb: "251,191,36",
+  },
+  {
+    id: "documents",
     icon: FolderOpen,
     label: "Dokumenty",
-    sublabel: "Secure",
-    color: "#f59e0b", // amber
-    colorRgb: "245,158,11",
+    sublabel: "Secure storage",
+    color: "#e5e4e2", // Platinum/Silver
+    colorRgb: "229,228,226",
   },
   {
-    id: "settings" as Tab,
-    icon: Settings,
-    label: "Profil",
-    sublabel: "Identity",
-    color: "#14b8a6", // teal
-    colorRgb: "20,184,166",
+    id: "knowledge",
+    icon: Library,
+    label: "Centralna Baza Wiedzy",
+    sublabel: "Archives",
+    color: "#cd7f32", // Bronze
+    colorRgb: "205,127,50",
   },
   {
-    id: "admin" as Tab,
+    id: "admin",
     icon: ShieldAlert,
     label: "Admin",
     sublabel: "System",
-    color: "#ef4444", // red
-    colorRgb: "239,68,68",
+    color: "#991b1b", // Prestige Dark Red
+    colorRgb: "153,27,27",
     adminOnly: true,
+  },
+  {
+    id: "settings",
+    icon: Settings,
+    label: "Profil",
+    sublabel: "Identity",
+    color: "#f0cc5a", // Soft Gold
+    colorRgb: "240,204,90",
   },
 ];
 
-const E: [number, number, number, number] = [0.16, 1, 0.3, 1];
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>("user");
-  const [collapsed, setCollapsed] = useState(false);
-  const { currentSettingsTab, setSettingsTab } = useChatSettingsStore();
+  const [isBooting, setIsBooting] = useState(false);
+  const hasBootedRef = useRef(false);
+  const { 
+    currentSettingsTab, 
+    setSettingsTab,
+    isOpen,
+    activePromptPresetId,
+    toggleOpen,
+    showHistory,
+    setShowHistory
+  } = useChatSettingsStore();
+  
   useOrchestratorSync();
 
-  const fetchRole = async (uid: string) => {
+  const fetchUserRole = async (userId: string) => {
     try {
       const { data } = await supabase
         .from("profiles")
         .select("role")
-        .eq("id", uid)
+        .eq("id", userId)
         .single();
+      
       if (data) setUserRole(data.role);
     } catch {
-      /* silent */
+      // Silent fail - default to user role
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchRole(session.user.id);
-      setAuthLoading(false);
+    let bootTimeout: ReturnType<typeof setTimeout>;
+    const startTime = Date.now();
+
+    const initializeSession = async () => {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const elapsed = Date.now() - startTime;
+      const minimumLoadingTime = 5000;
+      const remainingDelay = Math.max(0, minimumLoadingTime - elapsed);
+
+      setTimeout(() => {
+        if (currentSession) {
+          setSession(currentSession);
+          fetchUserRole(currentSession.user.id);
+          setIsBooting(true);
+          hasBootedRef.current = true;
+          
+          bootTimeout = setTimeout(() => {
+            setIsBooting(false);
+          }, 5000);
+        }
+        setAuthLoading(false);
+      }, remainingDelay);
+    };
+
+    initializeSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (event === "SIGNED_IN" && !hasBootedRef.current) {
+        setIsBooting(true);
+        hasBootedRef.current = true;
+        bootTimeout = setTimeout(() => setIsBooting(false), 5000);
+      }
+
+      if (event === "SIGNED_OUT") {
+        setIsBooting(false);
+        hasBootedRef.current = false;
+        setSession(null);
+      }
+
+      if (newSession) {
+        setSession(newSession);
+        fetchUserRole(newSession.user.id);
+      }
     });
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_e, s) => {
-      setSession(s);
-      if (s) fetchRole(s.user.id);
-      setAuthLoading(false);
-    });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      subscription.unsubscribe();
+      if (bootTimeout) clearTimeout(bootTimeout);
+    };
   }, []);
 
-  /* ── Loading screen ── */
-  if (authLoading)
-    return (
-      <div className="h-screen w-screen flex items-center justify-center overflow-hidden">
-        <div className="aurora-bg" />
-        <div className="noise-overlay" />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1.2, ease: E }}
-          className="relative z-10 flex flex-col items-center gap-14"
-        >
-          {/* Logo */}
-          <div className="relative">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
-              className="absolute -inset-10 rounded-full"
-              style={{ border: "1px dashed rgba(212,175,55,0.18)" }}
-            />
-            <motion.div
-              animate={{ rotate: -360 }}
-              transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
-              className="absolute -inset-5 rounded-full"
-              style={{ border: "1px solid rgba(212,175,55,0.08)" }}
-            />
-            <div
-              className="w-24 h-24 rounded-4xl flex items-center justify-center animate-glow-pulse"
-              style={{
-                background:
-                  "linear-gradient(145deg, rgba(255,255,255,0.12) 0%, rgba(6,14,8,0.7) 100%)",
-                borderTop: "1px solid rgba(255,255,255,0.6)",
-                borderLeft: "1px solid rgba(255,255,255,0.2)",
-                borderRight: "1px solid rgba(255,255,255,0.05)",
-                borderBottom: "1px solid rgba(0,0,0,0.7)",
-                boxShadow:
-                  "0 8px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -1px 0 rgba(0,0,0,0.5), 0 0 60px rgba(255,255,255,0.05)",
-              }}
-            >
-              <Scale className="w-11 h-11 text-white" strokeWidth={1.5} />
-            </div>
-          </div>
+  // AmbientOrbs handles mouse parallax internally to prevent App re-renders
 
-          {/* Label */}
-          <div className="flex flex-col items-center gap-4">
-            <h1 className="shimmer-text text-[11px] font-black uppercase tracking-[1em]">
-              Initializing Prestige Core
-            </h1>
-            <div
-              className="w-52 h-px relative overflow-hidden"
-              style={{ background: "rgba(255,255,255,0.06)" }}
-            >
-              <motion.div
-                animate={{ x: ["-100%", "100%"] }}
-                transition={{
-                  duration: 2.2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-                className="absolute inset-y-0 w-1/3"
-                style={{
-                  background:
-                    "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-                }}
-              />
-            </div>
-          </div>
-        </motion.div>
+  // Loading states
+  if (authLoading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center overflow-hidden bg-black">
+        <PrestigeLoading />
       </div>
     );
+  }
 
-  if (!session) return <LandingView />;
+  if (!session || isBooting) {
+    return <LandingView />;
+  }
 
   const userEmail = session.user.email || "";
-  const userInitials = userEmail.slice(0, 2).toUpperCase();
-  const navItems = NAV_ITEMS.filter(
-    (i) => !i.adminOnly || userRole === "admin",
-  );
+  const filteredNavItems = NAV_ITEMS.filter(item => !item.adminOnly || userRole === "admin");
+  const activeNavItem = NAV_ITEMS.find(n => n.id === activeTab);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+  };
+
+  const renderContentView = () => {
+    switch (activeTab) {
+      case "chat": return <ChatView onNavigate={setActiveTab} />;
+      case "knowledge": return <KnowledgeView />;
+      case "drafter": return <DrafterView />;
+      case "prompts": return <PromptsView />;
+      case "documents": return <DocumentsView />;
+      case "settings": return <SettingsView />;
+      case "admin": return <AdminView />;
+      default: return <ChatView onNavigate={setActiveTab} />;
+    }
+  };
 
   return (
     <ChatProvider>
-      {/* ── Scene background ── */}
-      <div className="flex h-screen w-screen overflow-hidden relative selection:bg-white/20 selection:text-white font-inter text-white p-3 lg:p-5 xl:p-7">
-        <div className="aurora-bg">
+      <div className="flex h-screen w-screen overflow-hidden relative selection:bg-gold-primary/30 selection:text-white font-inter text-white p-0 md:p-2 lg:p-4">
+        {/* Background Effects */}
+        <div className="aurora-bg aurora-bright opacity-70">
           <div className="aurora-layer" />
         </div>
-        <div className="noise-overlay" />
+        <div className="noise-overlay opacity-4" />
 
-        {/* ambient orb cluster */}
-        <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-          <div
-            className="orb orb-gold"
-            style={{
-              width: 700,
-              height: 700,
-              top: "-15%",
-              left: "-8%",
-              opacity: 0.6,
-            }}
-          />
-          <div
-            className="orb orb-gold"
-            style={{
-              width: 500,
-              height: 500,
-              bottom: "-15%",
-              right: "-10%",
-              opacity: 0.2,
-            }}
-          />
-          <div
-            className="orb orb-gold"
-            style={{
-              width: 350,
-              height: 350,
-              bottom: "15%",
-              left: "35%",
-              opacity: 0.3,
-            }}
-          />
-        </div>
+        {/* Ambient Orbs - Localized state for performance */}
+        <AmbientOrbs />
 
-        {/* ════════════════════════════════════════
-            UNIFIED GLASS SHELL
-            ════════════════════════════════════════ */}
-        <div
-          className="relative w-full h-full flex overflow-hidden z-10 glass-prestige rounded-[2.5rem]"
-          style={{ background: "var(--glass-bg)" }}
-        >
-          {/* Top specular edge sweep */}
-          <div
-            className="absolute top-0 left-0 right-0 pointer-events-none z-100"
-            style={{
-              height: "1px",
-              background:
-                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 25%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.6) 75%, transparent 100%)",
-            }}
+        {/* Mobile Navigation */}
+        <MobileNavigation 
+          navItems={filteredNavItems}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+        />
+
+        {/* Main Glass Shell */}
+        <div className="relative flex-1 flex flex-col lg:flex-row overflow-hidden z-10 rounded-2xl shadow-2xl glass-liquid-shell">
+          <div className="absolute inset-0 z-[-1]" />
+
+          {/* Top specular edge */}
+          <div className="absolute top-0 left-0 right-0 pointer-events-none z-100" style={{ height: "1px", background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.50) 18%, rgba(255,255,255,1.00) 45%, rgba(255,255,255,1.00) 55%, rgba(255,255,255,0.50) 82%, transparent 100%)" }} />
+          
+          {/* Desktop Sidebar */}
+          <Sidebar
+            navItems={filteredNavItems}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            userEmail={userEmail}
+            onLogout={() => supabase.auth.signOut()}
           />
 
-          {/* Upper reflection layer */}
-          <div
-            className="absolute top-0 left-0 right-0 pointer-events-none z-50 rounded-t-[2.5rem]"
-            style={{
-              height: "38%",
-              background:
-                "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.015) 50%, rgba(255,255,255,0) 100%)",
-            }}
-          />
-
-          {/* ── SIDEBAR ── */}
-          <motion.nav
-            animate={{ width: collapsed ? 80 : 300 }}
-            transition={{ type: "spring", stiffness: 240, damping: 30 }}
-            className="hidden lg:flex flex-col shrink-0 relative z-20"
-            style={{ borderRight: "1px solid rgba(255,255,255,0.055)" }}
-          >
-            {/* Logo zone */}
-            <div
-              className="h-20 flex items-center justify-between px-5 shrink-0"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}
-            >
-              <motion.div className="flex items-center gap-3 overflow-hidden min-w-0">
-                {/* Logo mark */}
-                 <div
-                  className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0"
-                  style={{
-                    background:
-                      "linear-gradient(145deg, rgba(255,255,255,0.12) 0%, rgba(2, 10, 19,0.7) 100%)",
-                    borderTop: "1px solid rgba(255,255,255,0.6)",
-                    borderLeft: "1px solid rgba(255,255,255,0.2)",
-                    borderRight: "1px solid rgba(255,255,255,0.05)",
-                    borderBottom: "1px solid rgba(0,0,0,0.7)",
-                    boxShadow:
-                      "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.4), 0 0 20px rgba(255,255,255,0.05)",
-                  }}
-                >
-                  <Scale className="w-5 h-5 text-white" strokeWidth={1.5} />
-                </div>
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -8 }}
-                      transition={{ duration: 0.2 }}
-                      className="min-w-0"
+          {/* Main Content */}
+          <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden pt-16 lg:pt-0">
+            {/* Desktop Header */}
+            <header className="hidden lg:flex h-20 shrink-0 items-center justify-between px-6 xl:px-10 relative z-50" style={{ borderBottom: "1px solid rgba(255,255,255,0.055)", background: "linear-gradient(180deg, rgba(255,255,255,0.025) 0%, transparent 100%)" }}>
+              <AnimatePresence mode="wait">
+                  <motion.div 
+                    key="full-header" 
+                    initial={{ opacity: 0, x: -10 }} 
+                    animate={{ opacity: 1, x: 0 }} 
+                    exit={{ opacity: 0, x: 10 }} 
+                    transition={{ duration: 0.35, ease: EASE }}
+                    className="flex items-center gap-6"
+                  >
+                    {/* History Toggle Button */}
+                    <motion.button
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.94 }}
+                      onClick={() => setShowHistory(!showHistory)}
+                      className={cn(
+                        "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 relative overflow-hidden group",
+                        showHistory 
+                          ? "shadow-[0_0_20px_rgba(255,255,255,0.08)] border-white/20" 
+                          : "border-white/5 hover:border-white/10"
+                      )}
+                      style={{
+                        background: showHistory 
+                          ? "linear-gradient(145deg, rgba(255,255,255,0.08) 0%, rgba(3,8,18,0.8) 100%)"
+                          : "linear-gradient(145deg, rgba(255,255,255,0.02) 0%, rgba(2,10,19,0.7) 100%)",
+                        border: "1.1px solid"
+                      }}
                     >
-                      <div className="flex items-center min-w-[120px]">
-                        <BrandLogo size={13} className="scale-[0.8] origin-left" />
-                      </div>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="text-[8px] font-bold uppercase tracking-[0.4em] text-white/25">
-                          Prestige Core
-                        </span>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
+                      <History 
+                        size={16} 
+                        className={cn("transition-colors duration-300", showHistory ? "text-white" : "text-white/25 group-hover:text-white/50")} 
+                      />
+                    </motion.button>
 
-              {/* Collapse toggle */}
-              <motion.button
-                whileTap={{ scale: 0.92 }}
-                onClick={() => setCollapsed(!collapsed)}
-                className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0 transition-colors"
-                style={{
-                  background: "var(--glass-bg)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.3)",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "rgba(255,255,255,0.7)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.color = "rgba(255,255,255,0.3)")
-                }
-              >
-                <ChevronLeft
-                  size={14}
-                  style={{
-                    transform: collapsed ? "rotate(180deg)" : "rotate(0deg)",
-                    transition: "transform 0.4s",
-                  }}
-                />
-              </motion.button>
-            </div>
-
-            {/* Nav items */}
-            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1 custom-scrollbar">
-              {navItems.map((item) => (
-                <NavItem
-                  key={item.id}
-                  item={item}
-                  active={activeTab === item.id}
-                  collapsed={collapsed}
-                  onClick={() => setActiveTab(item.id)}
-                />
-              ))}
-            </div>
-
-            {/* User footer */}
-            <div
-              className="p-4 shrink-0"
-              style={{ borderTop: "1px solid rgba(255,255,255,0.045)" }}
-            >
-              <div
-                className="flex items-center gap-3 p-2 rounded-2xl"
-                style={{ background: "var(--glass-bg)" }}
-              >
-                {/* Avatar */}
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                  style={{
-                    background:
-                      "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(2, 10, 19,0.65) 100%)",
-                    borderTop: "1px solid rgba(212,175,55,0.75)",
-                    borderLeft: "1px solid rgba(212,175,55,0.25)",
-                    borderRight: "1px solid rgba(212,175,55,0.07)",
-                    borderBottom: "1px solid rgba(0,0,0,0.65)",
-                    boxShadow:
-                      "inset 0 1px 0 rgba(212,175,55,0.5), 0 4px 12px rgba(0,0,0,0.45)",
-                  }}
-                >
-                  <span className="text-[10px] font-black text-[#d4af37]">
-                    {userInitials}
-                  </span>
-                </div>
-
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      className="flex-1 min-w-0"
+                    {/* Common Title Block */}
+                  <div className="flex items-center gap-5">
+                    <div 
+                      className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                      style={{
+                        background: `linear-gradient(145deg, rgba(${activeNavItem?.colorRgb}, 0.15) 0%, rgba(3,8,18,0.7) 100%)`,
+                        borderTop:    `1.5px solid rgba(${activeNavItem?.colorRgb}, 0.85)`,
+                        borderLeft:   `1px   solid rgba(255,255,255,0.12)`,
+                        borderBottom: `1.5px solid rgba(0,0,0,0.60)`,
+                        boxShadow: `0 8px 24px rgba(0,0,0,0.40), 0 0 20px rgba(${activeNavItem?.colorRgb}, 0.12)`,
+                      }}
                     >
-                      <p className="text-[10px] font-bold text-white/70 truncate uppercase tracking-wider">
-                        {userEmail.split("@")[0]}
-                      </p>
-                      <p className="text-[7px] font-bold text-white/25 uppercase tracking-[0.2em]">
-                        {userRole}
-                      </p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-              </div>
-            </div>
-          </motion.nav>
-
-          {/* ── MAIN CONTENT ── */}
-          <main className="flex-1 flex flex-col min-w-0 relative overflow-hidden">
-            {/* Top bar */}
-            <header
-              className="h-20 shrink-0 flex items-center justify-between px-8 lg:px-10 relative z-50"
-              style={{ borderBottom: "1px solid rgba(255,255,255,0.045)" }}
-            >
-              {/* Page title / Sub-nav */}
-              <div className="flex items-center gap-10">
-                <AnimatePresence mode="wait">
-                  {activeTab !== "settings" ? (
-                    <motion.div
-                      key="title"
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.25, ease: E }}
-                    >
-                      <h1 className="text-lg lg:text-xl font-black tracking-tight italic leading-none font-outfit">
-                        {NAV_ITEMS.find((n) => n.id === activeTab)?.label}
+                      {activeNavItem && <activeNavItem.icon size={20} style={{ color: activeNavItem.color }} strokeWidth={2} />}
+                    </div>
+                    
+                    <div className="-mt-1.5 flex flex-col pr-8">
+                      <h1 
+                        className="text-xl lg:text-3xl font-black tracking-tight italic leading-none font-outfit uppercase bg-clip-text text-transparent pr-4"
+                        style={{
+                          backgroundImage: `linear-gradient(to right, #ffffff 15%, ${activeNavItem?.color} 100%)`,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent"
+                        }}
+                      >
+                        {activeNavItem?.label}
                       </h1>
-                      <p className="text-[8px] font-bold text-white/30 uppercase tracking-[0.45em] mt-1.5 font-outfit">
-                        {NAV_ITEMS.find((n) => n.id === activeTab)?.sublabel}
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="sub-nav"
-                      initial={{ opacity: 0, scale: 0.98 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.25, ease: E }}
-                      className="flex items-center gap-4"
-                    >
-                       <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 shadow-inner">
-                        <ShieldCheck size={11} className="text-emerald-400" />
-                        <span className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em]">
-                          AES-256 Active
-                        </span>
-                       </div>
+                      <p className="text-[9px] font-bold text-white/22 uppercase tracking-[0.4em] mt-2 font-outfit">{activeNavItem?.sublabel}</p>
+                    </div>
+                  </div>
 
-                       <div className="w-px h-6 bg-white/10 self-center" />
-
-                       <div className="flex items-center gap-1 p-1 bg-black/20 backdrop-blur-xl border border-white/5 rounded-2xl">
-                          {[
-                            { id: 'Profil', icon: UserIcon, label: 'Profil' },
-                            { id: 'Modele AI', icon: Cpu, label: 'Modele AI' },
-                          ].map((tab) => (
+                  {/* Contextual Sub-Navigation or Status */}
+                  <AnimatePresence mode="wait">
+                    {activeTab === "settings" && (
+                      <motion.div 
+                        initial={{ opacity: 0, scale: 0.98 }} 
+                        animate={{ opacity: 1, scale: 1 }} 
+                        exit={{ opacity: 0, scale: 0.98 }} 
+                        transition={{ duration: 0.25, ease: EASE }} 
+                        className="flex items-center gap-4 border-l border-white/5 pl-8"
+                      >
+                        <div className="flex items-center gap-1 p-1 bg-black/20 backdrop-blur-xl border border-white/5 rounded-2xl">
+                          {[{ id: 'Profil', icon: UserIcon, label: 'Profil' }, { id: 'Modele AI', icon: Cpu, label: 'Modele AI' }].map((tab) => (
                             <button
                               key={tab.id}
                               onClick={() => setSettingsTab(tab.id)}
-                              className={cn(
-                                "relative flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300",
-                                currentSettingsTab === tab.id ? "text-gold-primary" : "text-white/25 hover:text-white/50"
-                              )}
+                              className={cn("relative flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300", currentSettingsTab === tab.id ? "text-gold-primary" : "text-white/25 hover:text-white/50")}
                             >
                               {currentSettingsTab === tab.id && (
-                                <motion.div 
-                                  layoutId="header-subtab-bg"
-                                  className="absolute inset-0 bg-white/5 border border-white/10 rounded-xl shadow-inner"
-                                  transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                                />
+                                <motion.div layoutId="header-subtab-bg" className="absolute inset-0 bg-white/5 border border-white/10 rounded-xl shadow-inner" transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }} />
                               )}
-                              <tab.icon size={12} className="relative z-10" />
-                              <span className="relative z-10 text-[9px] font-black uppercase tracking-widest">{tab.label}</span>
+                              <tab.icon size={12} className="relative z-10 -mt-1" />
+                              <span className="relative z-10 text-[9px] font-black uppercase tracking-widest -mt-1">{tab.label}</span>
                             </button>
                           ))}
-                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </AnimatePresence>
 
-              {/* Right actions */}
               <div className="flex items-center gap-6">
-                {/* Security badge (Always visible or in sequence) */}
-                {activeTab !== "settings" && (
-                  <div
-                    className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl border border-white/5 bg-black/20"
+                
+                {/* Identity Mode Selector (Case Type) */}
+                <div className="flex items-center bg-black/40 backdrop-blur-md border border-white/5 p-1 rounded-xl shadow-inner">
+                  <button
+                    onClick={() => {}} // Integration pending global role switch
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-black tracking-widest uppercase transition-all duration-300",
+                      activePromptPresetId === "defense" 
+                        ? "bg-gold-primary/15 text-gold-primary border border-gold-primary/30 shadow-[0_0_15px_rgba(212,175,55,0.15)]" 
+                        : "text-white/30 hover:text-white/60 border border-transparent"
+                    )}
                   >
-                    <ShieldCheck size={11} className="text-emerald-400" />
-                    <span className="text-[8px] font-black text-emerald-400 uppercase tracking-[0.2em]">
-                      AES-256 Active
-                    </span>
-                  </div>
-                )}
+                    Obrońca
+                  </button>
+                  <button
+                    onClick={() => {}} // Integration pending global role switch
+                    className={cn(
+                      "px-4 py-1.5 rounded-lg text-xs font-black tracking-widest uppercase transition-all duration-300",
+                      activePromptPresetId === "prosecution" 
+                        ? "bg-white/10 text-white border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]" 
+                        : "text-white/30 hover:text-white/60 border border-transparent"
+                    )}
+                  >
+                    Oskarżyciel
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Logout Button (Requested to move to top bar) */}
+                  <div className="w-px h-8 bg-white/5 mx-1" />
+                  
+                  {/* Quick Intelligence Panel Toggle */}
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => supabase.auth.signOut()}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-white/20 hover:text-red-400 hover:bg-red-400/5 transition-all border border-transparent hover:border-red-400/20"
-                  >
-                    <LogOut size={12} />
-                    <span className="text-[8px] font-black uppercase tracking-widest">Wyloguj</span>
-                  </motion.button>
-
-                  <div className="w-px h-4 bg-white/5 mx-1" />
-
-                  {/* Sparkle button */}
-                  <motion.button
-                    whileHover={{ scale: 1.08, rotate: 5 }}
+                    whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.94 }}
-                    className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                    onClick={toggleOpen}
+                    className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 relative overflow-hidden group",
+                      isOpen 
+                        ? "shadow-[0_0_20px_rgba(212,175,55,0.3)] border-gold-primary/60" 
+                        : "border-white/10 hover:border-white/20"
+                    )}
                     style={{
-                      background:
-                        "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(2, 10, 19,0.65) 100%)",
-                      borderTop: "1px solid rgba(249,226,157,0.8)",
-                      borderLeft: "1px solid rgba(212,175,55,0.28)",
-                      borderRight: "1px solid rgba(212,175,55,0.08)",
-                      borderBottom: "1px solid rgba(0,0,0,0.6)",
-                      boxShadow:
-                        "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(212,175,55,0.55)",
+                      background: isOpen 
+                        ? "linear-gradient(145deg, rgba(212,175,55,0.25) 0%, rgba(3,8,18,0.8) 100%)"
+                        : "linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(2,10,19,0.7) 100%)",
+                      border: "1.2px solid"
                     }}
                   >
-                    <Sparkles
-                      size={14}
-                      style={{ color: "#d4af37" }}
-                      fill="currentColor"
-                    />
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={isOpen ? "open" : "closed"}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <PanelRight 
+                          size={16} 
+                          className={cn("transition-colors duration-300", isOpen ? "text-gold-primary" : "text-white/40 group-hover:text-white/70")} 
+                          strokeWidth={isOpen ? 2.5 : 2}
+                        />
+                      </motion.div>
+                    </AnimatePresence>
+                    {isOpen && (
+                      <motion.div 
+                        layoutId="panel-active-glow"
+                        className="absolute inset-0 bg-gold-primary/5 animate-pulse pointer-events-none"
+                      />
+                    )}
+                  </motion.button>
+
+                  <motion.button whileHover={{ scale: 1.08, rotate: 5 }} whileTap={{ scale: 0.94 }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(2, 10, 19,0.65) 100%)", borderTop: "1px solid rgba(249,226,157,0.8)", borderLeft: "1px solid rgba(212,175,55,0.28)", borderRight: "1px solid rgba(212,175,55,0.08)", borderBottom: "1px solid rgba(0,0,0,0.6)", boxShadow: "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(212,175,55,0.55)" }}>
+                    <Sparkles size={16} style={{ color: "#d4af37" }} fill="currentColor" />
                   </motion.button>
                 </div>
               </div>
             </header>
 
-            {/* Content viewport */}
-            <section className="flex-1 relative overflow-hidden">
+            {/* Content Viewport */}
+            <section className="flex-1 relative overflow-hidden" style={{ background: "rgba(0,0,0,0.08)" }}>
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
+                  initial={{ opacity: 0, y: 10, scale: 0.995, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -10, scale: 1.005, filter: "blur(4px)" }}
+                  transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
                   className="absolute inset-0 overflow-hidden"
                 >
-                  {activeTab === "chat" && <ChatView onNavigate={setActiveTab} />}
-                  {activeTab === "knowledge" && <KnowledgeView />}
-                  {activeTab === "drafter" && <DrafterView />}
-                  {activeTab === "documents" && <DocumentsView />}
-                  {activeTab === "settings" && <SettingsView />}
-                  {activeTab === "admin" && <AdminView />}
+                  <Suspense fallback={<PrestigeLoading />}>
+                    {renderContentView()}
+                  </Suspense>
                 </motion.div>
               </AnimatePresence>
 
-              {/* Inner ambient glow */}
-              <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                  background:
-                    "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(212,175,55,0.04) 0%, transparent 70%)",
-                }}
-              />
+              <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(212,175,55,0.06) 0%, transparent 80%)" }} />
             </section>
           </main>
         </div>
@@ -590,129 +456,52 @@ export default function App() {
     </ChatProvider>
   );
 }
-
-/* ════════════════════════════════════
-   NAV ITEM
-   ════════════════════════════════════ */
-interface NavItemProps {
-  item: {
-    id: Tab;
-    icon: React.ElementType;
-    label: string;
-    sublabel: string;
-    color: string;
-    colorRgb: string;
-    adminOnly?: boolean;
-  };
-  active: boolean;
-  collapsed: boolean;
-  onClick: () => void;
-}
-
-function NavItem({ item, active, collapsed, onClick }: NavItemProps) {
-  const Icon = item.icon;
-  const c = item.color;
-  const rgb = item.colorRgb;
-
-  const activeStyle: React.CSSProperties = {
-    background: `linear-gradient(135deg, rgba(${rgb},0.12) 0%, rgba(4,2,2,0.5) 100%)`,
-    borderTop: `1px solid rgba(${rgb},0.65)`,
-    borderLeft: `1px solid rgba(${rgb},0.22)`,
-    borderRight: `1px solid rgba(${rgb},0.06)`,
-    borderBottom: "1px solid rgba(0,0,0,0.5)",
-    boxShadow: `0 4px 16px rgba(0,0,0,0.4), 0 0 24px rgba(${rgb},0.1), inset 0 1px 0 rgba(${rgb},0.5)`,
-  };
+const AmbientOrbs = () => {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setMousePos({
+        x: (e.clientX / window.innerWidth - 0.5) * 40,
+        y: (e.clientY / window.innerHeight - 0.5) * 40
+      });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      className={cn(
-        "w-full flex items-center rounded-2xl transition-all relative overflow-hidden",
-        collapsed ? "justify-center p-3" : "gap-3 px-4 py-3.5",
-      )}
-      style={
-        active
-          ? activeStyle
-          : { background: "transparent", border: "1px solid transparent" }
-      }
-      onMouseEnter={(e) => {
-        if (!active) {
-          e.currentTarget.style.background = "rgba(255,255,255,0.035)";
-          e.currentTarget.style.borderColor = "rgba(255,255,255,0.09)";
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!active) {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.borderColor = "transparent";
-        }
-      }}
-    >
-      {/* Active indicator bar */}
-      {active && !collapsed && (
-        <motion.div
-          layoutId="nav-indicator"
-          className="absolute left-0 inset-y-3.5 w-[2px] rounded-r-full"
-          style={{ background: c }}
-          transition={{ 
-            type: "spring" as const, 
-            stiffness: 100, 
-            damping: 28,
-            mass: 1.2,
-            restDelta: 0.001
-          }}
-        />
-      )}
-
-      {/* Icon */}
-      <div
-        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all"
-        style={
-          active
-            ? {
-                background: `rgba(${rgb},0.2)`,
-                color: c,
-                boxShadow: `inset 0 1px 0 rgba(${rgb},0.4), 0 0 12px rgba(${rgb},0.15)`,
-              }
-            : {
-                background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.35)",
-              }
-        }
-      >
-        <Icon size={15} strokeWidth={active ? 2.5 : 1.8} />
-      </div>
-
-      {/* Label */}
-      <AnimatePresence>
-        {!collapsed && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.18 }}
-            className="text-left flex-1 min-w-0"
-          >
-            <p
-              className="text-[11px] font-black uppercase tracking-wider leading-none font-outfit"
-              style={{ color: active ? "#fff" : "rgba(255,255,255,0.5)" }}
-            >
-              {item.label}
-            </p>
-            <p
-              className="text-[7px] font-bold uppercase tracking-[0.2em] mt-1 font-outfit"
-              style={{
-                color: active
-                  ? `rgba(${rgb},0.65)`
-                  : "rgba(255,255,255,0.2)",
-              }}
-            >
-              {item.sublabel}
-            </p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.button>
+    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+      <motion.div
+        className="orb orb-gold"
+        animate={{ x: mousePos.x, y: mousePos.y, scale: [1, 1.05, 1] }}
+        transition={{ 
+          duration: 10, 
+          repeat: Infinity, 
+          ease: "easeInOut",
+          x: { type: "spring", stiffness: 20, damping: 20 },
+          y: { type: "spring", stiffness: 20, damping: 20 }
+        }}
+        style={{ width: 1200, height: 1200, top: "-30%", left: "-20%", opacity: 0.95 }}
+      />
+      <motion.div
+        className="orb orb-gold"
+        animate={{ x: -mousePos.x * 1.5, y: -mousePos.y * 1.5, scale: [1, 1.1, 1] }}
+        transition={{ 
+          duration: 12, 
+          repeat: Infinity, 
+          ease: "easeInOut",
+          x: { type: "spring", stiffness: 15, damping: 25 },
+          y: { type: "spring", stiffness: 15, damping: 25 }
+        }}
+        style={{ width: 1000, height: 1000, bottom: "-10%", right: "-20%", opacity: 0.75 }}
+      />
+      <motion.div
+        className="orb orb-gold"
+        animate={{ x: mousePos.x * 2, y: -mousePos.y * 2 }}
+        transition={{ type: "spring", stiffness: 10, damping: 30 }}
+        style={{ width: 800, height: 800, top: "10%", right: "5%", opacity: 0.55 }}
+      />
+    </div>
   );
-}
+};

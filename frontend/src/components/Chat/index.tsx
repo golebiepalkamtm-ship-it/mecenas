@@ -16,6 +16,7 @@ import { QuickIntelligencePanel } from "./components/QuickIntelligencePanel";
 import { ChatInput } from "./components/ChatInput";
 import { FeatureCard } from "./components/FeatureCard";
 import { WelcomeView } from "./components/WelcomeView";
+import { LibrarySelectionModal } from "./components/LibrarySelectionModal";
 
 // Shared Tools
 import type { Attachment, Message, QueuedAttachment } from "./types";
@@ -51,10 +52,13 @@ export function ChatView({
   const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<QueuedAttachment[]>([]);
   const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [useRag, setUseRag] = useState(true);
   
   const processingQueue = useRef<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const { isPending: isLoading } = chatMutation;
 
@@ -249,7 +253,7 @@ export function ChatView({
     if (validSizeFiles.length !== validFiles.length) {
       setAttachmentWarning('Niektóre pliki zostały odrzucone - przekroczenie rozmiaru 15MB');
     }
-
+    
     if (validSizeFiles.length === 0) return;
 
     const remainingSlots = MAX_ATTACHMENTS - attachments.length;
@@ -360,7 +364,7 @@ export function ChatView({
                 <Zap className="w-4 h-4 text-white/50 relative z-10 animate-pulse" />
               </div>
               
-              <div className="liquid-glass px-6 py-5 rounded-4xl relative overflow-hidden flex-1 border border-white/5 shadow-2xl">
+              <div className="liquid-glass px-6 py-5 rounded-2xl relative overflow-hidden flex-1 border border-white/5 shadow-2xl">
                 {/* Background Liquid Shimmer */}
                 <div className="absolute inset-x-0 bottom-0 h-1 liquid-progress opacity-60" />
                 
@@ -420,20 +424,38 @@ export function ChatView({
              </div>
 
              <ChatInput 
-                 input={input}
-                 setInput={setInput}
-                 isLoading={chatMutation.isPending}
-                 attachments={attachments}
-                 addAttachment={addAttachment}
-                 removeAttachment={removeAttachment}
-                 handleSend={handleSend}
-                 stopGeneration={stopGeneration}
-                 newChat={newChat}
-                 onNavigateToDrafter={() => onNavigate?.("drafter")}
-                 fileInputRef={fileInputRef}
-                 attachmentWarning={attachmentWarning}
-              />
+                  input={input}
+                  setInput={setInput}
+                  isLoading={chatMutation.isPending}
+                  attachments={attachments}
+                  addAttachment={addAttachment}
+                  removeAttachment={removeAttachment}
+                  handleSend={handleSend}
+                  stopGeneration={stopGeneration}
+                  newChat={newChat}
+                  onNavigateToDrafter={() => onNavigate?.("drafter")}
+                  fileInputRef={fileInputRef}
+                  imageInputRef={imageInputRef}
+                  attachmentWarning={attachmentWarning}
+                  useRag={useRag}
+                  setUseRag={setUseRag}
+                  onOpenLibrary={() => setIsLibraryOpen(true)}
+               />
+
+              {/* Archetypal File Controllers - Hidden but Essential */}
+              <input type="file" multiple ref={fileInputRef} onChange={addAttachment} className="hidden" accept=".pdf,.doc,.docx,.txt" />
+              <input type="file" multiple ref={imageInputRef} onChange={addAttachment} className="hidden" accept="image/*" />
           </div>
+
+          <LibrarySelectionModal 
+            isOpen={isLibraryOpen}
+            onClose={() => setIsLibraryOpen(false)}
+            onSelect={(doc: { id: string; name: string; chunks: number; created_at: string }) => {
+              setInput((prev: string) => (prev ? prev + " " : "") + `[REF:${doc.name}]`);
+              setIsLibraryOpen(false);
+              setUseRag(true);
+            }}
+          />
           
           <div className="flex justify-center items-center mt-2.5">
             <div className="flex items-center gap-2 group/verify cursor-default opacity-50 hover:opacity-100 transition-opacity">

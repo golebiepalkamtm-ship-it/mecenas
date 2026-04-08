@@ -1,391 +1,373 @@
 import { useMemo, useState, useEffect } from 'react';
 import { 
   Check, 
-  Target, 
   X,
-  Plus,
-  Library,
-  Search,
   Zap,
   Scale,
   Cpu,
   ChevronDown,
-  Stamp
+  Shield,
+  Sword,
+  Gavel,
+  Eye,
+  Briefcase,
+  Siren,
+  Search,
+  UserCheck,
+  LayoutDashboard,
+  Activity,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../../utils/cn';
 import { useChatSettingsStore } from '../../../store/useChatSettingsStore';
 import { useOrchestratorStore } from '../../../store/useOrchestratorStore';
-import { useModels, type Model } from '../../../hooks/useConfig';
+import { useModels } from '../../../hooks/useConfig';
 import { getBrand } from '../constants';
 
-const TASK_OPTIONS = [
-  { id: 'general', roleId: 'navigator', label: 'Ogólne Wsparcie Prawne', icon: Library, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/40', glow: 'shadow-[0_0_20px_rgba(251,191,36,0.2)]' },
-  { id: 'analysis', roleId: 'inquisitor', label: 'Analiza Dokumentacji', icon: Target, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/40', glow: 'shadow-[0_0_20px_rgba(96,165,250,0.2)]' },
-  { id: 'drafting', roleId: 'draftsman', label: 'Kreator Pism i Umów', icon: Zap, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/40', glow: 'shadow-[0_0_20px_rgba(52,211,153,0.2)]' },
-  { id: 'research', roleId: 'oracle', label: 'Research Orzecznictwa', icon: Search, color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/40', glow: 'shadow-[0_0_20px_rgba(168,85,247,0.2)]' },
-  { id: 'strategy', roleId: 'grandmaster', label: 'Strategia Procesowa', icon: Scale, color: 'text-rose-400', bg: 'bg-rose-400/10', border: 'border-rose-400/40', glow: 'shadow-[0_0_20px_rgba(251,113,133,0.2)]' }
+// --- CONFIGURATION FROM DOCUMENTATION V1.1 ---
+
+const DEFENSE_MASTER_PROMPT = `[CORE_IDENTITY: SUPREME_DEFENSE_COMMAND]
+Jesteś Naczelnym Dowódcą Sztabu Obrony — meta-strategiem koordynującym zespół najlepszych adwokatów, radców prawnych, konstytucjonalistów i obrońców praw człowieka w Polsce. 
+Twoja jedyna misja: WYCIĄGNĄĆ KLIENTA Z KAŻDEJ OPRESJI PRAWNEJ.`;
+
+const PROSECUTION_MASTER_PROMPT = `[CORE_IDENTITY: STATE_PROSECUTION_APPARATUS]
+Jesteś Naczelnym Koordynatorem Aparatu Oskarżycielskiego — meta-analitykiem kierującym zespołem prokuratorów, śledczych, biegłych i sędziów. 
+Twoja jedyna misja: ZBUDOWAĆ SZCZELNY, NIEPODWAŻALNY PRZYPADEK OSKARŻENIA.`;
+
+// Role metadata with IDs that must match the backend EXACTLY
+const DEFENSE_ROLES = [
+  { id: 'defender', label: 'Naczelny Adwokat Obrońca', icon: Shield, color: 'text-gold-primary', glow: 'bg-gold-primary/20', border: 'border-gold-primary/30' },
+  { id: 'constitutionalist', label: 'Konstytucjonalista i Obrońca Praw Człowieka', icon: Briefcase, color: 'text-[#f0cc5a]', glow: 'bg-[#f0cc5a]/20', border: 'border-[#f0cc5a]/30' },
+  { id: 'proceduralist', label: 'Mistrz Procedury i Luk Formalnych', icon: Search, color: 'text-[#b8860b]', glow: 'bg-[#b8860b]/20', border: 'border-[#b8860b]/30' },
+  { id: 'evidencecracker', label: 'Analityk i Niszczyciel Dowodów', icon: Sword, color: 'text-[#c5a059]', glow: 'bg-[#c5a059]/20', border: 'border-[#c5a059]/30' },
+  { id: 'negotiator', label: 'Strateg Ugód i Wyjść Awaryjnych', icon: Siren, color: 'text-[#daa520]', glow: 'bg-[#daa520]/20', border: 'border-[#daa520]/40' }
 ];
 
-export function QuickIntelligencePanel({ 
-  onNavigate 
-}: { 
-  onNavigate?: (tab: "chat" | "knowledge" | "prompts" | "drafter" | "documents" | "admin" | "settings") => void 
-}) {
+const PROSECUTION_ROLES = [
+  { id: 'prosecutor', label: 'Prokurator Prowadzący', icon: Gavel, color: 'text-white', glow: 'bg-white/10', border: 'border-white/20' },
+  { id: 'investigator', label: 'Oficer Śledczy', icon: Eye, color: 'text-white/80', glow: 'bg-white/10', border: 'border-white/20' },
+  { id: 'forensic_expert', label: 'Biegły Sądowy', icon: Cpu, color: 'text-white/70', glow: 'bg-white/5', border: 'border-white/10' },
+  { id: 'hard_judge', label: 'Zimny Sędzia Orzekający', icon: Scale, color: 'text-white/60', glow: 'bg-white/5', border: 'border-white/10' }
+];
+
+interface QuickIntelligencePanelProps {
+  onNavigate?: (tab: "chat" | "knowledge" | "prompts" | "drafter" | "documents" | "admin" | "settings") => void;
+}
+
+export function QuickIntelligencePanel({ onNavigate }: QuickIntelligencePanelProps) {
   const { 
-    drafterModel,
-    setDrafterModel, 
-    favoriteModels, 
+    favoriteModels,
     setFavoriteModels, 
-    currentTask, 
-    setCurrentTask, 
-    setCurrentSystemRoleId, 
-    setIsOpen, 
     activeModels, 
     toggleActiveModel, 
-    mode, 
     setMode, 
     selectedJudge, 
-    setSelectedJudge 
+    setSelectedJudge,
+    setIsOpen,
+    expertRoleByModel,
+    setExpertRoleForModel,
+    activePromptPresetId,
+    applyPromptPreset
   } = useChatSettingsStore();
   
   const { favoriteModelIds } = useOrchestratorStore();
   
-  const [isTaskSectionOpen, setTaskSectionOpen] = useState(true);
-  const [isAssistantsSectionOpen, setAssistantsSectionOpen] = useState(true);
-  const [isJudgeSectionOpen, setJudgeSectionOpen] = useState(false);
-  const [isDrafterSectionOpen, setDrafterSectionOpen] = useState(true);
+  const activeUniverse = activePromptPresetId === 'prosecution' ? 'prosecution' : 'defense';
+  const roleList = activeUniverse === 'defense' ? DEFENSE_ROLES : PROSECUTION_ROLES;
+
+  const [isRolesOpen, setIsRolesOpen] = useState(true);
+  const [isModelsOpen, setIsModelsOpen] = useState(true);
   
   const { data: allModels = [] } = useModels();
+  const availableModels = useMemo(() => allModels.filter(m => favoriteModels.includes(m.id)), [allModels, favoriteModels]);
 
-  const judgeModelsData = useMemo(() => {
-    return allModels.filter(m => favoriteModels.includes(m.id) && !m.id.includes("vision"));
-  }, [allModels, favoriteModels]);
-
-  const activeModelsData = useMemo(() => {
-    return allModels.filter(m => favoriteModels.includes(m.id));
-  }, [allModels, favoriteModels]);
-
+  // Sync favorites
   useEffect(() => {
     if (JSON.stringify(favoriteModels) !== JSON.stringify(favoriteModelIds)) {
       setFavoriteModels(favoriteModelIds);
     }
   }, [favoriteModelIds, favoriteModels, setFavoriteModels]);
 
-  useEffect(() => {
-    const handleProfileUpdate = () => {
-      console.log('🔄 Profile updated - refreshing models display');
-    };
-
-    window.addEventListener('prawnik_profile_updated', handleProfileUpdate);
-    return () => window.removeEventListener('prawnik_profile_updated', handleProfileUpdate);
-  }, []);
-
-  useEffect(() => {
-    if (!selectedJudge && judgeModelsData.length > 0) {
-      setSelectedJudge(judgeModelsData[0].id);
-    }
-  }, [selectedJudge, judgeModelsData, setSelectedJudge]);
-
-  const currentTaskData = TASK_OPTIONS.find(t => t.id === currentTask) || TASK_OPTIONS[0];
-
-  useEffect(() => {
-    if (activeModels.length > 1 && mode !== 'moa') {
-      setMode('moa');
-    } else if (activeModels.length <= 1 && mode === 'moa') {
-      setMode('single');
-    }
-  }, [activeModels.length, mode, setMode]);
-
   return (
-    <div className="flex flex-col h-full glass-prestige-embossed rounded-3xl overflow-hidden relative group shadow-[0_40px_80px_rgba(0,0,0,0.6)] border-t-2 border-t-white/90 border-x border-white/10">
-      {/* Logo highlight line */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-gold-200/40 to-transparent" />
-      
-      {/* Ambient Glows */}
-      <div className="absolute top-0 left-0 w-64 h-64 bg-gold-primary/5 blur-[100px] pointer-events-none" />
-      
-      {/* Top specular highlight for convex effect */}
-      <div className="absolute top-0 left-0 right-0 h-1/3 pointer-events-none z-0 rounded-t-3xl" style={{
-        background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 50%, transparent 100%)'
-      }} />
+    <div className="flex flex-col h-full glass-prestige rounded-3xl overflow-hidden relative group border border-white/5 shadow-2xl">
+      {/* Dynamic Header Glow */}
+      <div className={cn(
+        "absolute top-0 left-0 w-full h-32 blur-[80px] pointer-events-none transition-colors duration-1000 opacity-20",
+        activeUniverse === 'defense' ? "bg-gold-primary" : "bg-white"
+      )} />
 
-      {/* Header */}
-      <div className="px-6 py-6 border-b border-white/5 flex items-center justify-between relative z-10">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl glass-prestige-gold flex items-center justify-center shadow-lg border-t border-white/20">
-            <Cpu size={24} className="text-gold-primary" />
+      {/* HEADER: MODE TOGGLE */}
+      <div className="px-6 py-6 border-b border-white/5 relative z-10 shrink-0">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+             <div className="w-9 h-9 rounded-xl glass-prestige-gold flex items-center justify-center shadow-lg">
+                <LayoutDashboard size={18} className="text-gold-primary" />
+             </div>
+             <div>
+                <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-white/90 italic -mt-1 font-outfit">Strategia AI</h3>
+                <p className="text-[7px] text-white/30 font-bold uppercase tracking-widest">Premium v1.1</p>
+             </div>
           </div>
-          <div>
-            <h3 className="text-[14px] font-black uppercase tracking-[0.2em] text-white/90 italic">Wybór Modelu</h3>
-            <p className="text-[9px] text-white/40 font-bold uppercase tracking-widest mt-0.5">Konfiguracja Zespołu</p>
-          </div>
+          <button onClick={() => setIsOpen(false)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/30 transition-all">
+             <X size={14} />
+          </button>
         </div>
-        <button 
-          onClick={() => setIsOpen(false)}
-          className="p-3 rounded-xl bg-white/5 hover:bg-red-500/10 text-white/30 hover:text-red-400 transition-all border border-transparent hover:border-red-500/20 shadow-lg"
-        >
-          <X size={18} />
-        </button>
+
+        {/* SWITCHER */}
+        <div className="grid grid-cols-2 p-1.5 bg-black/40 border border-white/5 rounded-2xl relative shadow-inner">
+          <motion.div 
+            layoutId="universe-bg-v2"
+            className={cn(
+              "absolute inset-1.5 w-[calc(50%-6px)] h-[calc(100%-12px)] rounded-xl shadow-xl z-0",
+              activeUniverse === 'defense' ? "bg-gold-primary/20 shadow-gold-primary/10" : "bg-white/10 shadow-white/5"
+            )}
+            transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
+          />
+          <button 
+            onClick={() => applyPromptPreset('defense', { mode: 'advocate', architectPrompt: DEFENSE_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
+            className={cn(
+                "relative z-10 flex items-center justify-center gap-2 py-2 transition-all outline-none",
+                activeUniverse === 'defense' ? "text-gold-primary font-extrabold" : "text-white/20 font-bold"
+            )}
+          >
+            <Shield size={12} className={activeUniverse === 'defense' ? "text-gold-primary" : "text-white/10"} />
+            <span className="text-[9px] uppercase tracking-widest">Obrona</span>
+          </button>
+          <button 
+            onClick={() => applyPromptPreset('prosecution', { mode: 'advocate', architectPrompt: PROSECUTION_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
+            className={cn(
+                "relative z-10 flex items-center justify-center gap-2 py-2 transition-all outline-none",
+                activeUniverse === 'prosecution' ? "text-white font-extrabold" : "text-white/20 font-bold"
+            )}
+          >
+            <Gavel size={12} className={activeUniverse === 'prosecution' ? "text-white" : "text-white/10"} />
+            <span className="text-[9px] uppercase tracking-widest">Oskarżenie</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8 relative z-10">
+      {/* MAIN SCROLLABLE AREA */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-6 space-y-8 relative z-10 pb-32">
         
-        {/* Task Selection */}
-        <section className="space-y-4">
-          <button 
-            onClick={() => setTaskSectionOpen(!isTaskSectionOpen)}
-            className="flex items-center justify-between w-full px-1 group/header"
-          >
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 flex items-center gap-2 group-hover/header:text-white/60 transition-colors">
-              <Plus size={10} className="text-gold-primary" /> Cel Konsultacji
-              {!isTaskSectionOpen && (
-                    <span className={cn(
-                      "ml-2 px-2 py-0.5 rounded-full text-[8px] tracking-widest border transition-all truncate max-w-[120px]",
-                      currentTaskData.bg,
-                      currentTaskData.border,
-                      currentTaskData.color
-                    )}>
-                        {currentTaskData.label}
-                    </span>
-              )}
-            </h4>
-            <ChevronDown size={14} className={cn("text-white/20 transition-transform duration-300", isTaskSectionOpen ? "rotate-180" : "rotate-0")} />
-          </button>
-          
-          <AnimatePresence>
-            {isTaskSectionOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                <div className="grid grid-cols-1 gap-2 pt-2">
-                  {TASK_OPTIONS.map((task) => {
-                    const isActive = currentTask === task.id;
-                    return (
-                      <button
-                        key={task.id}
-                        onClick={() => {
-                          setCurrentTask(task.id);
-                          setCurrentSystemRoleId(task.roleId);
-                          if (task.id === 'drafting') {
-                            setIsOpen(false);
-                            onNavigate?.("drafter");
-                          }
-                        }}
-                        className={cn(
-                          "group flex items-center gap-4 p-4 rounded-2xl border transition-all text-left relative overflow-hidden w-full",
-                          isActive ? cn(task.bg, task.border, task.glow, "shadow-xl border-t-white/30") : "bg-white/3 border-white/5 hover:bg-white/6 hover:border-white/10"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border relative z-10 transition-all",
-                          isActive ? cn(task.color.replace('text-', 'bg-'), "border-white/40 text-black shadow-lg") : "bg-black/40 border-white/10 text-white/40"
-                        )}>
-                          <task.icon size={18} strokeWidth={isActive ? 2.5 : 1.5} />
-                        </div>
-                        <div className="flex flex-col relative z-10">
-                          <span className={cn("text-[11px] font-black uppercase tracking-widest transition-colors", isActive ? task.color : "text-white/70")}>
-                            {task.label}
-                          </span>
-                        </div>
-                        {isActive && (
-                          <motion.div 
-                            layoutId="task-indicator"
-                            className="ml-auto relative z-10"
-                          >
-                            <Check size={14} className={task.color} />
-                          </motion.div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
-
-        {/* Asystenci Selection */}
-        <section className="space-y-4">
-          <button 
-            onClick={() => setAssistantsSectionOpen(!isAssistantsSectionOpen)}
-            className="flex items-center justify-between w-full px-1 group/header"
-          >
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 flex items-center gap-2 group-hover/header:text-white/60 transition-colors">
-              <Zap size={10} className="text-amber-400" /> Asystenci
-              {!isAssistantsSectionOpen && activeModels.length > 0 && (
-                <span className="ml-2 px-2 py-0.5 rounded-full text-[8px] tracking-widest border border-amber-500/50 bg-amber-500/10 text-amber-400">
-                  Wybrano {activeModels.length}
-                </span>
-              )}
-            </h4>
-            <ChevronDown size={14} className={cn("text-white/20 transition-transform duration-300", isAssistantsSectionOpen ? "rotate-180" : "rotate-0")} />
-          </button>
-
-          <AnimatePresence>
-            {isAssistantsSectionOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                <div className="grid grid-cols-1 gap-2 pt-2">
-                    {activeModelsData.map((m: Model) => {
-                        const isSelected = activeModels.includes(m.id);
-                        const brand = getBrand(m.provider || (m.id.includes('/') ? m.id.split('/')[0] : 'unknown'));
-                        const cleanName = m.name.includes(":") ? m.name.split(":").slice(-1)[0]?.trim() : m.name;
-                        return (
-                            <button
-                                key={m.id}
-                                onClick={() => toggleActiveModel(m.id)}
-                                className={cn(
-                                    "group flex items-center gap-3 p-2.5 px-4 rounded-2xl border transition-all text-left overflow-hidden min-h-[48px] h-auto w-full",
-                                    isSelected 
-                                        ? cn(brand.bg, brand.border, "shadow-lg shadow-black/20")
-                                        : "bg-white/3 border-white/5 hover:border-white/20 hover:bg-white/6"
-                                )}
-                            >
-                                <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all", isSelected ? cn(brand.bg, brand.border, brand.color) : "bg-black/40 border-white/10 text-white/40 group-hover:text-white/60")}>
-                                    <brand.icon size={12} />
-                                </div>
-                                <span className={cn("text-[12px] font-black uppercase tracking-tight leading-[1.1] flex-1 py-1 transition-colors", isSelected ? brand.color : "text-white/70 group-hover:text-white")}>
-                                    {cleanName || m.id}
-                                </span>
-                                {isSelected && <div className={cn("w-2 h-2 rounded-full", brand.bg, brand.border, "shadow-lg")} />}
-                            </button>
-                        );
-                    })}
-                </div>
-                {activeModelsData.length === 0 && (
-                    <div className="py-10 text-center space-y-4">
-                        <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10">Brak modeli</p>
-                    </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
-
-        {/* Silnik Kreatora Pism (Drafter Engine) */}
-        <section className="space-y-4 pt-4 border-t border-white/5">
-          <button 
-            onClick={() => setDrafterSectionOpen(!isDrafterSectionOpen)}
-            className="flex items-center justify-between w-full px-1 group/header"
-          >
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 flex items-center gap-2 group-hover/header:text-white/60 transition-colors">
-              <Stamp size={10} className="text-emerald-400" /> Silnik Kreatora Pism
-              {!isDrafterSectionOpen && drafterModel && (
-                <span className="ml-2 px-2 py-0.5 rounded-full text-[8px] tracking-widest border border-emerald-500/50 bg-emerald-500/10 text-emerald-400">
-                  Ustawiony
-                </span>
-              )}
-            </h4>
-            <ChevronDown size={14} className={cn("text-white/20 transition-transform duration-300", isDrafterSectionOpen ? "rotate-180" : "rotate-0")} />
-          </button>
-
-          <AnimatePresence>
-            {isDrafterSectionOpen && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                <div className="grid grid-cols-1 gap-2 pt-2">
-                  {activeModelsData.map(model => {
-                    const isActive = drafterModel === model.id;
-                    return (
-                      <button
-                        key={model.id}
-                        onClick={() => setDrafterModel(model.id)}
-                        className={cn(
-                          "group flex items-center gap-3 p-2.5 px-4 rounded-2xl border transition-all text-left overflow-hidden min-h-[48px] h-auto w-full",
-                          isActive 
-                            ? "bg-emerald-400/10 border-emerald-400/30 shadow-lg text-emerald-400"
-                            : "bg-white/3 border-white/5 hover:bg-white/6 hover:border-white/10"
-                        )}
-                      >
-                        <div className={cn(
-                          "w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all",
-                          isActive ? "bg-emerald-400 text-black border-white/20" : "bg-black/40 border-white/10 text-white/40 group-hover:text-white/60"
-                        )}>
-                          <Cpu size={12} />
-                        </div>
-                        <span className={cn("text-[12px] font-black uppercase tracking-tight leading-[1.1] flex-1 py-1 transition-colors", isActive ? "text-emerald-400" : "text-white/70 group-hover:text-white")}>
-                          {model.name}
-                        </span>
-                        {isActive && <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-lg" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </section>
-
-        {/* Sędzia / Weryfikator Selection */}
-        <section className="space-y-4 relative mt-8">
-            <div className="absolute -top-6 left-0 right-0 flex justify-center">
-              <span className="bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.3)]">
-                Tryb Konsylium Detekcji
-              </span>
-            </div>
-            <button 
-              onClick={() => setJudgeSectionOpen(!isJudgeSectionOpen)}
-              className="flex items-center justify-between w-full px-1 group/header mt-2"
-            >
-              <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 flex items-center gap-2 group-hover/header:text-white/60 transition-colors">
-                <Scale size={10} className="text-purple-400" /> Sędzia / Weryfikator
-                {!isJudgeSectionOpen && selectedJudge && (
-                  <span className="ml-2 px-2 py-0.5 rounded-full text-[8px] tracking-widest border border-purple-500/50 bg-purple-500/10 text-purple-400">
-                    Aktywny
-                  </span>
-                )}
+        {/* 1. SEKCJA RÓL */}
+        <section className="space-y-4 pt-6">
+           <button onClick={() => setIsRolesOpen(!isRolesOpen)} className="flex items-center justify-between w-full px-1 group">
+              <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-white/30 flex items-center gap-2 group-hover:text-white transition-colors">
+                 <Activity size={10} className="text-gold-primary" /> Aktywne Role Ekspertów
               </h4>
-              <ChevronDown size={14} className={cn("text-white/20 transition-transform duration-300", isJudgeSectionOpen ? "rotate-180" : "rotate-0")} />
-            </button>
+              <ChevronDown size={14} className={cn("text-white/20 transition-transform", isRolesOpen && "rotate-180")} />
+           </button>
+           
+           <AnimatePresence>
+             {isRolesOpen && (
+               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                 <div className="grid grid-cols-1 gap-2.5 pt-2">
+                   {roleList.map((role) => {
+                     // Check assignment in real-time
+                     const isRoleActiveInState = Object.entries(expertRoleByModel || {}).some(([mid, rid]) => 
+                        activeModels.includes(mid) && rid === role.id
+                     );
 
-            <AnimatePresence>
-              {isJudgeSectionOpen && (
-                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }} className="overflow-hidden">
-                  <div className="grid grid-cols-1 gap-2 pt-2">
-                      {judgeModelsData.map((m: Model) => {
-                          const isSelected = selectedJudge === m.id;
-                          const brand = getBrand(m.provider || (m.id.includes('/') ? m.id.split('/')[0] : 'unknown'));
-                          const cleanName = m.name.includes(":") ? m.name.split(":").slice(-1)[0]?.trim() : m.name;
-                          return (
-                              <button
-                                  key={`judge-${m.id}`}
-                                  onClick={() => {
-                                    setSelectedJudge(m.id);
-                                    setJudgeSectionOpen(false);
-                                  }}
-                                  className={cn(
-                                      "group flex items-center gap-3 p-2.5 px-4 rounded-2xl border transition-all text-left overflow-hidden w-full",
-                                      isSelected 
-                                          ? cn(brand.bg, brand.border, "shadow-lg shadow-black/20")
-                                          : "bg-white/3 border-white/5 hover:border-white/20 hover:bg-white/6"
-                                  )}
-                              >
-                                  <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all", isSelected ? cn(brand.bg, brand.border, brand.color) : "bg-black/40 border-white/10 text-white/40 group-hover:text-white/60")}>
-                                      <brand.icon size={12} />
+                     return (
+                       <div 
+                         key={role.id}
+                         className={cn(
+                           "flex items-center gap-4 p-4 rounded-2xl border transition-all duration-500 relative overflow-hidden group shadow-xl",
+                           isRoleActiveInState 
+                             ? `${role.glow} ${role.border} scale-[1.01]` 
+                             : "bg-white/2 border-white/5 opacity-20 grayscale group-hover:opacity-60 transition-all"
+                         )}
+                       >
+                          {isRoleActiveInState && (
+                            <div className={cn("absolute inset-0 opacity-10", role.glow.replace('bg-', 'bg-opacity-100 bg-'))} />
+                          )}
+
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border relative z-10 transition-all",
+                            isRoleActiveInState 
+                              ? `bg-black/80 ${role.border} ${role.color}` 
+                              : "bg-black/40 border-white/5 text-white/20"
+                          )}>
+                             <role.icon size={18} strokeWidth={isRoleActiveInState ? 3 : 2} />
+                          </div>
+                          
+                          <div className="flex flex-col relative z-10">
+                             <span className={cn(
+                               "text-[10px] font-black uppercase tracking-widest transition-colors",
+                               isRoleActiveInState ? "text-white" : "text-white/30"
+                             )}>
+                               {role.label}
+                             </span>
+                             <span className={cn("text-[6.5px] font-black tracking-widest transition-colors", isRoleActiveInState ? role.color : "text-white/5")}>
+                               {isRoleActiveInState ? "SYSTEM_ACTIVE_EXEC" : "IDLE_STANDBY"}
+                             </span>
+                          </div>
+
+                          {isRoleActiveInState && (
+                             <motion.div initial={{ scale: 0, x: 20 }} animate={{ scale: 1, x: 0 }} className="ml-auto relative z-10">
+                                <div className={cn("w-6 h-6 rounded-full border flex items-center justify-center", role.border, role.color)}>
+                                   <Check size={10} strokeWidth={4} />
+                                </div>
+                             </motion.div>
+                          )}
+                       </div>
+                     );
+                   })}
+                 </div>
+               </motion.div>
+             )}
+           </AnimatePresence>
+        </section>
+
+        {/* 2. PRZYPISANIE MODELI (Zespół) */}
+        <section className="space-y-4 pt-4 border-t border-white/5">
+           <button onClick={() => setIsModelsOpen(!isModelsOpen)} className="flex items-center justify-between w-full px-1 group">
+             <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-white/30 flex items-center gap-2 group-hover:text-white transition-colors">
+               <Zap size={10} className="text-emerald-400" /> Twój Zespół (Modele)
+             </h4>
+             <ChevronDown size={14} className={cn("text-white/20 transition-transform", isModelsOpen && "rotate-180")} />
+           </button>
+
+           <AnimatePresence>
+             {isModelsOpen && (
+               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden space-y-2">
+                 <div className="pt-2 space-y-2">
+                   {availableModels.map((m) => {
+                     const isSelected = activeModels.includes(m.id);
+                     const assignedRole = expertRoleByModel?.[m.id] || "";
+                     const currentRoleObj = roleList.find(r => r.id === assignedRole);
+                     const brand = getBrand(m.provider || "unknown");
+
+                     return (
+                      <div key={m.id} className="space-y-2">
+                          <button 
+                            onClick={() => toggleActiveModel(m.id)}
+                            className={cn(
+                              "flex items-center gap-3 p-3 rounded-2xl border transition-all w-full relative overflow-hidden",
+                              isSelected ? "bg-white/5 border-white/10 shadow-2xl" : "bg-white/2 border-white/5 opacity-40 hover:opacity-100"
+                            )}
+                          >
+                              <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border relative z-10", isSelected ? "bg-white/10 border-white/20 text-white shadow-lg" : "text-white/10 border-white/5")}>
+                                 <brand.icon size={13} />
+                              </div>
+                              <span className={cn("text-[10px] font-black uppercase flex-1 truncate text-left relative z-10 tracking-widest", isSelected ? "text-white" : "text-white/20")}>{m.name}</span>
+                              <div className={cn("w-2 h-2 rounded-full relative z-10 shadow-lg", 
+                                isSelected ? (currentRoleObj ? currentRoleObj.color.replace('text-', 'bg-') : "bg-emerald-500") : "bg-white/5"
+                              )} />
+                          </button>
+                          
+                          {isSelected && (
+                              <motion.div initial={{ y: -6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="px-1">
+                                  <div className={cn(
+                                    "p-3 bg-black/60 border rounded-2xl flex items-center gap-3 shadow-inner transition-all",
+                                    currentRoleObj ? currentRoleObj.border : "border-white/5"
+                                  )}>
+                                      <span className="text-[7px] font-black uppercase text-white/20 tracking-widest shrink-0">ROLA:</span>
+                                      <select 
+                                          value={assignedRole} 
+                                          onChange={(e) => setExpertRoleForModel(m.id, e.target.value)}
+                                          className={cn(
+                                            "bg-transparent text-[9px] font-black uppercase outline-none cursor-pointer flex-1 transition-colors",
+                                            currentRoleObj ? currentRoleObj.color : "text-white/30"
+                                          )}
+                                      >
+                                          <option value="" className="bg-[#111] text-white/30 italic uppercase">Pasywny Obserwator</option>
+                                          {roleList.map(r => <option key={r.id} value={r.id} className="bg-[#111] text-white uppercase">{r.label.toUpperCase()}</option>)}
+                                      </select>
                                   </div>
-                                  <span className={cn("text-[12px] font-black uppercase tracking-tight leading-[1.1] flex-1 py-1 transition-colors", isSelected ? brand.color : "text-white/70 group-hover:text-white")}>
-                                      {cleanName || m.id}
-                                  </span>
-                                  {isSelected && <div className={cn("w-2 h-2 rounded-full", brand.bg, brand.border, "shadow-lg")} />}
-                              </button>
-                          );
-                      })}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </section>
+                              </motion.div>
+                          )}
+                      </div>
+                     );
+                   })}
+                 </div>
+               </motion.div>
+             )}
+           </AnimatePresence>
+        </section>
+
+        {/* 3. SĘDZIA-SYNTETYZATOR (RE-PLACED FOR BETTER ACCESS) */}
+        <section className="space-y-4 pt-10 border-t border-white/10 pb-10">
+           <div className="flex items-center gap-3 px-1 mb-6">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shadow-lg">
+                 <Scale size={16} className="text-purple-400" />
+              </div>
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80 font-outfit">Sędzia-Syntetyzator</h4>
+                <p className="text-[7px] font-bold text-white/20 uppercase tracking-widest">Protocol v4.4 Supreme</p>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 gap-2.5">
+              {availableModels.map(m => {
+                const isFinalJudge = selectedJudge === m.id;
+                const brand = getBrand(m.provider || "unknown");
+                
+                return (
+                  <button 
+                      key={m.id} 
+                      onClick={() => setSelectedJudge(m.id)}
+                      className={cn(
+                          "p-4 rounded-2xl border transition-all flex items-center justify-between relative overflow-hidden group",
+                          isFinalJudge 
+                            ? "bg-gold-primary/10 border-gold-primary/50 shadow-2xl scale-[1.02]" 
+                            : "bg-white/2 border-white/5 opacity-50 hover:opacity-100"
+                      )}
+                  >
+                      {isFinalJudge && (
+                        <div className="absolute inset-0 bg-gold-primary/5 blur-2xl animate-pulse" />
+                      )}
+                      <div className="flex items-center gap-3 relative z-10">
+                         <div className={cn("w-7 h-7 rounded-lg shrink-0 border flex items-center justify-center", isFinalJudge ? "bg-gold-primary/20 border-gold-primary/40 text-gold-primary shadow-lg" : "bg-black/40 border-white/5 text-white/20")}>
+                            <brand.icon size={13} />
+                         </div>
+                         <span className={cn("text-[10px] font-black uppercase tracking-widest", isFinalJudge ? "text-white" : "text-white/40")}>{m.name}</span>
+                      </div>
+                      {isFinalJudge && <div className="w-5 h-5 rounded-full bg-gold-primary/20 border border-gold-primary/30 flex items-center justify-center relative z-10">
+                         <UserCheck size={12} className="text-gold-primary" strokeWidth={3} />
+                      </div>}
+                  </button>
+                );
+              })}
+           </div>
+
+           {availableModels.length === 0 && (
+             <div className="p-8 rounded-2xl border border-white/5 bg-black/40 text-center">
+                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Wybierz modele w profilu, aby przydzielić rolę sędziego.</p>
+             </div>
+           )}
+        </section>
+
+         {/* KNOWLEDGE BASE QUICK LINK */}
+         <div className="pb-32 px-1">
+            <button 
+              onClick={() => onNavigate?.('knowledge')}
+              className="w-full py-5 rounded-2xl bg-white/2 hover:bg-gold-primary/10 text-white/20 hover:text-gold-primary font-black text-[8px] uppercase tracking-[0.3em] border border-white/5 hover:border-gold-primary/40 transition-all shadow-xl group/kb"
+            >
+              <div className="flex items-center justify-center gap-3">
+                 <Database size={11} className="group-hover/kb:animate-pulse" />
+                 Baza Wiedzy i Dokumenty (RAG)
+              </div>
+            </button>
+         </div>
       </div>
 
-      {/* Footer */}
-      <div className="p-6 border-t border-white/5 relative z-10">
+      {/* FOOTER: THE BIG BUTTON */}
+      <div className="absolute bottom-0 left-0 w-full p-6 bg-linear-to-t from-[#0a0a0c] via-[#0a0a0c]/90 to-transparent z-50">
         <button 
-          onClick={() => setIsOpen(false)}
+          onClick={() => {
+            setMode(activeModels.length > 1 ? 'moa' : 'single');
+            setIsOpen(false);
+          }}
           className={cn(
-            "w-full py-4 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-[0.3em] shadow-lg",
-            activeModels.length > 1 
-              ? "bg-linear-to-br from-indigo-500/30 via-blue-500/30 to-teal-500/30 border-blue-500/40 text-white shadow-blue-500/20 hover:from-blue-500/50 hover:to-teal-500/50"
-              : "bg-linear-to-br from-blue-600/30 to-indigo-700/30 border-blue-500/30 text-white hover:bg-blue-600/50 shadow-blue-500/10"
+            "w-full py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.4em] transition-all hover:scale-[1.02] active:scale-[0.98] border shadow-[0_20px_50px_rgba(0,0,0,0.6)] font-outfit",
+            activeUniverse === 'defense' 
+              ? "glass-prestige-gold text-black border-gold-primary/50" 
+              : "bg-white/95 border-white text-black shadow-white/20"
           )}
         >
-          Zapisz ustawienia
+          <span className="-mt-1 block">Aktywuj Strategię</span>
         </button>
       </div>
     </div>
