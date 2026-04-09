@@ -13,11 +13,13 @@ import {
   Cpu,
   PanelRight,
   History,
+  X
 } from "lucide-react";
 
 import { useChatSettingsStore } from "./store/useChatSettingsStore";
-import { ChatProvider } from "./context/ChatContext";
+import { ChatContext } from "./context/ChatContextPrimitive";
 import { useOrchestratorSync } from "./hooks/useOrchestratorSync";
+import { useContext } from "react";
 import { PrestigeLoading } from "./components/Shared/PrestigeLoading";
 import { Sidebar } from "./components/Layout/Sidebar";
 import { MobileNavigation } from "./components/Layout/MobileNavigation";
@@ -42,40 +44,48 @@ const NAV_ITEMS: NavItem[] = [
     icon: Terminal,
     label: "Konsultacja AI",
     sublabel: "Jednolity System Wsparcia",
-    color: "#d4af37", // Gold
-    colorRgb: "212,175,55",
+    color: "#f59e0b", // Amber
+    colorRgb: "245,158,11",
   },
   {
     id: "drafter",
     icon: FileText,
     label: "Kreator Pism",
     sublabel: "Master Drafter",
-    color: "#b8860b", // Dark Goldenrod (Brass)
-    colorRgb: "184,134,11",
-  },
-  {
-    id: "prompts",
-    icon: Sparkles,
-    label: "Prompty",
-    sublabel: "AI Instructions",
-    color: "#fbbf24", // Amber (Goldish)
-    colorRgb: "251,191,36",
+    color: "#3b82f6", // Blue
+    colorRgb: "59,130,246",
   },
   {
     id: "documents",
     icon: FolderOpen,
     label: "Dokumenty",
     sublabel: "Secure storage",
-    color: "#e5e4e2", // Platinum/Silver
-    colorRgb: "229,228,226",
+    color: "#10b981", // Emerald
+    colorRgb: "16,185,129",
   },
   {
     id: "knowledge",
     icon: Library,
     label: "Centralna Baza Wiedzy",
     sublabel: "Archives",
-    color: "#cd7f32", // Bronze
-    colorRgb: "205,127,50",
+    color: "#d97706", // Dark Amber
+    colorRgb: "217,119,6",
+  },
+  {
+    id: "prompts",
+    icon: Sparkles,
+    label: "Prompty",
+    sublabel: "AI Instructions",
+    color: "#8b5cf6", // Purple
+    colorRgb: "139,92,246",
+  },
+  {
+    id: "settings",
+    icon: Settings,
+    label: "Profil",
+    sublabel: "Identity",
+    color: "#6366f1", // Indigo
+    colorRgb: "99,102,241",
   },
   {
     id: "admin",
@@ -85,14 +95,6 @@ const NAV_ITEMS: NavItem[] = [
     color: "#991b1b", // Prestige Dark Red
     colorRgb: "153,27,27",
     adminOnly: true,
-  },
-  {
-    id: "settings",
-    icon: Settings,
-    label: "Profil",
-    sublabel: "Identity",
-    color: "#f0cc5a", // Soft Gold
-    colorRgb: "240,204,90",
   },
 ];
 
@@ -115,6 +117,9 @@ export default function App() {
     setShowHistory
   } = useChatSettingsStore();
   
+  const chatContext = useContext(ChatContext);
+  const isInitialLoadComplete = chatContext?.isInitialLoadComplete || false;
+
   useOrchestratorSync();
 
   const fetchUserRole = async (userId: string) => {
@@ -132,7 +137,6 @@ export default function App() {
   };
 
   useEffect(() => {
-    let bootTimeout: ReturnType<typeof setTimeout>;
     const startTime = Date.now();
 
     const initializeSession = async () => {
@@ -147,10 +151,6 @@ export default function App() {
           fetchUserRole(currentSession.user.id);
           setIsBooting(true);
           hasBootedRef.current = true;
-          
-          bootTimeout = setTimeout(() => {
-            setIsBooting(false);
-          }, 5000);
         }
         setAuthLoading(false);
       }, remainingDelay);
@@ -162,7 +162,6 @@ export default function App() {
       if (event === "SIGNED_IN" && !hasBootedRef.current) {
         setIsBooting(true);
         hasBootedRef.current = true;
-        bootTimeout = setTimeout(() => setIsBooting(false), 5000);
       }
 
       if (event === "SIGNED_OUT") {
@@ -179,9 +178,18 @@ export default function App() {
 
     return () => {
       subscription.unsubscribe();
-      if (bootTimeout) clearTimeout(bootTimeout);
     };
   }, []);
+
+  // Update isBooting based on real readiness
+  useEffect(() => {
+    if (session && isInitialLoadComplete && isBooting) {
+        const timer = setTimeout(() => {
+            setIsBooting(false);
+        }, 1000); // Small extra buffer for animations
+        return () => clearTimeout(timer);
+    }
+  }, [session, isInitialLoadComplete, isBooting]);
 
   // AmbientOrbs handles mouse parallax internally to prevent App re-renders
 
@@ -220,7 +228,6 @@ export default function App() {
   };
 
   return (
-    <ChatProvider>
       <div className="flex h-screen w-screen overflow-hidden relative selection:bg-gold-primary/30 selection:text-white font-inter text-white p-0 md:p-2 lg:p-4">
         {/* Background Effects */}
         <div className="aurora-bg aurora-bright opacity-70">
@@ -424,8 +431,14 @@ export default function App() {
                     )}
                   </motion.button>
 
-                  <motion.button whileHover={{ scale: 1.08, rotate: 5 }} whileTap={{ scale: 0.94 }} className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(2, 10, 19,0.65) 100%)", borderTop: "1px solid rgba(249,226,157,0.8)", borderLeft: "1px solid rgba(212,175,55,0.28)", borderRight: "1px solid rgba(212,175,55,0.08)", borderBottom: "1px solid rgba(0,0,0,0.6)", boxShadow: "0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(212,175,55,0.55)" }}>
-                    <Sparkles size={16} style={{ color: "#d4af37" }} fill="currentColor" />
+                  <motion.button 
+                    whileHover={{ scale: 1.05 }} 
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => supabase.auth.signOut()}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300 border border-red-500/40 text-red-500 bg-red-500/10 shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-500/20 hover:border-red-500/60 hover:shadow-[0_0_25px_rgba(239,68,68,0.4)] group/exit"
+                    title="Wyloguj się"
+                  >
+                    <X size={20} className="group-hover/exit:rotate-90 transition-transform duration-300" />
                   </motion.button>
                 </div>
               </div>
@@ -451,9 +464,8 @@ export default function App() {
               <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 50% at 50% 0%, rgba(212,175,55,0.06) 0%, transparent 80%)" }} />
             </section>
           </main>
-        </div>
       </div>
-    </ChatProvider>
+    </div>
   );
 }
 const AmbientOrbs = () => {

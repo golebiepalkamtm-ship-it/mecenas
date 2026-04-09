@@ -1,7 +1,14 @@
 import httpx
 import asyncio
+import re
 from typing import List, Dict, Any, Optional
 from moa.models import RetrievedChunk
+
+def _strip_html(text: str) -> str:
+    """Usuwa tagi HTML z treści orzeczeń SAOS."""
+    clean = re.sub(r'<[^>]+>', ' ', text)
+    clean = re.sub(r'\s+', ' ', clean).strip()
+    return clean[:3000]  # Limit długości jednego orzeczenia
 
 SAOS_API_JUDGMENTS_URL = "https://www.saos.org.pl/api/search/judgments"
 
@@ -40,12 +47,11 @@ async def search_saos_judgments(query: str, page_size: int = 5) -> List[Retrieve
                 if item.get("courtCases"):
                     case_number = item["courtCases"][0].get("caseNumber", "N/A")
                 
-                # Tekst orzeczenia (może być w HTML lub czysty tekst)
-                # W przykładach API widać judgment.textContent
-                content = item.get("textContent", "")
-                if not content:
-                    # Czasem tekst jest w innym polu lub trzeba go pobrać osobno, 
-                    # ale w wyszukiwarce 'all' zazwyczaj zwraca fragmenty.
+                # Tekst orzeczenia — czyścimy z HTML
+                raw_content = item.get("textContent", "")
+                if raw_content:
+                    content = _strip_html(raw_content)
+                else:
                     content = f"Wyrok z dnia {date}, sygn. {case_number}, sąd: {court_name}."
 
                 full_source = f"ORZECZENIE SAOS ID: {judgment_id} ({court_name}, {case_number})"

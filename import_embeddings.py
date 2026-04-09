@@ -1,5 +1,5 @@
 """
-Importuje embeddingi 1536D z JSON do Supabase przez RPC update_embedding_batch.
+Importuje embeddingi 1024D z JSON do Supabase przez RPC update_embedding_batch.
 """
 
 import asyncio
@@ -33,10 +33,10 @@ BATCH_SIZE = 100
 
 async def main():
     print("=" * 60)
-    print("Import embeddingow 1536D do Supabase")
+    print("Import embeddingow 1024D do Supabase")
     print("=" * 60)
 
-    with open("embeddings_1536d.json", "r", encoding="utf-8") as f:
+    with open("embeddings_1024d.json", "r", encoding="utf-8") as f:
         all_data = json.load(f)
 
     print(f"[INFO] Zaladowano {len(all_data)} embeddingow z JSON")

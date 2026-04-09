@@ -1,68 +1,25 @@
 @import "tailwindcss";
 
 :root {
-    /* ─── Core Palette ─── */
-    --bg-deep: #0a0e14;
-    --bg-surface: #0f1621;
-    --bg-raised: #16202e;
-    --bg-card: #0f1621;
-    --bg-prestige: #121a26;
-
+    /* ─── Unified Prestige Palette ─── */
+    --bg-prestige-base:  #0a0e14;
+    --bg-prestige-light: #1c273a;
+    --bg-prestige-glow:  rgba(255, 255, 255, 0.05);
+    
     --gold-primary: #d4af37;
-    --gold-accent: #ffffff;
-    --gold-bright: #ffdd00;
-    --gold-subtle: rgba(212, 175, 55, 0.12);
-    --gold-glow: rgba(212, 175, 55, 0.18);
-    --gold-text: #fff3a0;
-
-    --glass-bg: rgba(255, 255, 255, 0.03);
-    --glass-border: rgba(255, 255, 255, 0.15);
-
-    /* ─── Gold Accent System ─── */
-    --teal-bright:  #f0cc5a;
-    --teal-mid:     #d4af37;
-    --teal-dim:     rgba(212, 175, 55, 0.15);
-
-    /* ─── Gold Secondary Accent ─── */
-    --blue-bright:  #e8c547;
-    --blue-mid:     #c9a02e;
-    --blue-dim:     rgba(212, 175, 55, 0.15);
-
-    /* ─── Typography ─── */
-    --text-primary:   #ffffff;
-    --text-secondary: rgba(255, 255, 255, 0.85);
-    --text-muted:     rgba(255, 255, 255, 0.60);
-    --text-faint:     rgba(255, 255, 255, 0.35);
-
-    /* ─── Glass System — SHARP PHYSICS ─── */
-    /* Rule: blur must be minimal so content behind glass stays readable */
-    --glass-bg:          rgba(255, 255, 255, 0.08); /* Brighter base */
-    --glass-bg-hover:    rgba(255, 255, 255, 0.12);
-    --glass-border:      rgba(255, 255, 255, 0.22);
-    --glass-border-top:  rgba(255, 255, 255, 0.85); /* Much sharper top highlight */
-    --glass-border-side: rgba(255, 255, 255, 0.25);
-    --glass-border-bot:  rgba(0, 0, 0, 0.75);
-    --glass-blur:        24px;      /* Slightly more blur for better light diffusion */
-    --glass-saturate:    150%;
-
-    /* ─── Shadows — Precise, not spread ─── */
-    --shadow-sm:   0 1px 4px rgba(0,0,0,0.60),  0 2px 8px  rgba(0,0,0,0.40);
-    --shadow-md:   0 4px 16px rgba(0,0,0,0.65), 0 8px 24px rgba(0,0,0,0.45);
-    --shadow-lg:   0 8px 32px rgba(0,0,0,0.70), 0 16px 40px rgba(0,0,0,0.50);
-    --shadow-xl:   0 16px 56px rgba(0,0,0,0.75), 0 32px 64px rgba(0,0,0,0.55);
-
-    /* ─── App Background ─── */
+    --gold-luminous: #f0cc5a;
+    
+    /* ─── Luminous Physics ─── */
+    --glass-blur:        24px;
+    --glass-saturate:    160%;
+    
     --app-bg:
-        radial-gradient(ellipse at 30% 50%, rgba(212,175,55,0.22) 0%, transparent 75%), 
-        radial-gradient(ellipse at 80% 20%, rgba(212,175,55,0.12) 0%, transparent 65%), 
-        linear-gradient(145deg, #1b2735 0%, #091220 100%);
+        radial-gradient(circle at 20% 30%, rgba(212,175,55,0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(212,175,55,0.10) 0%, transparent 50%),
+        linear-gradient(165deg, #121a26 0%, #050505 100%);
 
-    /* ─── Timing ─── */
-    --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-    --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
-    --t-fast:   150ms cubic-bezier(0.16, 1, 0.3, 1);
-    --t-base:   300ms cubic-bezier(0.16, 1, 0.3, 1);
-    --t-slow:   600ms cubic-bezier(0.16, 1, 0.3, 1);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.85);
 }
 
 @theme {
@@ -104,34 +61,31 @@ body {
 ══════════════════════════════════════════════════════════ */
 
 @utility glass-liquid-convex {
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.1) 0%, rgba(15, 25, 40, 0.7) 100%);
-    backdrop-filter: blur(32px) saturate(200%);
-    -webkit-backdrop-filter: blur(32px) saturate(200%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(10, 15, 25, 1) 100%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
     position: relative;
     overflow: hidden;
 
-    /* Convex Liquid Edge System */
-    border-top:    2.2px solid rgba(255, 255, 255, 0.95);
-    border-left:   1.5px solid rgba(255, 255, 255, 0.45);
-    border-right:  0.8px solid rgba(255, 255, 255, 0.15);
-    border-bottom: 3px solid rgba(0, 0, 0, 0.85);
+    /* Luminous Edge System */
+    border-top:    2.5px solid rgba(255, 255, 255, 0.95);
+    border-left:   1.5px solid rgba(255, 255, 255, 0.25);
+    border-right:  0.8px solid rgba(255, 255, 255, 0.10);
+    border-bottom: 3.5px solid rgba(0, 0, 0, 0.95);
 
-    /* Extreme Physical Depth */
+    /* Universal Physical Depth */
     box-shadow: 
-        0 48px 96px -12px rgba(0, 0, 0, 0.65),
-        0 18px 48px -18px rgba(0, 0, 0, 0.70),
-        inset 0 4px 12px rgba(255, 255, 255, 0.22),
-        inset 0 -4px 12px rgba(0, 0, 0, 0.55),
-        0 0 0 1px rgba(255, 255, 255, 0.04);
+        0 60px 120px -20px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
 
-    /* Liquid Surface Sheen */
-    &::after {
+    /* Light Breaking Gradient Overlay */
+    &::before {
         content: "";
         position: absolute;
         inset: 0;
-        background: radial-gradient(circle at 30% 0%, rgba(255,255,255,0.18), transparent 70%);
+        background: radial-gradient(circle at 15% 0%, rgba(255,255,255,0.15), transparent 70%);
         pointer-events: none;
-        z-index: 5;
+        z-index: 1;
         border-radius: inherit;
     }
 }
@@ -166,23 +120,20 @@ body {
 
 /* GOLD variant */
 @utility glass-prestige-gold {
-    @apply glass-prestige;
-    border-top-color:  rgba(212, 175, 55, 0.90);
-    border-left-color: rgba(212, 175, 55, 0.30);
+    @apply glass-liquid-convex;
+    border-top-color:  rgba(212, 212, 100, 0.95);
+    border-left-color: rgba(212, 175, 55, 0.40);
     box-shadow:
-        0 24px 64px -8px rgba(0, 0, 0, 0.55),
-        0 8px  24px -4px rgba(0, 0, 0, 0.40),
-        0 0    20px  0   rgba(212, 175, 55, 0.08),
-        inset 0 1px  0   rgba(212, 175, 55, 0.45),
-        inset 0 -1px 0   rgba(0, 0, 0, 0.50);
+        0 30px 60px -10px rgba(0, 0, 0, 0.8),
+        inset 0 1px 0 rgba(212, 175, 55, 0.3);
 
-    &::before {
+    &::after {
         content: "";
         position: absolute;
         inset: 0;
-        background: radial-gradient(ellipse at 30% 0%, rgba(212,175,55,0.10), transparent 65%);
+        background: radial-gradient(circle at 30% 0%, rgba(212,175,55,0.18), transparent 75%);
         pointer-events: none;
-        z-index: 1;
+        z-index: 2;
         border-radius: inherit;
     }
 }
@@ -504,6 +455,21 @@ body {
 }
 
 @utility noise-overlay { display: none; }
+
+@utility text-gold-gradient {
+    background: linear-gradient(to right, #ffffff 0%, #d4af37 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+@utility text-prestige-glow {
+    text-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+}
+
+@utility bg-prestige-view {
+    background: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.04) 0%, transparent 70%);
+}
 
 /* ─── Scrollbar ─── */
 @utility custom-scrollbar {

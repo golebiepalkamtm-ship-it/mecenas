@@ -80,7 +80,7 @@ TARGETS: dict[str, dict[str, str]] = {
 
             Zestaw plików do integracji z projektem Swift/SwiftUI (WebView + lokalny backend Streamlit).
             - Skorzystaj z `app.py` jako backendu.
-            - Dołącz PDF-y z katalogu `pdfs/` do bundla aplikacji.
+            - Dołącz pliki z katalogu `local_storage/knowledge_base/` do bazy wiedzy.
         """,
     },
 }

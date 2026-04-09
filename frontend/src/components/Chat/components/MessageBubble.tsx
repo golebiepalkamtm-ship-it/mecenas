@@ -145,9 +145,9 @@ function PipelineStats({ msg }: { msg: Message }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/6">
       {/* MOA badge */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-500/8 border border-teal-500/15">
-        <Network size={10} className="text-teal-400" />
-        <span className="text-[8px] font-bold text-teal-400 uppercase tracking-wider">MOA</span>
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gold-primary/8 border border-gold-primary/20">
+        <Network size={10} className="text-gold-primary" />
+        <span className="text-[8px] font-bold text-gold-primary uppercase tracking-wider">MOA</span>
       </div>
 
       {/* Experts */}
@@ -182,9 +182,10 @@ function PipelineStats({ msg }: { msg: Message }) {
 // ---------------------------------------------------------------------------
 interface MessageBubbleProps {
   msg: Message;
+  onPreviewDoc?: (name: string, content?: string) => void;
 }
 
-export function MessageBubble({ msg }: MessageBubbleProps) {
+export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
   const isUser = msg.role === "user";
   const [showExperts, setShowExperts] = useState(false);
   const hasExperts = msg.expert_analyses && msg.expert_analyses.length > 0;
@@ -205,15 +206,15 @@ export function MessageBubble({ msg }: MessageBubbleProps) {
           isUser
             ? "glass-prestige-gold text-gold-primary border border-gold-primary/30"
             : msg.consensus_used
-              ? "glass-prestige-teal text-teal-400 border border-teal-400/30"
-              : "glass-prestige-teal text-blue-400 border border-blue-400/30",
+              ? "glass-prestige-gold text-gold-primary border border-gold-primary/40"
+              : "glass-prestige-gold text-gold-primary border border-gold-primary/30",
         )}
       >
         {isUser ? <User size={15} /> : msg.consensus_used ? <Gavel size={15} /> : <Scale size={15} />}
         <div
           className={cn(
             "absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity",
-            isUser ? "bg-gold-500" : msg.consensus_used ? "bg-teal-500" : "bg-blue-500",
+            "bg-gold-primary",
           )}
         />
       </div>
@@ -242,15 +243,15 @@ export function MessageBubble({ msg }: MessageBubbleProps) {
             <div className="flex items-center gap-2 mb-3">
               {msg.consensus_used ? (
                 <>
-                  <Network size={10} className="text-teal-400" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-400">
+                  <Network size={10} className="text-gold-primary" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gold-primary/80">
                     Konsylium MOA
                   </span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={10} className="text-blue-400" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400">
+                  <Sparkles size={10} className="text-gold-primary" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gold-primary/80">
                     Kancelaria AI Core
                   </span>
                 </>
@@ -309,8 +310,11 @@ export function MessageBubble({ msg }: MessageBubbleProps) {
                     </div>
                   )}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/att:opacity-100 transition-opacity flex items-center justify-center">
-                    <button className="p-2 glass-prestige rounded-full text-white transition-all">
-                      <ExternalLink size={16} />
+                    <button 
+                      onClick={() => onPreviewDoc?.(att.name, att.content)}
+                      className="p-2 glass-prestige rounded-full text-white transition-all hover:scale-110 hover:text-gold-primary"
+                    >
+                      <Search size={16} />
                     </button>
                   </div>
                 </motion.div>
@@ -325,17 +329,32 @@ export function MessageBubble({ msg }: MessageBubbleProps) {
                 <Search size={11} className="text-accent" /> Źródła
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {msg.sources.map((src, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-1.5 glass-prestige px-2.5 py-1 rounded-lg text-[9px] font-bold text-(--text-primary) cursor-default"
-                  >
-                    <FileText size={10} className="text-accent/60" />
-                    <span className="truncate max-w-[150px] uppercase tracking-tighter text-[8px]">
-                      {src}
-                    </span>
-                  </div>
-                ))}
+                {msg.sources.map((src, i) => {
+                  const srcStr = typeof src === 'string' ? src : (src as any)?.name || String(src);
+                  const isSaos = srcStr.toUpperCase().includes('SAOS') || srcStr.toUpperCase().includes('ORZECZENIE');
+                  const isEli = srcStr.toUpperCase().includes('SEJM') || srcStr.toUpperCase().includes('ISAP') || srcStr.toUpperCase().includes('ELI');
+                  
+                  const iconColor = isSaos ? 'text-red-400' : isEli ? 'text-blue-400' : 'text-emerald-400';
+                  const hoverBg = isSaos ? 'hover:bg-red-500/20 hover:text-red-400' : isEli ? 'hover:bg-blue-500/20 hover:text-blue-400' : 'hover:bg-emerald-500/20 hover:text-emerald-400';
+                  const label = isSaos ? 'SAOS' : isEli ? 'ELI' : 'RAG';
+                  const borderColor = isSaos ? 'border-red-500/20' : isEli ? 'border-blue-500/20' : 'border-emerald-500/20';
+                  
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => onPreviewDoc?.(srcStr)}
+                      className={`flex items-center gap-1.5 glass-prestige px-2.5 py-1.5 rounded-lg text-[9px] font-bold text-white ${hoverBg} transition-all active:scale-95 border ${borderColor}`}
+                    >
+                      <span className={`text-[7px] font-black px-1 py-0.5 rounded ${isSaos ? 'bg-red-500/20 text-red-400' : isEli ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                        {label}
+                      </span>
+                      <FileText size={10} className={iconColor} />
+                      <span className="truncate max-w-[140px] uppercase tracking-tighter text-[8px]">
+                        {srcStr}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

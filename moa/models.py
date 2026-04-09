@@ -29,6 +29,12 @@ class MOARequest:
     document_text: Optional[str] = (
         None  # Treść dokumentu użytkownika (oddzielna od query)
     )
+    history: list[dict] = field(default_factory=list)
+    mode: Optional[str] = "advocate"
+    category: Optional[str] = None  # rag_legal lub user_docs
+    expert_roles: Optional[dict[str, str]] = None
+    expert_role_prompts: Optional[dict[str, str]] = None
+    judge_system_prompt: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

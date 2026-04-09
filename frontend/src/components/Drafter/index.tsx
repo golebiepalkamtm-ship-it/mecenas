@@ -145,7 +145,8 @@ export function DrafterView() {
   }, [generatedDocument, selectedType]);
 
   return (
-    <div className="flex flex-col h-full glass-prestige-embossed overflow-hidden border-t-2 border-t-white/90 font-outfit">
+    <div className="flex flex-col h-full bg-prestige-view overflow-hidden font-outfit relative">
+      <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
       {/* Ambient Glows */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-gold-primary/5 blur-[120px] pointer-events-none" />
 
@@ -156,11 +157,11 @@ export function DrafterView() {
             <Wand2 size={18} />
           </div>
           <div className="flex flex-col">
-            <h1 className="text-[13px] font-black uppercase tracking-[0.2em] text-white/90 italic font-outfit">
+            <h1 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient leading-none font-outfit">
               Kreator Pism
             </h1>
-            <p className="text-[8px] font-black text-gold-primary/40 uppercase tracking-[0.25em] mt-0.5 font-outfit">
-                LexMind Prestige Drafter
+            <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 font-outfit">
+              LexMind Prestige Drafter • Inteligentny System Redakcyjny
             </p>
           </div>
         </div>

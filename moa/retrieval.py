@@ -15,7 +15,6 @@ from typing import List, cast
 
 from moa.config import (
     OPENROUTER_API_KEY,
-    OPENROUTER_EMBEDDINGS_URL,
     OPENROUTER_HEADERS,
     EMBEDDING_MODEL,
     EMBEDDING_DIMENSIONS,
@@ -28,6 +27,7 @@ from moa.config import (
 )
 from moa.models import RetrievedChunk
 from moa.saos import search_saos_judgments
+from moa.eli import search_isap_acts
 
 
 import json
@@ -68,9 +68,9 @@ _load_embeddings_cache()
 # ---------------------------------------------------------------------------
 async def get_query_embedding(query: str) -> list[float]:
     """
-    Generuje wektor embedding dla zapytania uzytkownika.
-    Wykorzystuje OpenRouter API -> text-embedding-3-small (1536-dim).
-    Zwraca wynik z cache jesli dostepny.
+    Generuje wektor embedding dla zapytania użytkownika.
+    Wykorzystuje Ollama API -> rjmalagon/gte-qwen2-1.5b-instruct-embed-f16 (1536-dim).
+    Zwraca wynik z cache jeśli dostępny.
     """
     # 0. Check cache
     query_key = query.strip().lower()
@@ -78,89 +78,78 @@ async def get_query_embedding(query: str) -> list[float]:
         print(f"   [CACHE] Hit for: '{query[:40]}...'")
         return cast(list[float], _embeddings_cache[query_key])
 
-    # 1. Fetch from API
+    # 1. Fetch from Ollama
     payload = {
         "model": EMBEDDING_MODEL,
         "input": [query],
-        "dimensions": EMBEDDING_DIMENSIONS,
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=60) as client:  # Dłuższy timeout dla lokalnego modelu
             response = await client.post(
-                OPENROUTER_EMBEDDINGS_URL,
+                "http://localhost:11434/api/embed",
                 json=payload,
-                headers=OPENROUTER_HEADERS,
-                follow_redirects=True,
             )
-
-            if response.status_code != 200:
-                print(
-                    f"[ERR] Embedding API HTTP {response.status_code}: {response.text[:500]}"
-                )
-
             response.raise_for_status()
             data = response.json()
-
-            if "data" not in data or not data.get("data"):
-                print(f"[ERR] Embedding API unexpected response: {str(data)[:500]}")
-                raise KeyError(
-                    f"Brak klucza 'data' w odpowiedzi API. "
-                    f"Otrzymano klucze: {list(data.keys())}"
-                )
-
-            embedding = data["data"][0]["embedding"]
-
-            # Sanity check: wymiar wektora musi pasować do bazy danych
-            if len(embedding) != EMBEDDING_DIMENSIONS:
-                print(
-                    f"   [!] Wymiar wektora: {len(embedding)} vs oczekiwany: {EMBEDDING_DIMENSIONS} — koryguję"
-                )
-                embedding = embedding[:EMBEDDING_DIMENSIONS]
+            embedding = data["embeddings"][0]
 
             # 2. Save to cache
             _embeddings_cache[query_key] = embedding
             _save_embeddings_cache()
-            
+
             return cast(list[float], embedding)
-            
+
     except Exception as e:
-        print(f"[ERR] Error getting embedding: {e}")
-        raise Exception(f"Nie udalo sie pobrac wektora (embedding) dla zapytania: {e}")
+        print(f"   [ERROR] Embedding failed: {e}")
+        # Fallback: return zeros
+        return [0.0] * EMBEDDING_DIMENSIONS
 
 
 # ---------------------------------------------------------------------------
 # 1.5 Multi-Query / Query Decomposition (Agentic Planowanie)
 # ---------------------------------------------------------------------------
-async def _extract_search_plans(query: str, document_text: str | None = None) -> tuple[list[str], str]:
+async def _extract_search_plans(query: str, document_text: str | None = None, history: list | None = None) -> tuple[list[str], str, str]:
     """
-    Ekstrahuje RAG pod-pytania oraz słowa kluczowe SAOS używając modelu AI.
-    Priorytetyzuje dokument, traktując 'query' jako polecenie użytkownika.
-    Zwraca formę tuple: (lista_subqueries, saos_query)
+    Ekstrahuje RAG pod-pytania, słowa kluczowe SAOS oraz ELI.
+    Używa historii, aby zrozumieć kontekst krótkich zapytań (np. "...", "opisz to").
     """
-    base_info = f"TREŚĆ DOKUMENTU:\n{document_text[:3000]}\n\n" if document_text else ""
-    base_info += f"WIADOMOŚĆ/PYTANIE UŻYTKOWNIKA:\n{query[:1500]}"
+    # Budowa kontekstu konwersacji
+    history_context = ""
+    if history:
+        last_msgs = history[-3:] # Ostatnie 3 wymiany
+        history_context = "HISTORIA KONWERSACJI:\n"
+        for m in last_msgs:
+            role = "Użytkownik" if m.get("role") == "user" else "Asystent"
+            history_context += f"{role}: {m.get('content')[:200]}\n"
     
-    prompt = f"""Jesteś Agentem Planującym (Search Planner).
-Twoje zadanie to wygenerowanie fraz do bazy wyroków sądowych (SAOS) i bazy prawnej (RAG), żeby pomóc użytkownikowi.
+    base_info = f"{history_context}\n"
+    base_info += f"TREŚĆ DOKUMENTU:\n{document_text[:2000]}\n\n" if document_text else ""
+    base_info += f"AKTUALNE PYTANIE: {query}"
+    
+    prompt = f"""Jesteś Ekspertem Planowania Wyszukiwania Prawnego (Legal Search Architect).
+Twoje zadanie to wygenerowanie precyzyjnych fraz wyszukiwania dla bazy wyroków sądowych (SAOS), aktów prawnych (ELI/ISAP) i bazy wiedzy (RAG).
 
 [WEJŚCIE]
 {base_info}
 
 [ZADANIE]
-1. Pod-hasła RAG: Zrób rozkład problemu na max 3 hasła ujęte jako podpytania prawne lub definicje ułatwiające przeszukiwanie kodeksów (np. "przedawnienie roszczeń bankowych", "skarga pauliańska").
-2. Fraza SAOS: Pojedyncze, krótkie zapytanie tekstowe złożone z 2-4 czystych słów kluczowych do bazy wyroków na podstawie FAKTÓW W DOKUMENCIE lub problemu (np. "umowa pożyczki lichwa", "art 118 kc przedawnienie"). Nie może zawierać potocyzmów! Brak znaków zapytania.
+Jeśli aktualne pytanie jest krótkie (np. '...', 'więcej', 'wyjaśnij'), bazuj na historii, aby doprecyzować co wyszukać.
+1. Pod-hasła RAG: Max 3 hasła (np. "przedawnienie roszczeń bankowych").
+2. Fraza SAOS: Pojedyncze, krótkie zapytanie tekstowe do bazy wyroków (np. "art 212 kk zniesławienie").
+3. Fraza ELI: Nazwa ustawy lub problemu (np. "kodeks cywilny", "ustawa o ochronie lokatorów").
 
-Zwróć odpowiedź WYŁĄCZNIE W FORMACIE JSON o strukturze:
+Zwróć odpowiedź WYŁĄCZNIE W FORMACIE JSON:
 {{
-  "rag_subqueries": ["hasło 1", "hasło 2", "hasło 3"],
-  "saos_query": "słowa kluczowe do saos"
+  "rag_subqueries": ["..."],
+  "saos_query": "...",
+  "eli_query": "..."
 }}
 """
 
     payload = {
-        "model": "google/gemini-2.0-flash", 
-        "messages": [{"role": "user", "content": prompt}],
+        "model": "google/gemini-2.0-flash-001", 
+        "messages": [{"role": "system", "content": "Return only JSON."}, {"role": "user", "content": prompt}],
         "temperature": 0.1,
         "max_tokens": 150,
         "response_format": {"type": "json_object"}
@@ -176,20 +165,41 @@ Zwróć odpowiedź WYŁĄCZNIE W FORMACIE JSON o strukturze:
             )
             if res.status_code == 200:
                 txt = res.json().get("choices", [{}])[0].get("message", {}).get("content", "{}")
-                # Parse JSON
                 try:
                     data = json.loads(txt)
                     subqueries = [s for s in data.get("rag_subqueries", []) if len(s.strip()) > 3][:3]
                     saos_q = data.get("saos_query", "")
-                    print(f"   [DECOMPOSITION] RAG: {subqueries} | SAOS: '{saos_q}'")
-                    return subqueries, saos_q
-                except Exception as je:
-                    print(f"   [WARN] Query Plan Decomposition Failed JSON parse: {je} - Text: {txt}")
-            else:
-                print(f"   [WARN] Query Plan Decomposition HTTP {res.status_code}: {res.text}")
+                    eli_q = data.get("eli_query", "")
+                    print(f"   [PLAN] RAG: {len(subqueries)} | SAOS: '{saos_q}' | ELI: '{eli_q}'")
+                    return subqueries, saos_q, eli_q
+                except Exception: pass
     except Exception as e:
-        print(f"   [WARN] Query Plan Decomposition Exception: {e}")
-    return [], ""
+        print(f"   [PLAN][WARN] AI planner failed: {e} — using regex fallback")
+
+    # --- REGEX FALLBACK: Lokalna ekstrakcja gdy AI nie odpowiedział ---
+    combined = f"{query} {document_text[:1000] if document_text else ''}"
+    
+    # Ekstrakcja artykułów i kodeksów
+    art_refs = re.findall(r'[Aa]rt\.?\s*(\d+[a-z]*)', combined)
+    code_map = {"KPA": "kodeks postępowania administracyjnego", "KC": "kodeks cywilny", 
+                "KPC": "kodeks postępowania cywilnego", "KK": "kodeks karny",
+                "KPK": "kodeks postępowania karnego", "KSH": "kodeks spółek handlowych",
+                "KP": "kodeks pracy", "KRO": "kodeks rodzinny"}
+    
+    found_codes = []
+    for short, full in code_map.items():
+        if re.search(rf'\b{short}\b', combined, re.I):
+            found_codes.append(full)
+    
+    # Budowanie fallback queries
+    fallback_saos = " ".join([f"art {a}" for a in art_refs[:3]] + found_codes[:2]) or ""
+    fallback_eli = " ".join(found_codes[:2]) or ""
+    fallback_rag = [f"art. {a}" for a in art_refs[:2]] + found_codes[:1]
+    
+    if fallback_saos or fallback_eli:
+        print(f"   [PLAN][FALLBACK] RAG: {len(fallback_rag)} | SAOS: '{fallback_saos}' | ELI: '{fallback_eli}'")
+    
+    return fallback_rag, fallback_saos, fallback_eli
 
 # ---------------------------------------------------------------------------
 # 2. Pobranie fragmentow z Supabase pgvector (Bezposredni RPC)
@@ -199,7 +209,11 @@ async def retrieve_legal_context(
     match_count: int = DEFAULT_MATCH_COUNT,
     match_threshold: float = DEFAULT_MATCH_THRESHOLD,
     include_saos: bool = True,
-    document_text: str | None = None
+    document_text: str | None = None,
+    category: str | None = None,
+    table: str | None = None,
+    model_override: str | None = None,
+    history: list | None = None,
 ) -> tuple[list[RetrievedChunk], str]:
     """
     Pelen pipeline retrieval (HYBRYDOWY):
@@ -209,6 +223,10 @@ async def retrieve_legal_context(
       4. Mapowanie i scalanie wyników (Deduplikacja)
       5. Kontrola dlugosci kontekstu (obciecie do MAX_CONTEXT_CHARS)
     """
+    # Determinacja tabeli jeśli nie podano jawnie
+    from moa.config import CAT_USER_DOCS
+    if not table:
+        table = "knowledge_base_user" if category == CAT_USER_DOCS else "knowledge_base_legal"
     
     # ---- KROK 1: Wyciąganie słów kluczowych (Keyword Extraction dla RAG & SAOS) ----
     keywords = []
@@ -227,21 +245,28 @@ async def retrieve_legal_context(
         if re.search(rf"\b{short}\b", (document_text or query).upper()):
             keywords.append(full)
 
-    # ---- KROK 0.5: Multi-Query Decomposition i SAOS (Równolegle, AI) ----
-    plan_task = asyncio.create_task(_extract_search_plans(query, document_text))
+    # ---- KROK 0.5: Multi-Query Decomposition i SAOS/ELI (Równolegle, AI) ----
+    plan_task = asyncio.create_task(_extract_search_plans(query, document_text, history=history))
     
-    # Czekamy chwilkę na plan, żeby odpalić SAOS natychmiast z poprawnym query
-    sub_keywords, saos_ai_query = await plan_task
+    # Czekamy chwilkę na plan, żeby odpalić SAOS/ELI natychmiast z poprawnym query
+    sub_keywords, saos_ai_query, eli_ai_query = await plan_task
     
     saos_query = saos_ai_query
     if not saos_query:
-        # Fallback jeśli AI nic nie wygeneruje
         saos_query = " ".join(keywords) or "prawo"
 
-    # ---- KROK 0: SAOS Search ----
+    eli_query = eli_ai_query
+    if not eli_query:
+        eli_query = " ".join(keywords) or "ustawa"
+
+    # ---- KROK 0: SAOS & ELI Search ----
     saos_task = None
-    if include_saos and saos_query:
-        saos_task = asyncio.create_task(search_saos_judgments(saos_query, page_size=4))
+    eli_task = None
+    if include_saos:
+        if saos_query:
+            saos_task = asyncio.create_task(search_saos_judgments(saos_query, page_size=4))
+        if eli_query:
+            eli_task = asyncio.create_task(search_isap_acts(eli_query, limit=4))
 
     # ---- KROK 2: Supabase Search (Vector + Keyword Fallback) ----
     print(f"   [>] Agentic Hybrydowy retrieval dla: '{query[:80]}...'")
@@ -258,31 +283,40 @@ async def retrieve_legal_context(
     try:
         # A. Vector Search
         embedding = await get_query_embedding(query)
-        rpc_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/match_knowledge"
+        rpc_function = "match_knowledge_legal" if table == "knowledge_base_legal" else "match_knowledge_user"
+        rpc_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/{rpc_function}"
         query_payload = {
             "query_embedding": embedding,
             "match_threshold": match_threshold,
             "match_count": match_count,
         }
+        
+        rpc_params = {}
+        if category:
+             rpc_params["metadata->>category"] = f"eq.{category}"
 
         async with httpx.AsyncClient(timeout=60) as client:
             # Równolegle: Vector RPC i Keyword Search (jeśli są słowa kluczowe)
-            vector_task = client.post(rpc_url, json=query_payload, headers=supabase_headers)
+            vector_task = client.post(rpc_url, json=query_payload, headers=supabase_headers, params=rpc_params)
             
             keyword_tasks = []
             if keywords:
                 # Proste wyszukiwanie tekstowe dla każdego słowa kluczowego
                 for kw in keywords[:2]: # Limit to 2 keywords to avoid too many requests
-                    kw_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/knowledge_base"
+                    kw_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}"
                     params = {"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 4}
+                    if category:
+                        params["metadata->>category"] = f"eq.{category}"
                     keyword_tasks.append(client.get(kw_url, params=params, headers=supabase_headers))
             
             # Korzystamy z sub_keywords uzyskanych za darmo przed sekundą
             if sub_keywords:
                 for skw in sub_keywords:
                     if len(keyword_tasks) < 4:
-                        skw_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/knowledge_base"
+                        skw_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table}"
                         params_skw = {"select": "content,metadata", "content": f"ilike.*{skw}*", "limit": 2}
+                        if category:
+                            params_skw["metadata->>category"] = f"eq.{category}"
                         keyword_tasks.append(client.get(skw_url, params=params_skw, headers=supabase_headers))
             
             # Czekamy na wyniki
@@ -308,13 +342,21 @@ async def retrieve_legal_context(
     except Exception as e:
         print(f"   [ERR] Knowledge retrieval failed: {e}")
 
-    # ---- Krok 3: SAOS Results ----
+    # ---- Krok 3: SAOS & ELI Results ----
     saos_chunks = []
+    eli_chunks = []
+    
     if saos_task:
         try:
             saos_chunks = await saos_task
         except Exception as e:
             print(f"   [ERR] SAOS task failed: {e}")
+            
+    if eli_task:
+        try:
+            eli_chunks = await eli_task
+        except Exception as e:
+            print(f"   [ERR] ELI task failed: {e}")
 
     # ---- Krok 4: Scalanie i Mapowanie (Deduplikacja) ----
     chunks: list[RetrievedChunk] = []
@@ -327,15 +369,19 @@ async def retrieve_legal_context(
             chunks.append(RetrievedChunk(content=content, source=source, similarity=similarity))
             seen_contents.add(c_hash)
 
-    # Najpierw Keyword (często najbardziej precyzyjne dla konkretnych artykułów)
+    # 1. ELI (Najwyższy priorytet - oficjalne akty prawne i ich status)
+    for ec in eli_chunks:
+        add_chunk(ec.content, ec.source, ec.similarity)
+
+    # 2. Keyword (Bardzo precyzyjne dla konkretnych artykułów)
     for doc in keyword_docs:
         add_chunk(
             str(doc.get("content", "")),
             str(doc.get("metadata", {}).get("filename") or "Baza Wiedzy"),
-            0.95 # Wysoki priorytet dla keyword match
+            0.95 
         )
 
-    # Potem Vector
+    # 3. Vector
     for doc in raw_vector_docs:
         add_chunk(
             str(doc.get("content", "")),
@@ -343,7 +389,7 @@ async def retrieve_legal_context(
             float(doc.get("similarity", 0.0))
         )
     
-    # Na końcu SAOS
+    # 4. SAOS (Orzecznictwo - wsparcie interpretacyjne)
     for sc in saos_chunks:
         add_chunk(sc.content, sc.source, sc.similarity)
 
@@ -351,7 +397,7 @@ async def retrieve_legal_context(
     context_parts: list[str] = []
     total_chars = 0
 
-    # Sortuj po podobieństwie (Keyword=0.95, Vector=var, SAOS=0.9)
+    # Sortuj po podobieństwie
     chunks.sort(key=lambda x: x.similarity, reverse=True)
 
     for chunk in chunks:
@@ -366,7 +412,7 @@ async def retrieve_legal_context(
         total_chars += len(chunk.content) + 50
 
     context_text = "\n\n---\n\n".join(context_parts)
-    print(f"   [i] Hybrid Retrieval: {len(chunks)} total chunks ({len(keyword_docs)} kw, {len(raw_vector_docs)} vec, {len(saos_chunks)} saos)")
+    print(f"   [i] Hybrid Retrieval: {len(chunks)} chunks ({len(keyword_docs)} kw, {len(raw_vector_docs)} vec, {len(saos_chunks)} saos, {len(eli_chunks)} eli)")
     print(f"   [i] Final context: {len(context_text)} chars")
 
     return chunks, context_text

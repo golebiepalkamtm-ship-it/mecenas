@@ -43,7 +43,7 @@ FOR EACH ROW EXECUTE FUNCTION knowledge_base_tsv_trigger();
 DROP FUNCTION IF EXISTS match_knowledge(vector, float, int);
 
 CREATE OR REPLACE FUNCTION match_knowledge(
-    query_embedding vector(1024),
+    query_embedding vector(1536),
     match_threshold float DEFAULT 0.5,
     match_count int DEFAULT 10
 )

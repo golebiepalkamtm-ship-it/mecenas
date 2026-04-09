@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { Scale, LogOut } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Scale, LogOut, Plus } from "lucide-react";
 import { cn } from "../../utils/cn";
 import type { Tab } from "../../types/navigation";
 
@@ -57,8 +57,9 @@ export function Sidebar({ navItems, activeTab, onTabChange, userEmail, onLogout 
         <span className="text-[7.5px] font-black uppercase tracking-[0.5em] text-white/30 font-outfit relative left-[0.25em]">LexMind</span>
       </div>
 
+
       {/* Nav items */}
-      <div className="flex-1 overflow-y-auto px-1.5 pt-0 pb-8 space-y-4 custom-scrollbar flex flex-col items-center">
+      <div className="flex-1 overflow-y-auto px-1.5 pt-4 pb-8 space-y-4 custom-scrollbar flex flex-col items-center">
         {navItems.map((item) => (
           <NavItem
             key={item.id}
@@ -139,12 +140,12 @@ function NavItem({ item, active, onClick }: NavItemProps) {
   const rgb = item.colorRgb;
 
   const activeStyle: React.CSSProperties = {
-    background: `linear-gradient(145deg, rgba(${rgb},0.15) 0%, rgba(4,2,2,0.40) 100%)`,
-    borderTop:    `1.5px solid rgba(255,255,255,0.40)`,
-    borderLeft:   `1px   solid rgba(255,255,255,0.12)`,
+    background: `linear-gradient(145deg, rgba(${rgb},0.2) 0%, rgba(4,2,2,0.60) 100%)`,
+    borderTop:    `1.5px solid rgba(${rgb},0.40)`,
+    borderLeft:   `1px   solid rgba(${rgb},0.15)`,
     borderRight:  `0.5px solid rgba(255,255,255,0.04)`,
     borderBottom: `1.5px solid rgba(0,0,0,0.60)`,
-    boxShadow: `0 8px 16px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.12)`,
+    boxShadow: `0 8px 16px rgba(0,0,0,0.40), 0 0 20px rgba(${rgb},0.15), inset 0 1px 0 rgba(255,255,255,0.12)`,
   };
 
   return (
@@ -161,10 +162,29 @@ function NavItem({ item, active, onClick }: NavItemProps) {
           : { background: "transparent", border: "1px solid transparent" }
       }
     >
-      {/* Hover Background Effect */}
-      {!active && (
-         <div className="absolute inset-0 bg-white/3 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-      )}
+      {/* Hover/Active Ambient Glow Background */}
+      <div 
+        className={cn(
+          "absolute inset-0 transition-opacity duration-500",
+          active ? "opacity-30" : "opacity-0 group-hover:opacity-10"
+        )}
+        style={{
+          background: `radial-gradient(circle at center, rgba(${rgb},0.4) 0%, transparent 70%)`
+        }}
+      />
+
+      {/* Floating Prestige Dot */}
+      <AnimatePresence>
+        {active && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0 }}
+            className="absolute top-2 right-2 w-1 h-1 rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+            style={{ backgroundColor: c }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Icon */}
       <div
@@ -172,17 +192,17 @@ function NavItem({ item, active, onClick }: NavItemProps) {
         style={
           active
             ? {
-                background: `rgba(${rgb},0.12)`,
+                background: `rgba(${rgb},0.25)`,
                 color: c,
-                boxShadow: `0 0 16px rgba(${rgb},0.18), 0 4px 10px rgba(0,0,0,0.30)`,
-                borderTop:   `1px solid rgba(255,255,255,0.30)`,
-                borderLeft:  `1px solid rgba(255,255,255,0.10)`,
+                boxShadow: `0 0 25px rgba(${rgb},0.4), 0 4px 10px rgba(0,0,0,0.30)`,
+                borderTop:   `1px solid rgba(255,255,255,0.50)`,
+                borderLeft:  `1px solid rgba(255,255,255,0.20)`,
                 borderBottom:`1px solid rgba(0,0,0,0.35)`,
               }
             : {
                 background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.32)",
-                border: "1px solid transparent",
+                color: "rgba(255,255,255,0.25)",
+                border: "1px solid rgba(255,255,255,0.02)",
               }
         }
       >

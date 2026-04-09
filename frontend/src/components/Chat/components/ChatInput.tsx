@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Square, Send, X, Image as ImageIcon, FileText, AlertTriangle, CheckCircle2, Loader2, RefreshCcw, Mic, Database } from "lucide-react";
+import { Square, Send, X, Image as ImageIcon, FileText, AlertTriangle, CheckCircle2, Loader2, RefreshCcw, Mic, Database, Paperclip, Plus } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useState, useLayoutEffect, useCallback, useEffect, useRef } from "react";
@@ -10,7 +10,7 @@ function cn(...inputs: ClassValue[]) {
 }
 
 /* ─── File Preview Chip ─── */
-function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; onRemove: () => void }) {
+function FilePreview({ attachment, onRemove, onPreview }: { attachment: QueuedAttachment; onRemove: () => void; onPreview: () => void }) {
   const { file, status, progress } = attachment;
   const [imageUrl, setImageUrl] = useState<string>('');
   const isImage = file.type.startsWith('image/');
@@ -39,6 +39,7 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
   };
 
   const statusColors: Record<string, string> = {
+    waiting:    'text-white/30',
     uploading:  'text-gold-primary',
     processing: 'text-amber-400',
     ready:       'text-gold-primary',
@@ -46,6 +47,7 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
   };
 
   const borderColors: Record<string, string> = {
+    waiting:    'rgba(255,255,255,0.05)',
     uploading:  'rgba(212,175,55,0.20)',
     processing: 'rgba(251,191,36,0.20)',
     ready:      'rgba(212,175,55,0.25)',
@@ -58,7 +60,8 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
         initial={{ opacity: 0, scale: 0.9, y: 4 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.85, y: -4 }}
-        className="relative flex items-center gap-2.5 rounded-xl overflow-hidden max-w-[200px] group/chip"
+        onClick={onPreview}
+        className="relative flex items-center gap-2.5 rounded-xl overflow-hidden max-w-[200px] group/chip cursor-pointer hover:scale-[1.02] transition-transform"
         style={{
           background: "rgba(3, 3, 5, 0.90)",
           border: `1px solid ${borderColors[status] || "rgba(255,255,255,0.10)"}`,
@@ -90,6 +93,7 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="text-[8px] text-white/25">{formatFileSize(file.size)}</span>
             <span className={cn("text-[7px] uppercase tracking-wide font-bold", statusColors[status])}>
+              {status === 'waiting' && <span className="flex items-center gap-0.5">Kolejka</span>}
               {status === 'uploading' && <span className="flex items-center gap-0.5"><Loader2 className="w-2 h-2 animate-spin inline" /> Upload</span>}
               {status === 'processing' && <span className="flex items-center gap-0.5"><RefreshCcw className="w-2 h-2 animate-spin inline" /> OCR</span>}
               {status === 'ready' && "Gotowy"}
@@ -107,12 +111,12 @@ function FilePreview({ attachment, onRemove }: { attachment: QueuedAttachment; o
         </button>
 
         {/* Progress Bar */}
-        {(status === 'uploading' || status === 'processing') && (
+        {(status === 'uploading' || status === 'processing' || status === 'waiting') && (
           <div
             className="absolute bottom-0 left-0 h-[2px] rounded-full transition-all duration-700"
             style={{
-              width: `${progress}%`,
-              background: "linear-gradient(90deg, rgba(212,175,55,0.8), rgba(240,204,90,0.8))",
+              width: `${status === 'waiting' ? 5 : progress}%`,
+              background: status === 'waiting' ? "rgba(255,255,255,0.1)" : "linear-gradient(90deg, rgba(212,175,55,0.8), rgba(240,204,90,0.8))",
             }}
           />
         )}
@@ -145,11 +149,12 @@ interface ChatInputProps {
   stopGeneration: () => void;
   newChat: () => void;
   onNavigateToDrafter: () => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
   imageInputRef: React.RefObject<HTMLInputElement | null>;
   attachmentWarning?: string | null;
   useRag: boolean;
-  onOpenLibrary: () => void;
+  setUseRag: React.Dispatch<React.SetStateAction<boolean>>;
+  onOpenLibrary: (mode: 'all' | 'documents' | 'images') => void;
+  onPreviewDoc: (att: QueuedAttachment) => void;
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -180,21 +185,25 @@ export function ChatInput({
   removeAttachment,
   handleSend,
   stopGeneration,
-  fileInputRef,
   imageInputRef,
   attachmentWarning,
   onOpenLibrary,
   useRag,
+  setUseRag,
+  newChat,
+  onNavigateToDrafter,
+  addAttachment,
+  onPreviewDoc,
 }: ChatInputProps) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const win = window as any;
-      const SpeechRecognitionConstructor = win.SpeechRecognition || win.webkitSpeechRecognition;
+      const win = window as unknown as { SpeechRecognition: unknown; webkitSpeechRecognition: unknown };
+      const SpeechRecognitionConstructor = (win.SpeechRecognition || win.webkitSpeechRecognition) as { new(): SpeechRecognition } | undefined;
       if (SpeechRecognitionConstructor && !recognitionRef.current) {
-        const reco = new SpeechRecognitionConstructor() as SpeechRecognition;
+        const reco = new SpeechRecognitionConstructor();
         reco.continuous = true;
         reco.interimResults = true;
         reco.lang = 'pl-PL';
@@ -254,6 +263,7 @@ export function ChatInput({
                 key={att.id || idx}
                 attachment={att}
                 onRemove={() => removeAttachment(idx)}
+                onPreview={() => onPreviewDoc(att)}
               />
             ))}
             <span className="text-[9px] text-white/25 font-bold uppercase tracking-wider self-center ml-1">
@@ -286,19 +296,28 @@ export function ChatInput({
          
          {/* Left Icons inside input - ARCHITECTURAL SEPARATION */}
          <div className="flex items-center gap-1 pb-1 pl-1 shrink-0 text-white/40">
-            {/* 1. ZAŁĄCZ ZDJĘCIE (Photos) */}
+            {/* 0. NOWA KONSULTACJA (Plus) */}
             <button 
-              title="Załącz Zdjęcie / Obraz" 
-              onClick={() => imageInputRef.current?.click()} 
-              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-photo"
+              title="Nowa Konsultacja" 
+              onClick={newChat} 
+              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-new"
             >
-               <ImageIcon size={18} className="group-hover/btn-photo:scale-110 transition-transform" />
+               <Plus size={18} className="group-hover/btn-new:scale-110 transition-transform" />
             </button>
 
-            {/* 2. ZAŁĄCZ DOKUMENT (Local Docs) */}
+            {/* 1. ZAŁĄCZ PLIK (Attachments) */}
             <button 
-              title="Załącz Dokument / Pismo" 
-              onClick={() => fileInputRef.current?.click()} 
+              title="Załącz Plik" 
+              onClick={() => imageInputRef.current?.click()} 
+              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-attach"
+            >
+               <Paperclip size={18} className="group-hover/btn-attach:scale-110 transition-transform" />
+            </button>
+
+            {/* 2. DOKUMENTY (Existing Docs/Photos) */}
+            <button 
+              title="Dokumenty" 
+              onClick={() => onOpenLibrary('documents')} 
               className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-doc"
             >
                <FileText size={18} className="group-hover/btn-doc:scale-110 transition-transform" />
@@ -307,7 +326,11 @@ export function ChatInput({
             {/* 3. BIBLIOTEKA AKT (RAG / Central Knowledge Base) */}
             <button 
               title="Biblioteka Akt (RAG)" 
-              onClick={onOpenLibrary} 
+              onClick={(e) => {
+                e.stopPropagation();
+                setUseRag(!useRag);
+                if (!useRag) onOpenLibrary('all');
+              }} 
               className={cn(
                 "p-2 rounded-xl transition-all flex items-center justify-center -mt-1 relative group/btn-rag",
                 useRag ? "text-emerald-500 bg-emerald-500/5 border border-emerald-500/10 shadow-lg" : "text-white/15 hover:bg-white/5"

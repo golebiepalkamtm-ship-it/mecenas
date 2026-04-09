@@ -37,18 +37,18 @@ Twoja jedyna misja: ZBUDOWAĆ SZCZELNY, NIEPODWAŻALNY PRZYPADEK OSKARŻENIA.`;
 
 // Role metadata with IDs that must match the backend EXACTLY
 const DEFENSE_ROLES = [
-  { id: 'defender', label: 'Naczelny Adwokat Obrońca', icon: Shield, color: 'text-gold-primary', glow: 'bg-gold-primary/20', border: 'border-gold-primary/30' },
-  { id: 'constitutionalist', label: 'Konstytucjonalista i Obrońca Praw Człowieka', icon: Briefcase, color: 'text-[#f0cc5a]', glow: 'bg-[#f0cc5a]/20', border: 'border-[#f0cc5a]/30' },
-  { id: 'proceduralist', label: 'Mistrz Procedury i Luk Formalnych', icon: Search, color: 'text-[#b8860b]', glow: 'bg-[#b8860b]/20', border: 'border-[#b8860b]/30' },
-  { id: 'evidencecracker', label: 'Analityk i Niszczyciel Dowodów', icon: Sword, color: 'text-[#c5a059]', glow: 'bg-[#c5a059]/20', border: 'border-[#c5a059]/30' },
-  { id: 'negotiator', label: 'Strateg Ugód i Wyjść Awaryjnych', icon: Siren, color: 'text-[#daa520]', glow: 'bg-[#daa520]/20', border: 'border-[#daa520]/40' }
+  { id: 'defender', label: 'Naczelny Adwokat Obrońca', icon: Shield, color: 'text-amber-500', glow: 'bg-amber-500/20', border: 'border-amber-500/30' },
+  { id: 'constitutionalist', label: 'Konstytucjonalista', icon: Briefcase, color: 'text-cyan-400', glow: 'bg-cyan-400/20', border: 'border-cyan-400/30' },
+  { id: 'proceduralist', label: 'Mistrz Procedury', icon: Search, color: 'text-emerald-400', glow: 'bg-emerald-400/20', border: 'border-emerald-400/30' },
+  { id: 'evidencecracker', label: 'Niszczyciel Dowodów', icon: Sword, color: 'text-orange-500', glow: 'bg-orange-500/20', border: 'border-orange-500/30' },
+  { id: 'negotiator', label: 'Strateg Ugód', icon: Siren, color: 'text-pink-500', glow: 'bg-pink-500/20', border: 'border-pink-500/40' }
 ];
 
 const PROSECUTION_ROLES = [
-  { id: 'prosecutor', label: 'Prokurator Prowadzący', icon: Gavel, color: 'text-white', glow: 'bg-white/10', border: 'border-white/20' },
-  { id: 'investigator', label: 'Oficer Śledczy', icon: Eye, color: 'text-white/80', glow: 'bg-white/10', border: 'border-white/20' },
-  { id: 'forensic_expert', label: 'Biegły Sądowy', icon: Cpu, color: 'text-white/70', glow: 'bg-white/5', border: 'border-white/10' },
-  { id: 'hard_judge', label: 'Zimny Sędzia Orzekający', icon: Scale, color: 'text-white/60', glow: 'bg-white/5', border: 'border-white/10' }
+  { id: 'prosecutor', label: 'Prokurator Prowadzący', icon: Gavel, color: 'text-red-500', glow: 'bg-red-500/20', border: 'border-red-500/30' },
+  { id: 'investigator', label: 'Oficer Śledczy', icon: Eye, color: 'text-blue-500', glow: 'bg-blue-500/20', border: 'border-blue-500/30' },
+  { id: 'forensic_expert', label: 'Biegły Sądowy', icon: Cpu, color: 'text-emerald-500', glow: 'bg-emerald-500/20', border: 'border-emerald-500/30' },
+  { id: 'hard_judge', label: 'Sędzia Orzekający', icon: Scale, color: 'text-purple-500', glow: 'bg-purple-500/20', border: 'border-purple-500/30' }
 ];
 
 interface QuickIntelligencePanelProps {
@@ -90,7 +90,12 @@ export function QuickIntelligencePanel({ onNavigate }: QuickIntelligencePanelPro
   }, [favoriteModelIds, favoriteModels, setFavoriteModels]);
 
   return (
-    <div className="flex flex-col h-full glass-prestige rounded-3xl overflow-hidden relative group border border-white/5 shadow-2xl">
+    <div className="flex flex-col h-full glass-prestige-gold rounded-3xl overflow-hidden relative group shadow-2xl">
+      {/* Top specular highlight — mirrors ChatSidebar */}
+      <div className="absolute top-0 left-0 right-0 h-1/4 pointer-events-none z-0 rounded-t-3xl" style={{
+        background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)'
+      }} />
+
       {/* Dynamic Header Glow */}
       <div className={cn(
         "absolute top-0 left-0 w-full h-32 blur-[80px] pointer-events-none transition-colors duration-1000 opacity-20",
@@ -98,19 +103,22 @@ export function QuickIntelligencePanel({ onNavigate }: QuickIntelligencePanelPro
       )} />
 
       {/* HEADER: MODE TOGGLE */}
-      <div className="px-6 py-6 border-b border-white/5 relative z-10 shrink-0">
+      <div className="px-6 py-6 border-b border-white/10 relative z-10 shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-             <div className="w-9 h-9 rounded-xl glass-prestige-gold flex items-center justify-center shadow-lg">
+             <div className="w-10 h-10 rounded-xl glass-prestige-gold flex items-center justify-center shadow-lg">
                 <LayoutDashboard size={18} className="text-gold-primary" />
              </div>
              <div>
-                <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-white/90 italic -mt-1 font-outfit">Strategia AI</h3>
+                <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-white italic font-outfit">Strategia AI</h3>
                 <p className="text-[7px] text-white/30 font-bold uppercase tracking-widest">Premium v1.1</p>
              </div>
           </div>
-          <button onClick={() => setIsOpen(false)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/30 transition-all">
-             <X size={14} />
+          <button 
+            onClick={() => setIsOpen(false)} 
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500 transition-all border border-white/5 hover:border-red-500/40 group/close"
+          >
+             <X size={18} className="group-hover/close:rotate-90 transition-transform" />
           </button>
         </div>
 
@@ -290,8 +298,8 @@ export function QuickIntelligencePanel({ onNavigate }: QuickIntelligencePanelPro
         {/* 3. SĘDZIA-SYNTETYZATOR (RE-PLACED FOR BETTER ACCESS) */}
         <section className="space-y-4 pt-10 border-t border-white/10 pb-10">
            <div className="flex items-center gap-3 px-1 mb-6">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center shadow-lg">
-                 <Scale size={16} className="text-purple-400" />
+              <div className="w-8 h-8 rounded-xl bg-gold-primary/15 border border-gold-primary/35 flex items-center justify-center shadow-lg">
+                 <Scale size={16} className="text-gold-primary" />
               </div>
               <div>
                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80 font-outfit">Sędzia-Syntetyzator</h4>

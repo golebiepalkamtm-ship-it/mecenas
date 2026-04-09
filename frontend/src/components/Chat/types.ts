@@ -9,7 +9,7 @@ export interface Attachment {
 export interface QueuedAttachment {
   id: string;
   file: File;
-  status: 'uploading' | 'processing' | 'ready' | 'error';
+  status: 'waiting' | 'uploading' | 'processing' | 'ready' | 'error';
   progress: number;
   extractedText?: string;
   error?: string;

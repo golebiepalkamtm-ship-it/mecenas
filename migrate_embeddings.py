@@ -1,5 +1,5 @@
 """
-Migracja embeddingow 3072 -> 1536 wymiarow.
+Migracja embeddingow 3072 -> 1024 wymiarow.
 Generuje embeddingi i zapisuje do JSON do importu przez SQL.
 """
 
@@ -41,7 +41,7 @@ async def get_embeddings_batch(texts, client):
     payload = {
         "model": "openai/text-embedding-3-small",
         "input": texts,
-        "dimensions": 1536,
+        "dimensions": 1024,
     }
     for attempt in range(5):
         try:
@@ -94,7 +94,7 @@ async def fetch_all_records(client):
 
 async def main():
     print("=" * 60)
-    print("Generowanie embeddingow 1536D (zapis do JSON)")
+    print("Generowanie embeddingow 1024D (zapis do JSON)")
     print("=" * 60)
 
     async with httpx.AsyncClient(timeout=120) as client:
@@ -104,7 +104,7 @@ async def main():
             json={
                 "model": "openai/text-embedding-3-small",
                 "input": ["test"],
-                "dimensions": 1536,
+                "dimensions": 1024,
             },
             headers=HEADERS_LLM,
             timeout=30,
@@ -121,7 +121,7 @@ async def main():
         if not records:
             return
 
-        print(f"\n[2] Generowanie embeddingow 1536D...")
+        print(f"\n[2] Generowanie embeddingow 1024D...")
         results = []
         updated = 0
         failed = 0
@@ -146,7 +146,7 @@ async def main():
             )
             await asyncio.sleep(0.3)
 
-        output_file = "embeddings_1536d.json"
+        output_file = "embeddings_1024d.json"
         with open(output_file, "w", encoding="utf-8") as f:
             json.dump(results, f)
 

@@ -4,7 +4,7 @@
 """
 Ekstrakcja tekstu z różnych formatów dokumentów:
 - PDF: PyPDF2 (+ OCR fallback dla skanów)
-- DOCX: python-docx  
+- DOCX: python-docx
 - TXT: natywnie
 - Obrazy OCR (priorytet): Google Cloud Vision → Surya OCR → EasyOCR
 """
@@ -15,51 +15,52 @@ import tempfile
 from typing import Optional, Tuple
 import base64
 import threading
+import hashlib
 
 from PyPDF2 import PdfReader
 from docx import Document
 from PIL import Image
 
+# Optymalizacja Surya dla CPU (zgodnie z dokumentacją)
+os.environ["DETECTOR_BATCH_SIZE"] = "6"      # Optymalne dla CPU
+os.environ["RECOGNITION_BATCH_SIZE"] = "32"   # Optymalne dla CPU
+os.environ["OMP_NUM_THREADS"] = "4"          # Zapobiega przeciążeniu wątków na Windows
+os.environ["MKL_NUM_THREADS"] = "4"
+
+
 # Konfiguracja OCR
 SURYA_AVAILABLE = False
 EASY_OCR_AVAILABLE = False
 GOOGLE_VISION_AVAILABLE = False
+AI_VISION_OCR_AVAILABLE = True  # Nowy silnik oparty o Gemini/GPT-4o via OpenRouter
 
-# Klient Google Cloud Vision (Singleton)
-_vision_client = None
+# Cache dla wyników OCR (żeby uniknąć podwójnego przetwarzania tego samego dokumentu)
+_ocr_cache = {}
+_ocr_cache_lock = threading.Lock()
 
-def get_vision_client():
-    """Inicjalizuje i zwraca klienta Google Cloud Vision."""
-    global _vision_client
-    if _vision_client is None:
-        try:
-            from google.cloud import vision
-            import os
-            # Sprawdź czy plik klucza istnieje w domyślnej lokalizacji
-            key_path = os.path.join(os.getcwd(), "google-cloud-key.json")
-            if os.path.exists(key_path):
-                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = key_path
-            
-            # Jeśli mamy credentials lub plik klucza, spróbuj zainicjalizować
-            if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.path.exists(key_path):
-                _vision_client = vision.ImageAnnotatorClient()
-                print("🚀 Google Cloud Vision client initialized.")
-            else:
-                print("⚠️ Brak Google Cloud Credentials (GOOGLE_APPLICATION_CREDENTIALS lub google-cloud-key.json)")
-                return None
-        except Exception as e:
-            print(f"⚠️ Nie udało się zainicjalizować Google Cloud Vision: {e}")
-            return None
-    return _vision_client
+
+def get_cached_ocr_result(content: bytes, ocr_func, *args, **kwargs) -> Tuple[str, Optional[str]]:
+    """Pobiera wynik OCR z cache'a lub oblicza go."""
+    content_hash = hashlib.md5(content).hexdigest()
+    with _ocr_cache_lock:
+        if content_hash in _ocr_cache:
+            print("🚀 OCR Cache: Użyto cache'a dla dokumentu")
+            return _ocr_cache[content_hash]
+    
+    # Oblicz wynik
+    result = ocr_func(*args, **kwargs)
+    
+    # Zapisz w cache
+    with _ocr_cache_lock:
+        _ocr_cache[content_hash] = result
+    
+    return result
+
 
 # Modele Surya (Singleton/Lazy Loading)
-_surya_models = {
-    "det": None,
-    "rec": None,
-    "layout": None,
-    "langs": ["pl", "en"]
-}
+_surya_models = {"det": None, "rec": None, "layout": None, "langs": ["pl", "en"]}
 _surya_lock = threading.Lock()
+
 
 def get_surya_models():
     """Zwraca modele Surya (ładowane leniwie)."""
@@ -67,6 +68,7 @@ def get_surya_models():
         if _surya_models["det"] is None:
             try:
                 from surya.models import load_predictors
+
                 print("🚀 Inicjalizacja modeli Surya (OCR + Layout)...")
                 predictors = load_predictors()
                 _surya_models["det"] = predictors.get("detection")
@@ -77,23 +79,26 @@ def get_surya_models():
                 return None, None, None
         return _surya_models["det"], _surya_models["rec"], _surya_models["layout"]
 
+
 # 1. Sprawdź dostępność Surya
 try:
     from surya.models import load_predictors
+
     SURYA_AVAILABLE = True
-    print("✅ Surya OCR jest wykryta i dostępna (v0.17+)")
+    print("[OK] Surya OCR jest wykryta i dostępna (v0.17+)")
 except (ImportError, ModuleNotFoundError):
-    print("⚠️ Surya OCR nie jest zainstalowana")
+    print("[WARN] Surya OCR nie jest zainstalowana")
 except Exception as e:
-    print(f"⚠️ Błąd podczas weryfikacji Surya: {e}")
+    print(f"[WARN] Błąd podczas weryfikacji Surya: {e}")
 
 # 2. Fallback do EasyOCR (stary system)
 if not SURYA_AVAILABLE:
     try:
         import easyocr
         import numpy as np
+
         EASY_OCR_AVAILABLE = True
-        reader = easyocr.Reader(['pl', 'en'])
+        _easyocr_reader = None
         print("✅ EasyOCR jest gotowy (jako fallback)")
     except ImportError:
         print("⚠️ EasyOCR nie jest dostępny")
@@ -101,49 +106,139 @@ if not SURYA_AVAILABLE:
         print(f"⚠️ Błąd inicjalizacji EasyOCR: {e}")
 
 
-# 3. Sprawdź dostępność Google Cloud Vision
-try:
-    from google.cloud import vision
-    # Sprawdzamy tylko czy biblioteka jest, a nie czy auth działa (to sprawdzimy przy pierwszym użyciu)
-    GOOGLE_VISION_AVAILABLE = True
-    print("✅ Google Cloud Vision library is available")
-except ImportError:
-    print("⚠️ Google Cloud Vision library NOT installed")
-except Exception as e:
-    print(f"⚠️ Błąd podczas sprawdzania Google Cloud Vision: {e}")
+def get_easyocr_reader():
+    global _easyocr_reader
+    if _easyocr_reader is not None:
+        return _easyocr_reader
+
+    try:
+        import easyocr
+        _easyocr_reader = easyocr.Reader(["pl", "en"])
+        return _easyocr_reader
+    except Exception as e:
+        print(f"⚠️ Nie można zainicjalizować EasyOCR: {e}")
+        return None
+
+
+def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
+    """Wykorzystuje Vision LLM (Gemini 2.0 Flash) do precyzyjnego OCR."""
+    from moa.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL
+    import httpx
+    import json
+    import base64
+
+    if not OPENROUTER_API_KEY:
+        return "", "Brak klucza OpenRouter dla Vision OCR"
+
+    try:
+        # Kodowanie obrazu do base64
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        # Używamy Gemini 2.0 Flash - jest najszybszy i świetny w OCR
+        model = "google/gemini-2.0-flash-001"
+        
+        payload = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text", 
+                            "text": "Odczytaj CAŁY tekst z tego obrazu. Zachowaj układ (akapity, nagłówki). Zwróć TYLKO odczytany tekst, bez żadnych komentarzy. Jeśli to dokument urzędowy, zwróć szczególną uwagę na sygnatury akt, daty i pieczątki."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "temperature": 0.0
+        }
+
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "HTTP-Referer": "http://127.0.0.1:8003",
+            "X-Title": "LexMind AI OCR",
+            "Content-Type": "application/json"
+        }
+
+        print(f"🚀 [AI OCR] Wysyłanie strony do {model}...")
+        with httpx.Client(timeout=45.0) as client:
+            response = client.post(
+                f"{OPENROUTER_BASE_URL}/chat/completions",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            result_json = response.json()
+            
+            text = result_json['choices'][0]['message']['content']
+            if text:
+                print(f"✅ [AI OCR] Sukces ({len(text)} znaków)")
+                return text.strip(), None
+            return "", "AI OCR zwróciło pustą odpowiedź"
+
+    except Exception as e:
+        print(f"❌ [AI OCR] Błąd: {e}")
+        return "", f"Błąd Vision OCR: {str(e)}"
 
 
 def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z PDF (z auto-detekcją skanów i OCR)."""
     try:
-        pdf_file = io.BytesIO(pdf_content)
-        reader = PdfReader(pdf_file)
+        import fitz  # PyMuPDF
         
+        doc = fitz.open(stream=pdf_content, filetype="pdf")
         text = ""
-        for page in reader.pages:
-            text += (page.extract_text() or "") + "\n"
-        
-        # Jeśli PDF jest pusty (prawdopodobnie skan), spróbuj OCR
-        if not text.strip() and (SURYA_AVAILABLE or EASY_OCR_AVAILABLE):
-            print("🚀 PDF nie zawiera warstwy tekstowej. Uruchamiam silnik OCR...")
+        for page in doc:
+            text += page.get_text() + "\n"
+
+        # Jeśli PDF jest pusty lub ma bardzo mało tekstu (prawdopodobnie skan), spróbuj OCR
+        if (not text.strip() or len(text.strip()) < 50) and (SURYA_AVAILABLE or EASY_OCR_AVAILABLE or AI_VISION_OCR_AVAILABLE):
+            print(f"🚀 PDF ma zbyt mało tekstu ({len(text.strip())} zn.). Uruchamiam silnik OCR...")
+            
+            # Sprawdź cache dla OCR
+            content_hash = hashlib.md5(pdf_content).hexdigest()
+            cache_key = f"pdf_ocr_{content_hash}"
+            with _ocr_cache_lock:
+                if cache_key in _ocr_cache:
+                    print("🚀 PDF OCR Cache: Użyto cache'a dla dokumentu")
+                    cached_result = _ocr_cache[cache_key]
+                    if cached_result[0]:  # Jeśli jest tekst
+                        return cached_result
+            
             try:
                 import fitz  # PyMuPDF
+
                 doc = fitz.open(stream=pdf_content, filetype="pdf")
                 ocr_text = ""
                 for page in doc:
-                    # Renderuj stronę do obrazu
-                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))  # 1.5x zoom dla szybszego OCR (zamiast 2.x)
+                    # Renderuj stronę do obrazu (2.0x zoom = 144 DPI - optymalny balans)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                     
+                    # Opcjonalne dodatkowe skalowanie jeśli strona jest gigantyczna
+                    img = resize_image_for_ocr(img)
+
                     page_text, err = extract_text_from_pil_image(img)
                     if page_text:
                         ocr_text += page_text + "\n"
+
+                ocr_result = (ocr_text.strip(), None) if ocr_text.strip() else ("", "OCR nie znalazł tekstu")
+                
+                # Zapisz w cache
+                with _ocr_cache_lock:
+                    _ocr_cache[cache_key] = ocr_result
                 
                 if ocr_text.strip():
-                    return ocr_text.strip(), None
+                    return ocr_result
             except Exception as ocr_err:
                 print(f"⚠️ Błąd OCR w PDF: {ocr_err}")
-        
+
         return text.strip(), None
     except Exception as e:
         return "", f"Błąd PDF: {str(e)}"
@@ -154,11 +249,11 @@ def extract_text_from_docx(docx_content: bytes) -> Tuple[str, Optional[str]]:
     try:
         docx_file = io.BytesIO(docx_content)
         doc = Document(docx_file)
-        
+
         text = ""
         for paragraph in doc.paragraphs:
             text += paragraph.text + "\n"
-        
+
         return text.strip(), None
     except Exception as e:
         return "", f"Błąd DOCX: {str(e)}"
@@ -167,11 +262,11 @@ def extract_text_from_docx(docx_content: bytes) -> Tuple[str, Optional[str]]:
 def extract_text_from_txt(txt_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z pliku TXT."""
     try:
-        text = txt_content.decode('utf-8')
+        text = txt_content.decode("utf-8")
         return text.strip(), None
     except UnicodeDecodeError:
         try:
-            text = txt_content.decode('latin-1')
+            text = txt_content.decode("latin-1")
             return text.strip(), None
         except Exception as e:
             return "", f"Błąd kodowania TXT: {str(e)}"
@@ -179,159 +274,193 @@ def extract_text_from_txt(txt_content: bytes) -> Tuple[str, Optional[str]]:
         return "", f"Błąd TXT: {str(e)}"
 
 
-def extract_text_from_google_vision(image_content: bytes) -> Tuple[str, Optional[str]]:
-    """Ekstrakcja tekstu przy użyciu Google Cloud Vision API."""
-    client = get_vision_client()
-    if not client:
-        return "", "Google Cloud Vision client not available"
+def resize_image_for_ocr(image: Image.Image, max_dimension: int = 2000) -> Image.Image:
+    """Skaluje obraz w dół, jeśli przekracza zadany wymiar, zachowując proporcje."""
+    width, height = image.size
+    if width <= max_dimension and height <= max_dimension:
+        return image
     
-    try:
-        from google.cloud import vision
-        # Utwórz obiekt Image z binariów
-        image = vision.Image(content=image_content)
+    # Oblicz nowe wymiary
+    if width > height:
+        new_width = max_dimension
+        new_height = int(height * (max_dimension / width))
+    else:
+        new_height = max_dimension
+        new_width = int(width * (max_dimension / height))
         
-        # Używamy DOCUMENT_TEXT_DETECTION dla lepszej obsługi gęstego tekstu/dokumentów
-        response = client.document_text_detection(image=image)
-        
-        if response.error.message:
-            return "", f"Vision API Error: {response.error.message}"
-        
-        # Zwróć wyekstrahowany tekst
-        return response.full_text_annotation.text, None
-    except Exception as e:
-        return "", f"Google Vision Error: {str(e)}"
+    print(f"📏 [RESIZE] Skalowanie obrazu z {width}x{height} do {new_width}x{new_height}")
+    return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
 def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu bezpośrednio z obiektu PIL Image."""
-    if not any([SURYA_AVAILABLE, EASY_OCR_AVAILABLE, GOOGLE_VISION_AVAILABLE]):
-        return "", "Brak silnika OCR (Google Vision/Surya/EasyOCR nie są dostępne)"
-    
-    # Konwersja do bytes dla silników które tego wymagają (lub dla Google Vision)
+    if not any([SURYA_AVAILABLE, EASY_OCR_AVAILABLE, AI_VISION_OCR_AVAILABLE]):
+        return "", "Brak silnika OCR"
+
+    # Optymalizacja rozdzielczości przed przetwarzaniem
+    image = resize_image_for_ocr(image)
+
+    # Konwersja do bytes dla silników które tego wymagają
     img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format='PNG')
+    image.save(img_byte_arr, format="PNG")
     img_bytes = img_byte_arr.getvalue()
 
-    # 1. Próba użycia Google Cloud Vision (NAJLEPSZA JAKOŚĆ)
-    if GOOGLE_VISION_AVAILABLE:
-        # Sprawdzamy czy mamy szansę na auth (czy plik istnieje lub zmienna środowiskowa)
-        if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.path.exists("google-cloud-key.json"):
-            print("🚀 Próba OCR: Google Cloud Vision...")
-            text, err = extract_text_from_google_vision(img_bytes)
-            if text and not err:
-                print("✅ OCR: Google Cloud Vision sukces")
-                return text.strip(), None
-            else:
-                print(f"⚠️ Google Vision failed, falling back... Error: {err}")
+    # Sprawdź cache
+    content_hash = hashlib.md5(img_bytes).hexdigest()
+    cache_key = f"pil_ocr_{content_hash}"
+    with _ocr_cache_lock:
+        if cache_key in _ocr_cache:
+            print("🚀 PIL OCR Cache: Użyto cache'a dla obrazu")
+            return _ocr_cache[cache_key]
 
-    # 2. Próba użycia Surya (zalecane lokalnie)
+    # 1. Próba użycia AI Vision OCR (CHMURA - NAJSZYBSZA I NAJDOKŁADNIEJSZA)
+    from moa.config import OPENROUTER_API_KEY
+    if AI_VISION_OCR_AVAILABLE and OPENROUTER_API_KEY:
+        try:
+            print("☁️ [AI OCR] Przesyłanie do chmury (Gemini Vision)...")
+            text, err = extract_text_via_ai(img_bytes)
+            if text and not err:
+                result = text, None
+                with _ocr_cache_lock:
+                    _ocr_cache[cache_key] = result
+                return result
+        except Exception as ai_err:
+            print(f"⚠️ AI OCR error: {ai_err}")
+
+    # 2. Próba użycia Surya (LOKALNY FALLBACK - DARMOWY)
     if SURYA_AVAILABLE:
         try:
             det_predictor, rec_predictor, _ = get_surya_models()
             if det_predictor and rec_predictor:
-                langs = _surya_models["langs"]
-                
-                # Surya v0.17+ pipeline:
-                # 1. Detekcja linii tekstu
                 # Upewniamy się, że obraz jest w formacie RGB
                 rgb_image = image.convert("RGB")
-                
-                print("🚀 Próba OCR: Surya...")
-                # Surya v0.17+ API: rec(images, det_predictor=det_predictor_obj)
-                # RecognitionPredictor sam uruchamia detekcję wewnętrznie
-                ocr_results = rec_predictor(
-                    [rgb_image],
-                    det_predictor=det_predictor
-                )
-                
+
+                print("🚀 [LOKALNY FALLBACK] Surya...")
+                ocr_results = rec_predictor([rgb_image], det_predictor=det_predictor)
+
                 full_text = ""
                 for page_result in ocr_results:
                     for line in page_result.text_lines:
+                        # Pomijamy linie o bardzo niskiej pewności (< 20%)
+                        if hasattr(line, 'confidence') and line.confidence < 0.2:
+                            continue
                         full_text += line.text + "\n"
-                
+
                 if full_text.strip():
-                    print("✅ OCR: Surya sukces")
-                    return full_text.strip(), None
+                    print("✅ [LOKALNY FALLBACK] Surya sukces")
+                    result = full_text.strip(), None
+                    with _ocr_cache_lock:
+                        _ocr_cache[cache_key] = result
+                    return result
         except Exception as surya_err:
             print(f"⚠️ Surya OCR error: {surya_err}")
-            # Kontynuuj do EasyOCR
-        
-    # 2. Fallback do EasyOCR
+
+    # 3. Fallback do EasyOCR
     if EASY_OCR_AVAILABLE:
         try:
             import numpy as np
-            image_array = np.array(image.convert("RGB"))
-            results = reader.readtext(image_array)
-            text = '\n'.join([result[1] for result in results if result[2] > 0.5])
-            return text.strip(), None
+
+            reader = get_easyocr_reader()
+            if reader is not None:
+                image_array = np.array(image.convert("RGB"))
+                results = reader.readtext(image_array)
+                text = "\n".join([result[1] for result in results if result[2] > 0.5])
+                result = text.strip(), None
+                with _ocr_cache_lock:
+                    _ocr_cache[cache_key] = result
+                return result
+            else:
+                print("⚠️ EasyOCR reader nie jest dostępny")
         except Exception as easy_err:
             print(f"⚠️ EasyOCR PIL error: {easy_err}")
-            
-    return "", "Nie udało się uzyskać tekstu z obrazu"
+
+    result = "", "Nie udało się uzyskać tekstu z obrazu"
+    with _ocr_cache_lock:
+        _ocr_cache[cache_key] = result
+    return result
 
 
 def extract_text_from_image(image_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z obrazu (bytes) przez Surya lub EasyOCR."""
+    # Sprawdź cache
+    content_hash = hashlib.md5(image_content).hexdigest()
+    cache_key = f"image_ocr_{content_hash}"
+    with _ocr_cache_lock:
+        if cache_key in _ocr_cache:
+            print("🚀 Image OCR Cache: Użyto cache'a dla obrazu")
+            return _ocr_cache[cache_key]
+    
     try:
         image = Image.open(io.BytesIO(image_content))
-        return extract_text_from_pil_image(image)
+        result = extract_text_from_pil_image(image)
+        
+        # Zapisz w cache
+        with _ocr_cache_lock:
+            _ocr_cache[cache_key] = result
+        
+        return result
     except Exception as e:
         return "", f"Błąd otwierania obrazu: {str(e)}"
 
 
-def process_document(file_content: bytes, filename: str, content_type: str) -> Tuple[str, Optional[str]]:
+def process_document(
+    file_content: bytes, filename: str, content_type: str
+) -> Tuple[str, Optional[str]]:
     """
     Główna funkcja przetwarzająca dokument.
-    
+
     Args:
         file_content: Bity pliku
         filename: Nazwa pliku
         content_type: MIME type
-    
+
     Returns:
         Tuple: (ekstraktowany_tekst, błąd)
     """
     filename_lower = filename.lower()
     content_type_lower = content_type.lower()
-    
+
     # PDF
-    if (filename_lower.endswith('.pdf') or 
-        'application/pdf' in content_type_lower):
+    if filename_lower.endswith(".pdf") or "application/pdf" in content_type_lower:
         return extract_text_from_pdf(file_content)
-    
+
     # DOCX
-    elif (filename_lower.endswith('.docx') or 
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' in content_type_lower):
+    elif (
+        filename_lower.endswith(".docx")
+        or "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        in content_type_lower
+    ):
         return extract_text_from_docx(file_content)
-    
+
     # DOC (starszy format) - nie obsługiwany przez python-docx
-    elif (filename_lower.endswith('.doc') or 
-          'application/msword' in content_type_lower):
+    elif filename_lower.endswith(".doc") or "application/msword" in content_type_lower:
         return "", "Format .doc (Word 97-2003) nie jest wspierany. Użyj .docx"
-    
+
     # TXT
-    elif (filename_lower.endswith('.txt') or 
-          'text/plain' in content_type_lower):
+    elif filename_lower.endswith(".txt") or "text/plain" in content_type_lower:
         return extract_text_from_txt(file_content)
-    
+
     # Obrazy
-    elif (filename_lower.endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff')) or
-          content_type_lower.startswith('image/')):
+    elif filename_lower.endswith(
+        (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff")
+    ) or content_type_lower.startswith("image/"):
         return extract_text_from_image(file_content)
-    
+
     else:
         return "", f"Nieobsługiwany format: {filename} (type: {content_type})"
 
 
-def process_base64_document(base64_content: str, filename: str, content_type: str) -> Tuple[str, Optional[str]]:
+def process_base64_document(
+    base64_content: str, filename: str, content_type: str
+) -> Tuple[str, Optional[str]]:
     """
     Przetwarzanie dokumentu z base64.
-    
+
     Args:
         base64_content: Zawartość zakodowana w base64
         filename: Nazwa pliku
         content_type: MIME type
-    
+
     Returns:
         Tuple: (ekstraktowany_tekst, błąd)
     """
@@ -345,9 +474,9 @@ def process_base64_document(base64_content: str, filename: str, content_type: st
 if __name__ == "__main__":
     # Testy
     print("Document Processor - testy jednostkowe")
-    
+
     # Test PDF
     test_pdf = b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Kids [3 0 R]\n/Count 1\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/MediaBox [0 0 612 792]\n/Contents 4 0 R\n>>\nendobj\n4 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Test PDF) Tj\nET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f\n0000000009 00000 n\n0000000054 00000 n\n0000000101 00000 n\n0000000200 00000 n\ntrailer\n<<\n/Size 5\n/Root 1 0 R\n>>\nstartxref\n299\n%%EOF"
-    
+
     text, error = process_document(test_pdf, "test.pdf", "application/pdf")
     print(f"PDF test: {text[:50]}... Error: {error}")

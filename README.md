@@ -258,16 +258,17 @@ python build_index.py
 ```
 moj prawnik/
 ├── api.py                     # Główny plik API (FastAPI)
-├── main.py                    # Punkt wejścia aplikacji
+├── main.py                    # Punkt wejścia aplikacji (opcjonalny)
 ├── database.py                # Moduł bazy danych SQLite
 ├── build_index.py             # Budowanie indeksu FAISS
 ├── seed_knowledge.py          # Seed bazy wiedzy
-├── math_server.py            # Serwer MCP - Kalkulator
-├── weather_server.py         # Serwer MCP - Pogoda
+├── document_processor.py      # Przetwarzanie plików PDF/OCR
 ├── requirements.txt           # Zależności Python
 ├── .env.example              # Przykładowa konfiguracja
 ├── cache/                    # Cache i indeksy (wygenerowane)
-├── pdfs/                     # Dokumenty prawne PDF
+├── local_storage/            # Lokalny magazyn plików
+│   ├── knowledge_base/       # Dokumenty prawne PDF (RAG)
+│   └── chat_attachments/     # Załączniki i zdjęcia z czatu
 ├── frontend/                  # Aplikacja React
 │   ├── src/
 │   │   ├── components/       # Komponenty React

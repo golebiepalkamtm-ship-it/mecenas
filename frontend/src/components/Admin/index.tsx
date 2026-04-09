@@ -182,7 +182,15 @@ function ModelManagement() {
         return colors[groupName] || 'text-gray-400';
     };
 
-    if (isLoading && allModels.length === 0) return <div className="p-4 text-center text-white/30 text-[10px] uppercase font-black animate-pulse">Pobieranie listy z OpenRouter...</div>;
+    if (isLoading && allModels.length === 0) return (
+        <div className="p-20 flex flex-col items-center justify-center space-y-4">
+            <div className="w-12 h-12 rounded-2xl glass-prestige flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 neural-orb opacity-40" />
+                <Cpu className="w-6 h-6 text-gold-primary animate-pulse" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-primary/60 animate-pulse">Pobieranie bazy modeli...</p>
+        </div>
+    );
 
     const filteredModels = filterVision ? allModels.filter(model => model.vision) : allModels;
     const groupedModels = groupModels(filteredModels);
@@ -343,32 +351,43 @@ export function AdminView() {
 
 
 
-  return (
-    <div className="h-full flex flex-col overflow-hidden bg-transparent">
+    return (
+    <div className="h-full flex flex-col overflow-hidden bg-transparent bg-prestige-view relative">
+        <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
+        
+        {/* Main Header */}
+        <div className="px-8 lg:px-12 pt-8 pb-2">
+            <h1 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient leading-none font-outfit">
+                Panel Administracyjny
+            </h1>
+            <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 font-outfit">
+                Zarządzanie Infrastrukturą i Operacjami Systemu LexMind
+            </p>
+        </div>
         {/* SUB NAVIGATION */}
-        <div className="flex items-center px-8 lg:px-12 py-6 gap-8 shrink-0 overflow-x-auto no-scrollbar border-b border-white/5 unified-glass-shell">
+        <div className="flex items-center px-8 lg:px-12 py-4 gap-8 shrink-0 overflow-x-auto no-scrollbar border-b border-white/5 glass-liquid-shell sticky top-0 z-50">
             <SubNavItem 
                 active={activeSubTab === 'system'} 
                 onClick={() => setActiveSubTab('system')} 
-                icon={<Activity size={16} />} 
+                icon={<Activity size={14} />} 
                 label="Status Systemu" 
             />
             <SubNavItem 
                 active={activeSubTab === 'users'} 
                 onClick={() => setActiveSubTab('users')} 
-                icon={<Users size={16} />} 
+                icon={<Users size={14} />} 
                 label="Użytkownicy" 
             />
             <SubNavItem 
                 active={activeSubTab === 'security'} 
                 onClick={() => setActiveSubTab('security')} 
-                icon={<Key size={16} />} 
+                icon={<Key size={14} />} 
                 label="Klucze API" 
             />
             <SubNavItem 
                 active={activeSubTab === 'models'} 
                 onClick={() => setActiveSubTab('models')} 
-                icon={<Cpu size={16} />} 
+                icon={<Cpu size={14} />} 
                 label="Modele AI" 
             />
         </div>
@@ -443,10 +462,10 @@ export function AdminView() {
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="bg-white/5">
-                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-slate-500">Użytkownik</th>
-                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-slate-500">Rola</th>
-                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-slate-500">Data Rejestracji</th>
-                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-slate-500 text-right">Akcje</th>
+                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-white/30">Użytkownik</th>
+                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-white/30">Rola</th>
+                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-white/30">Data Rejestracji</th>
+                                            <th className="px-6 py-4 text-[9px] font-black uppercase tracking-widest text-white/30 text-right">Akcje</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
@@ -577,23 +596,24 @@ function SubNavItem({ active, onClick, icon, label }: { active: boolean, onClick
         <button 
             onClick={onClick}
             className={cn(
-                "flex items-center gap-2.5 pb-2 transition-all relative group",
-                active ? "text-gold-primary" : "text-slate-500 hover:text-slate-300"
+                "flex items-center gap-3 px-4 py-2 rounded-xl transition-all relative group",
+                active ? "text-gold-primary" : "text-white/30 hover:text-white/60"
             )}
         >
+            {active && (
+                <motion.div 
+                    layoutId="admin-subnav-bg"
+                    className="absolute inset-0 bg-white/5 border border-white/10 rounded-xl shadow-inner"
+                    transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                />
+            )}
             <div className={cn(
-                "w-8 h-8 rounded-xl flex items-center justify-center transition-all",
-                active ? "bg-gold-primary/20 text-gold-primary shadow-[0_0_15px_rgba(255,215,128,0.2)]" : "bg-white/5 group-hover:bg-white/10"
+                "relative z-10 transition-colors",
+                active ? "text-gold-primary" : "text-white/40 group-hover:text-white/70"
             )}>
                 {icon}
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest">{label}</span>
-            {active && (
-                <motion.div 
-                    layoutId="subnav-indicator"
-                    className="absolute -bottom-6 left-0 right-0 h-1 bg-gold-primary rounded-t-full shadow-[0_-5px_15px_rgba(255,215,128,0.8)]"
-                />
-            )}
+            <span className="relative z-10 text-[9px] font-black uppercase tracking-widest -mt-0.5">{label}</span>
         </button>
     );
 }
@@ -608,8 +628,8 @@ function StatCard({ label, value, icon, isCompacted = false }: { label: string, 
                 {isCompacted && <span className="text-[8px] font-black text-slate-700 uppercase tracking-widest">Compacted</span>}
             </div>
             <div className="relative z-10">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">{label}</p>
-                <div className="text-3xl font-outfit font-black tracking-tighter shimmer-text">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1 leading-none">{label}</p>
+                <div className="text-3xl font-outfit font-black tracking-tighter text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.1)]">
                     <AnimatedNumber value={value} />
                 </div>
             </div>
@@ -625,9 +645,9 @@ function HealthRow({ label, status, ping }: { label: string, status: 'online' | 
                     "w-2 h-2 rounded-full",
                     status === 'online' ? "bg-emerald-500 shadow-[0_0_10px_#10b981]" : "bg-red-500 shadow-[0_0_10px_#ef4444]"
                 )} />
-                <span className="text-[11px] font-bold text-slate-400 group-hover:text-white transition-colors">{label}</span>
+                <span className="text-[11px] font-bold text-white/40 group-hover:text-white transition-colors uppercase tracking-tight">{label}</span>
             </div>
-            <span className="text-[9px] font-black font-mono text-slate-600">{ping}</span>
+            <span className="text-[9px] font-black font-mono text-white/20">{ping}</span>
         </div>
     );
 }

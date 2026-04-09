@@ -99,7 +99,7 @@ def create_session(id: str, title: str):
     except Exception as e:
         print(f"❌ DB Error (create_session): {e}")
 
-def save_message(id: str, session_id: str, role: str, content: str, sources: Optional[str] = None):
+def save_message(id: str, session_id: str, role: str, content: str, sources: Optional[str] = None, message_type: Optional[str] = None, reasoning: Optional[str] = None):
     try:
         # Sanitize content for title if needed (Bug 18)
         title_content = content.replace("\n", " ").strip()[:50] if content else "Nowa Rozprawa"

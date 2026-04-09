@@ -88,17 +88,22 @@ export function SettingsView() {
 
     if (isLoading) {
         return (
-            <div className="h-full flex items-center justify-center">
-                <div className="flex flex-col items-center gap-6">
-                    <Loader2 className="w-10 h-10 text-gold-primary animate-spin" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.5em] text-gold-primary/80">Wczytywanie Profilu...</span>
+            <div className="h-full w-full flex flex-col items-center justify-center space-y-6 bg-prestige-view">
+                <div className="w-16 h-16 rounded-3xl glass-prestige flex items-center justify-center relative overflow-hidden">
+                    <div className="absolute inset-0 neural-orb opacity-40" />
+                    <Loader2 size={32} className="animate-spin text-gold-primary relative z-10" />
+                </div>
+                <div className="text-center">
+                    <p className="text-[11px] font-black uppercase tracking-[0.5em] text-gold-primary/80 animate-pulse">Autoryzacja Profilu</p>
+                    <p className="text-[7px] font-black uppercase tracking-[0.3em] text-white/20 mt-2">Synchronizacja z Prestige Cloud</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="h-full">
+        <div className="h-full bg-prestige-view relative overflow-hidden">
+            <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
             <AnimatePresence mode="wait">
                 <motion.div
                     key={currentSettingsTab}
@@ -179,15 +184,15 @@ export function SettingsView() {
                                             <Sparkles size={80} className="absolute -right-6 -bottom-6 text-gold-primary/10 -rotate-12 group-hover:scale-110 transition-transform duration-700" />
                                             <p className="text-gold-primary font-black text-sm uppercase tracking-[0.2em] italic">Twój pakiet: LexMind Trial</p>
                                             <div className="mt-3 space-y-2">
-                                                <p className="text-white/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
+                                                <div className="text-white/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
                                                     <div className="w-1 h-1 rounded-full bg-gold-primary shadow-[0_0_6px_#FFD780]" /> 10 kredytów na start
-                                                </p>
-                                                <p className="text-white/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
+                                                </div>
+                                                <div className="text-white/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
                                                     <div className="w-1 h-1 rounded-full bg-gold-primary shadow-[0_0_6px_#FFD780]" /> Dostęp do Gemini 2.0 Flash
-                                                </p>
-                                                <p className="text-white/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
+                                                </div>
+                                                <div className="text-white/80 text-[9px] font-bold uppercase tracking-widest flex items-center gap-2">
                                                     <div className="w-1 h-1 rounded-full bg-gold-primary shadow-[0_0_6px_#FFD780]" /> Podstawowa analiza prawna
-                                                </p>
+                                                </div>
                                             </div>
                                             <button className="mt-4 px-6 py-2.5 bg-white text-black text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-2xl border-t-2 border-white/80">
                                                 Uaktualnij do Pro

@@ -55,22 +55,23 @@ export function useChatMutation() {
     attachments?: Attachment[],
     document_text?: string
   }>({
-    mutationFn: async ({ message, history, sessionId, attachments, document_text }) => {
-      const endpoint = isConsensusMode && experts.length > 0 ? '/chat-consensus' : '/chat';
-      const payload = {
-        message,
-        history,
-        sessionId,
-        attachments,
-        document_text,
-        model: (isConsensusMode && experts.length > 0) ? judge : (activeModels[0] || selectedSingleModel),
-        selected_models: (isConsensusMode && experts.length > 0) ? experts : undefined,
-        aggregator_model: (isConsensusMode && experts.length > 0) ? judge : undefined,
-        task: currentTask,
-        custom_task_prompt: taskPrompts[currentTask] || undefined,
-        architect_prompt: architectPrompt,
-        system_role_prompt: unitSystemRoles[currentSystemRoleId]
-      };
+     mutationFn: async ({ message, history, sessionId, attachments, document_text }) => {
+       const endpoint = isConsensusMode && experts.length > 0 ? '/chat-consensus' : '/chat';
+       const payload = {
+         message,
+         history,
+         sessionId,
+         attachments,
+         document_text,
+         context_category: (history.length === 0 && message.includes('[DOK]')) ? 'user_docs' : 'rag_legal', // Logic can be more sophisticated
+         model: (isConsensusMode && experts.length > 0) ? judge : (activeModels[0] || selectedSingleModel),
+         selected_models: (isConsensusMode && experts.length > 0) ? experts : undefined,
+         aggregator_model: (isConsensusMode && experts.length > 0) ? judge : undefined,
+         task: currentTask,
+         custom_task_prompt: taskPrompts[currentTask] || undefined,
+         architect_prompt: architectPrompt,
+         system_role_prompt: unitSystemRoles[currentSystemRoleId]
+       };
 
       const res = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',

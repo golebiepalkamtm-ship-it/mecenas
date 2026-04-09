@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogOut, Scale } from "lucide-react";
+import { Menu, X, LogOut, Scale, Plus } from "lucide-react";
 import { supabase } from "../../utils/supabaseClient";
 import { cn } from "../../utils/cn";
 import type { Tab } from "../../types/navigation";
@@ -14,7 +14,6 @@ interface NavItem {
   colorRgb: string;
   adminOnly?: boolean;
 }
-
 interface MobileNavigationProps {
   navItems: NavItem[];
   activeTab: Tab;
@@ -32,14 +31,15 @@ export function MobileNavigation({ navItems, activeTab, onTabChange }: MobileNav
           <motion.div
             className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
             style={{
-              background: "linear-gradient(145deg, rgba(255,255,255,0.14) 0%, rgba(3,8,18,0.75) 100%)",
-              borderTop:    "1.5px solid rgba(255,255,255,0.70)",
-              borderLeft:   "1px   solid rgba(255,255,255,0.22)",
-              borderRight:  "0.5px solid rgba(255,255,255,0.06)",
-              borderBottom: "1.5px solid rgba(0,0,0,0.75)",
+              background: "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(3,8,18,0.72) 100%)",
+              borderTop:    "1.5px solid rgba(212,175,55,0.85)",
+              borderLeft:   "1px   solid rgba(212,175,55,0.28)",
+              borderRight:  "0.5px solid rgba(212,175,55,0.08)",
+              borderBottom: "1.5px solid rgba(0,0,0,0.70)",
+              boxShadow:    "0 4px 16px rgba(0,0,0,0.50), inset 0 1px 0 rgba(212,175,55,0.45)",
             }}
           >
-            <Scale className="w-4 h-4 text-white" strokeWidth={1.5} />
+            <Scale className="w-4 h-4" style={{ color: "#d4af37" }} strokeWidth={1.5} />
           </motion.div>
           <span className="font-bold text-sm">LexMind</span>
         </div>
@@ -76,13 +76,14 @@ export function MobileNavigation({ navItems, activeTab, onTabChange }: MobileNav
             animate={{ x: 0 }}
             exit={{ x: "-100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="lg:hidden fixed top-2 left-2 bottom-2 w-[280px] z-45 bg-black/90 backdrop-blur-2xl border border-white/10 flex flex-col rounded-[32px] overflow-hidden shadow-2xl"
+            className="lg:hidden fixed top-2 left-2 bottom-2 w-[280px] z-45 glass-liquid-shell flex flex-col rounded-[32px] overflow-hidden shadow-2xl"
           >
             <div className="h-16 flex items-center px-5 border-b border-white/10">
               <span className="font-bold">Menu</span>
             </div>
 
             <div className="flex-1 overflow-y-auto px-3 py-4 space-y-2">
+
               {navItems.filter(i => i.id !== 'admin').map((item) => {
                 const Icon = item.icon;
                 const active = activeTab === item.id;

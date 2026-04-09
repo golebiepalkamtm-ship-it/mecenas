@@ -1,4 +1,5 @@
 import uuid
+import json
 import logging
 import traceback
 from fastapi import APIRouter, HTTPException, Depends
@@ -68,11 +69,15 @@ async def chat_endpoint(request: ChatRequest):
 
         # DODAJEMY: Treść z załączników do promptu użytkownika (KRYTYCZNE DLA KONTEKSTU)
         if combined_doc_text:
-            print(f"   [PROMPT INFUSION] Dodawanie {len(combined_doc_text)} znaków z dokumentów do promptu.")
-            user_msg_content.append({
-                "type": "text", 
-                "text": f"\n\n### TREŚĆ ZAŁĄCZONYCH DOKUMENTÓW / KONTEKST:\n{combined_doc_text}"
-            })
+            print(
+                f"   [PROMPT INFUSION] Dodawanie {len(combined_doc_text)} znaków z dokumentów do promptu."
+            )
+            user_msg_content.append(
+                {
+                    "type": "text",
+                    "text": f"\n\n### TREŚĆ ZAŁĄCZONYCH DOKUMENTÓW / KONTEKST:\n{combined_doc_text}",
+                }
+            )
 
         user_msg = {
             "role": "user",
@@ -97,10 +102,11 @@ async def chat_endpoint(request: ChatRequest):
         )
         answer = response.choices[0].message.content or "Brak odpowiedzi."
 
-        db_user = request.message
-        if extracted_texts:
-            db_user += "\n\n[DOKUMENTY]:\n" + "\n".join(extracted_texts)
-        save_chat_messages(sid, db_user, answer, message_type="final_answer")
+        # Zapisz pełną wiadomość użytkownika z załącznikami, a nie tylko sam tekst
+        db_user = user_msg_content
+        save_chat_messages(
+            sid, json.dumps(db_user), answer, message_type="final_answer"
+        )
 
         return {
             "id": str(uuid.uuid4()),
@@ -121,7 +127,7 @@ async def chat_consensus_endpoint(request: ChatRequest):
     try:
         sid = request.sessionId or str(uuid.uuid4())
         combined_doc_text = request.document_text or ""
-        _, extracted_texts = await process_attachments(request.attachments or [])
+        extracted_att_content, extracted_texts = await process_attachments(request.attachments or [])
         if extracted_texts:
             combined_doc_text += "\n" + "\n".join(extracted_texts)
 
@@ -154,6 +160,7 @@ async def chat_consensus_endpoint(request: ChatRequest):
 
         if request.stream:
             from services.chat_service import generate_moa_stream
+
             return StreamingResponse(
                 generate_moa_stream(request, sid, combined_doc_text, context_text),
                 media_type="text/event-stream",
@@ -161,12 +168,22 @@ async def chat_consensus_endpoint(request: ChatRequest):
 
         result = await chat_consensus_moa(request, sid, combined_doc_text, context_text)
 
-        db_user = request.message
-        if extracted_texts:
-            db_user += "\n\n[DOKUMENTY]:\n" + "\n".join(extracted_texts)
+        # Zapisz pełną wiadomość użytkownika z załącznikami
+        moa_user_content = [{"type": "text", "text": request.message}]
+        moa_user_content.extend(
+            [c for c in extracted_att_content if c["type"] == "image_url"]
+        )
+        if combined_doc_text:
+            moa_user_content.append(
+                {
+                    "type": "text",
+                    "text": f"\n\n### TREŚĆ ZAŁĄCZONYCH DOKUMENTÓW / KONTEKST:\n{combined_doc_text}",
+                }
+            )
+
         save_chat_messages(
             sid,
-            db_user,
+            json.dumps(moa_user_content),
             result.final_answer,
             message_type="moa_consensus",
             reasoning=str(result.analyst_results),
@@ -213,7 +230,7 @@ async def draft_document(request: DraftRequest):
         from moa.retrieval import retrieve_legal_context
 
         _chunks, context_text = await retrieve_legal_context(
-            rag_query, history=request.history
+            rag_query
         )
 
         user_prompt = ""

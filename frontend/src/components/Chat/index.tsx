@@ -53,12 +53,14 @@ export function ChatView({
   const [attachments, setAttachments] = useState<QueuedAttachment[]>([]);
   const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+  const [libraryMode, setLibraryMode] = useState<'all' | 'documents' | 'images'>('all');
+  const [previewDoc, setPreviewDoc] = useState<any>(null);
   const [useRag, setUseRag] = useState(true);
   
   const processingQueue = useRef<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null); // Używany przez przycisk 📎 - akceptuje WSZYSTKIE typy
 
   const { isPending: isLoading } = chatMutation;
 
@@ -211,7 +213,7 @@ export function ChatView({
   const ocrQueue = useRef<Array<{id: string, file: File}>>([]);
 
   const processNextInQueue = useCallback(async () => {
-    if (activeOCRCount.current >= 3 || ocrQueue.current.length === 0) return;
+    if (activeOCRCount.current >= 1 || ocrQueue.current.length === 0) return;
 
     const next = ocrQueue.current.shift();
     if (!next) return;
@@ -266,7 +268,7 @@ export function ChatView({
     const newAttachments: QueuedAttachment[] = filesToAdd.map(file => ({
       id: Math.random().toString(36).substring(7),
       file,
-      status: 'uploading',
+      status: 'waiting',
       progress: 0
     }));
 
@@ -275,10 +277,8 @@ export function ChatView({
     // Add to internal queue and start processing
     ocrQueue.current.push(...newAttachments.map(a => ({ id: a.id, file: a.file })));
     
-    // Próbujemy odpalić proces dla całej dostępnej puli (max 3)
-    for (let i = 0; i < 3; i++) {
-      processNextInQueue();
-    }
+    // Start processing queue (sequential)
+    processNextInQueue();
   }, [attachments.length, processNextInQueue]);
 
   const removeAttachment = (idx: number) => {
@@ -300,6 +300,7 @@ export function ChatView({
         sessionId={sessionId}
         switchSession={switchSession}
         removeSession={removeSession}
+        newChat={newChat}
       />
 
       <div className="flex-1 flex flex-col relative h-full overflow-hidden">
@@ -347,7 +348,10 @@ export function ChatView({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i === messages.length - 1 ? 0 : 0.05 }}
                 >
-                  <MessageBubble msg={m as Message} />
+                  <MessageBubble 
+                    msg={m as Message} 
+                    onPreviewDoc={(name, content) => setPreviewDoc({ name, content })} 
+                  />
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -387,7 +391,7 @@ export function ChatView({
                       ].map((phase, idx) => (
                         <div key={idx} className="flex items-center gap-2 sm:gap-3">
                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 glass-prestige">
-                             <div className="w-1 h-1 rounded-full bg-blue-500 animate-ping" />
+                             <div className="w-1 h-1 rounded-full bg-gold-primary animate-ping" />
                              <span className="text-[8px] font-black text-white/60 uppercase tracking-wider">{phase.label}</span>
                            </div>
                            {idx < 2 && <div className="hidden sm:block w-4 h-px bg-white/10" />}
@@ -398,7 +402,7 @@ export function ChatView({
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-gold-primary animate-ping" />
                       <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] italic">
                         Generowanie strategii procesowej...
                       </p>
@@ -434,28 +438,93 @@ export function ChatView({
                   stopGeneration={stopGeneration}
                   newChat={newChat}
                   onNavigateToDrafter={() => onNavigate?.("drafter")}
-                  fileInputRef={fileInputRef}
                   imageInputRef={imageInputRef}
                   attachmentWarning={attachmentWarning}
                   useRag={useRag}
                   setUseRag={setUseRag}
-                  onOpenLibrary={() => setIsLibraryOpen(true)}
+                  onOpenLibrary={(mode) => {
+                    setLibraryMode(mode);
+                    setIsLibraryOpen(true);
+                  }}
+                  onPreviewDoc={(att) => setPreviewDoc({ name: att.file.name, content: att.extractedText })}
                />
 
               {/* Archetypal File Controllers - Hidden but Essential */}
+              {/* Jeden uniwersalny input - obsługuje obrazy + dokumenty (PDF, DOCX, TXT) */}
+              <input 
+                type="file" 
+                multiple 
+                ref={imageInputRef} 
+                onChange={addAttachment} 
+                className="hidden" 
+                accept="image/*,.pdf,.doc,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" 
+              />
+              {/* fileInputRef zachowany dla kompatybilności - przekierowany do głównego inputu */}
               <input type="file" multiple ref={fileInputRef} onChange={addAttachment} className="hidden" accept=".pdf,.doc,.docx,.txt" />
-              <input type="file" multiple ref={imageInputRef} onChange={addAttachment} className="hidden" accept="image/*" />
           </div>
 
-          <LibrarySelectionModal 
+           <LibrarySelectionModal 
             isOpen={isLibraryOpen}
+            mode={libraryMode}
             onClose={() => setIsLibraryOpen(false)}
-            onSelect={(doc: { id: string; name: string; chunks: number; created_at: string }) => {
-              setInput((prev: string) => (prev ? prev + " " : "") + `[REF:${doc.name}]`);
+            onSelect={(docs: { id: string; name: string; chunks: number; created_at: string }[]) => {
+              docs.forEach(doc => {
+                 const newAttachment: QueuedAttachment = {
+                   id: `lib-${doc.id}-${Date.now()}`,
+                   file: new File([], doc.name),
+                   status: 'ready',
+                   progress: 100,
+                   previewUrl: undefined,
+                   extractedText: '' // Fetch via context
+                 };
+                 setAttachments(prev => [...prev, newAttachment]);
+              });
               setIsLibraryOpen(false);
               setUseRag(true);
             }}
           />
+
+          {/* Global Preview Overlay for Chat */}
+          <AnimatePresence>
+            {previewDoc && (
+              <motion.div
+                initial={{ x: '100%', opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: '100%', opacity: 0 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                className="fixed top-0 right-0 w-[450px] max-w-full h-full glass-prestige border-l border-gold-primary/40 z-[2000] flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
+                style={{ background: 'rgba(10, 12, 16, 0.98)', backdropFilter: 'blur(30px)' }}
+              >
+                <div className="p-6 border-b border-white/10 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gold-primary/10 flex items-center justify-center border border-gold-primary/20">
+                      <FileSearch className="text-gold-primary" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Szybki Podgląd</h3>
+                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-1">Dokumentacja Sprawy</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setPreviewDoc(null)} 
+                    className="w-10 h-10 rounded-full bg-white/5 hover:bg-red-500/20 flex items-center justify-center text-white/40 hover:text-red-500 transition-all border border-transparent hover:border-red-500/30 group/close"
+                  >
+                    <X size={20} className="group-hover/close:rotate-180 transition-all duration-300" />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                   <h4 className="text-lg font-black text-gold-primary uppercase tracking-tight mb-6 leading-tight border-b border-gold-primary/10 pb-4">{previewDoc.name}</h4>
+                   <div className="prose prose-invert prose-sm max-w-none text-white/70 leading-relaxed font-outfit whitespace-pre-wrap">
+                      {previewDoc.content || (
+                        <div className="italic opacity-40 py-20 text-center">
+                           Treść dokumentu jest ładowana z bazy wiedzy... <br/>Możesz go użyć w rozmowie do pełnej analizy.
+                        </div>
+                      )}
+                   </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           
           <div className="flex justify-center items-center mt-2.5">
             <div className="flex items-center gap-2 group/verify cursor-default opacity-50 hover:opacity-100 transition-opacity">
@@ -481,7 +550,7 @@ export function ChatView({
               mass: 1.2,
               restDelta: 0.001
             }}
-            className="fixed lg:relative inset-y-0 right-0 w-[450px] max-w-full h-full z-50 shadow-2xl border-l border-white/5"
+            className="fixed lg:relative inset-y-0 right-0 w-[320px] max-w-full h-full glass-prestige-gold rounded-3xl flex flex-col shrink-0 overflow-hidden z-50 transition-all shadow-2xl"
           >
             <QuickIntelligencePanel onNavigate={onNavigate} />
           </motion.div>

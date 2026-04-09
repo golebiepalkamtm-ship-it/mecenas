@@ -19,7 +19,7 @@ async def test_legal_os_workflow():
     models = [
         "anthropic/claude-3-haiku", 
         "openai/gpt-4o-mini", 
-        "google/gemini-2.0-flash-lite:preview"
+        "google/gemini-2.0-flash-lite-001"
     ]
     
     config = PromptConfig(

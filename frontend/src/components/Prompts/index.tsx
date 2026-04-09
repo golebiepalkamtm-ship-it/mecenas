@@ -72,7 +72,8 @@ export function PromptsView() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col p-4 lg:p-8 bg-transparent">
+    <div className="w-full h-full flex flex-col p-4 lg:p-10 lg:pt-8 bg-prestige-view relative overflow-hidden">
+      <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
       {/* Header */}
       <div className="flex items-center gap-4 mb-8 shrink-0">
         <div className="w-12 h-12 rounded-lg flex items-center justify-center"
@@ -84,8 +85,8 @@ export function PromptsView() {
           <Sparkles className="text-gold-primary w-6 h-6" />
         </div>
         <div>
-           <h1 className="text-2xl font-black tracking-tight text-white/90">Biblioteka Promptów</h1>
-           <p className="text-sm font-medium text-white/40">Zarządzaj instruktarzami systemowymi dla sztucznej inteligencji</p>
+           <h1 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient leading-none font-outfit">Biblioteka Promptów</h1>
+           <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 font-outfit">Zarządzanie Instruktorami Systemowymi i Logiką AI</p>
         </div>
 
         <div className="ml-auto flex items-center gap-2">

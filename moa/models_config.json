@@ -15,7 +15,7 @@
       "description": "Silna strukturyzacja i szybkość."
     },
     {
-      "id": "google/gemini-2.0-flash",
+      "id": "google/gemini-2.0-flash-001",
       "name": "Google: Gemini 2.0 Flash",
       "provider": "GOOGLE",
       "vision": true,
@@ -58,7 +58,7 @@
       "models": [
         "anthropic/claude-3.5-sonnet",
         "openai/gpt-4o",
-        "google/gemini-2.0-flash"
+        "google/gemini-2.0-flash-001"
       ],
       "judge": "anthropic/claude-3.5-sonnet",
       "color": "teal"
@@ -69,7 +69,7 @@
       "icon": "Zap",
       "models": [
         "openai/gpt-4o-mini",
-        "google/gemini-2.0-flash",
+        "google/gemini-2.0-flash-001",
         "meta-llama/llama-3.3-70b-instruct"
       ],
       "judge": "openai/gpt-4o-mini",

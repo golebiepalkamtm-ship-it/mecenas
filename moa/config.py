@@ -13,25 +13,39 @@ try:
 except ImportError:
     pass
 
+PROJECT_DIR = str(Path(__file__).parent.parent.absolute())
+
 # ---------------------------------------------------------------------------
 # Klucze API (z .env)
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 SUPABASE_URL: str = os.getenv(
     "SUPABASE_URL", "https://dhyvxspgsktpbjonejek.supabase.co"
 )
 SUPABASE_ANON_KEY: str = os.getenv(
     "SUPABASE_ANON_KEY", "sb_publishable_8HlO3_J1CxhWN27Vmoq2FA_HzZE0Jac"
 )
+SUPABASE_IMPORT_URL: str = f"{SUPABASE_URL}/functions/v1/import-knowledge"
+
+# Kategorie dokumentów
+CAT_RAG_LEGAL = "rag_legal"      # Centralna baza wiedzy (kodeksy, prawo) - tabela knowledge_base_legal
+CAT_USER_DOCS = "user_docs"      # Zwykłe dokumenty użytkownika (pisma, skany) - tabela knowledge_base_user
+
+# Ścieżki lokalnego zapisu
+STORAGE_ROOT = "local_storage"
+STORAGE_PATHS = {
+    CAT_RAG_LEGAL: f"{STORAGE_ROOT}/knowledge_base_legal",
+    CAT_USER_DOCS: f"{STORAGE_ROOT}/chat_attachments"
+}
 
 # ---------------------------------------------------------------------------
-# OpenRouter LLM
+# Embedding Settings (OpenRouter Cloud)
 # ---------------------------------------------------------------------------
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_EMBEDDINGS_URL = f"{OPENROUTER_BASE_URL}/embeddings"
-EMBEDDING_MODEL = "text-embedding-3-small"  # Tymczasowo - może nie działać
-EMBEDDING_DIMENSIONS = 1536  # Wymiar text-embedding-3-small
+EMBEDDING_MODEL = "openai/text-embedding-3-small"  # Model przez OpenRouter
+EMBEDDING_DIMENSIONS = 1536  # Wymiary zgodne z tabelą w Supabase
+OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings"
 
 OPENROUTER_HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -136,7 +150,7 @@ def load_models_config() -> Dict[str, Any]:
         # Powrót do twardych fallbacków w razie awarii pliku
         return {
             "models": [
-                {"id": "google/gemini-2.0-flash", "name": "Google: Gemini 2.0 Flash"}
+                {"id": "google/gemini-2.0-flash-001", "name": "Google: Gemini 2.0 Flash"}
             ],
             "presets": [],
         }
@@ -152,7 +166,7 @@ DEFAULT_JUDGE_MODEL = "anthropic/claude-3.5-sonnet"
 DEFAULT_ANALYST_MODELS = [
     "anthropic/claude-3.5-sonnet",
     "openai/gpt-4o",
-    "google/gemini-2.0-flash",
+    "google/gemini-2.0-flash-001",
 ]
 
 # ---------------------------------------------------------------------------

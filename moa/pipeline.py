@@ -24,7 +24,7 @@ from moa.models import MOARequest, MOAResult
 from moa.retrieval import retrieve_legal_context
 from moa.llm_agents import run_parallel_analysis
 from moa.synthesizer import synthesize_judgment
-from moa.prompt_builder import IdentityMode
+from moa.prompt_builder import IdentityMode, build_judge_system_prompt
 
 
 async def run_moa_pipeline(request: MOARequest) -> MOAResult:
@@ -57,7 +57,13 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
         if request.document_text:
             rag_query = f"{request.query}\n\n{request.document_text[:8000]}"
         try:
-            chunks, context_text = await retrieve_legal_context(rag_query)
+            chunks, context_text = await retrieve_legal_context(
+                rag_query, 
+                category=request.category,
+                match_count=request.match_count,
+                match_threshold=request.match_threshold,
+                history=request.history
+            )
             has_legal_context = bool(context_text.strip())
             print(f"   [OK] RAG: {len(chunks)} fragmentów, {len(context_text)} znaków")
         except Exception as rag_err:
@@ -78,7 +84,7 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                 async with AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL) as sum_client:
                     history_summary, _ = await _call_with_retry(
                         sum_client, 
-                        model="google/gemini-2.0-flash", 
+                        model="google/gemini-2.0-flash-001", 
                         system_prompt="Jesteś asystentem prawnym streszczającym kluczowe fakty.",
                         user_prompt=sum_prompt,
                         max_tokens=600
@@ -128,7 +134,8 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                 mode=IdentityMode(request.mode or "advocate"),
             )
 
-            # 3. SYNTHESIS (Re-ranking Judge)
+            # 3. SYNTHESIS (Re-ranking Judge) — z dynamicznym promptem sędziego
+            current_mode = IdentityMode(request.mode or "advocate")
             final_answer = await synthesize_judgment(
                 client=shared_client,
                 query=request.query,
@@ -140,7 +147,8 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                 history_summary=history_summary,
                 history=request.history[-10:],
                 expert_memory=expert_memory,
-                mode=IdentityMode(request.mode or "advocate"),
+                judge_system_prompt=build_judge_system_prompt(current_mode),
+                mode=current_mode,
             )
 
         pipeline_latency = (time.perf_counter() - pipeline_start) * 1000

@@ -4,7 +4,8 @@ import {
   FileText, 
   BookOpen, 
   Trash2, 
-  FileSearch
+  FileSearch,
+  Eye
 } from "lucide-react";
 import type { KnowledgeDocument } from "../types";
 import { cn } from "../../../utils/cn";
@@ -12,6 +13,7 @@ import { cn } from "../../../utils/cn";
 interface DocumentCardProps {
   doc: KnowledgeDocument;
   onDelete: (name: string) => void;
+  onPreview: () => void;
   index: number;
 }
 
@@ -44,7 +46,7 @@ function SmallThumbnail({ isCodeks, filename }: { isCodeks: boolean, filename: s
   );
 }
 
-export function DocumentCard({ doc, onDelete, index }: DocumentCardProps) {
+export function DocumentCard({ doc, onDelete, onPreview, index }: DocumentCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const isCodeks = doc.name.toLowerCase().includes("kodeks");
   const displayName = doc.name.replace(/\.[^/.]+$/, "");
@@ -82,6 +84,16 @@ export function DocumentCard({ doc, onDelete, index }: DocumentCardProps) {
            </div>
 
            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+              <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPreview();
+                  }}
+                  className="p-2 rounded-xl text-white/20 hover:text-gold-primary hover:bg-gold-primary/10 transition-all"
+                  title="Podgląd"
+              >
+                  <Eye size={14} />
+              </button>
               <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -123,7 +135,7 @@ export function DocumentCard({ doc, onDelete, index }: DocumentCardProps) {
               <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] font-outfit">Status: Verified</span>
            </div>
            <div className="text-[8px] font-black text-white/10 group-hover:text-gold-primary/40 uppercase tracking-widest font-outfit">
-             ID: {doc.id.substring(0, 6)}
+             ID: {String(doc.id).substring(0, 8)}
            </div>
         </div>
       </div>

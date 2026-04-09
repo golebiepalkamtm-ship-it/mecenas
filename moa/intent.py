@@ -45,20 +45,31 @@ _GREETING_PATTERNS = [
 # Wzorce small-talku (pytania nie-dotyczące prawa)
 _SMALLTALK_PATTERNS = [
     r"^(jak\s*si[ęe]\s*maj[aą]|co\s*s[łl]ychać|co\s*u\s*ciebie|how\s*are\s*you)\b",
-    r"^(dzi[ęe]kuj[eę]|dzieki|thx|thanks|thank\s*you|super|świetnie|fajnie)\b",
+    r"^(dzi[ęe]kuj[eę]|dzieki|thx|thanks|thank\s*you|super|świetnie|fajnie)\s*[.!?]*$",
     r"^(pa|do\s*zobaczenia|na\s*razie|do\s*widzenia|bye|goodbye|see\s*you)\b",
     r"^(okej|ok|okk|ro(z|ż)umiem|jasne|no\s*jasne|sure|alright)\b",
     r"^(test|ping|halo|hallo)\s*$",
-    r"^.{0,5}$",  # Bardzo krótkie wiadomości (1-5 znaków) — prawdopodobnie test
 ]
 
 _COMPILED_GREETING = [re.compile(p, re.IGNORECASE) for p in _GREETING_PATTERNS]
 _COMPILED_SMALLTALK = [re.compile(p, re.IGNORECASE) for p in _SMALLTALK_PATTERNS]
 
+# Wzorce dodatkowe (Wymuszenie legal)
+_FORCE_LEGAL_PATTERNS = [
+    r"\[REF:.*\]",  # Tag referencji do dokumentu z UI
+    r"\.pdf\b", r"\.docx\b", r"\.jpg\b", r"\.png\b", # Wspomnienie pliku
+]
+_COMPILED_FORCE_LEGAL = [re.compile(p, re.IGNORECASE) for p in _FORCE_LEGAL_PATTERNS]
+
 
 def classify_by_rules(message: str) -> Optional[Intent]:
     """Szybka klasyfikacja regułowa — zero koszt API."""
     stripped = message.strip()
+
+    # Pierwszeństwo dla wymuszonych reguł prawnych (np. tagi plików)
+    for pattern in _COMPILED_FORCE_LEGAL:
+        if pattern.search(stripped):
+            return Intent.LEGAL_QUERY
 
     for pattern in _COMPILED_GREETING:
         if pattern.search(stripped):
@@ -94,7 +105,7 @@ Przykłady:
 "Czy mogę zadać pytanie?" → SMALL_TALK"""
 
 
-async def classify_by_llm(message: str) -> Intent:
+async def classify_by_llm(message: str, model_override: str | None = None) -> Intent:
     """Klasyfikacja LLM — tani model, ~200ms."""
     try:
         client = AsyncOpenAI(
@@ -107,7 +118,7 @@ async def classify_by_llm(message: str) -> Intent:
             },
         )
         response = await client.chat.completions.create(
-            model=_CLASSIFIER_MODEL,
+            model=model_override or _CLASSIFIER_MODEL,
             messages=[
                 {"role": "system", "content": _CLASSIFIER_PROMPT},
                 {"role": "user", "content": message},
@@ -135,12 +146,20 @@ async def classify_by_llm(message: str) -> Intent:
 # ---------------------------------------------------------------------------
 
 
-async def classify_intent(message: str) -> Intent:
+async def classify_intent(
+    message: str, 
+    model_override: str | None = None,
+    has_docs: bool = False
+) -> Intent:
     """
     Główna funkcja klasyfikacji.
-    1. Najpierw sprawdza reguły (zero koszt)
-    2. Jeśli niejednoznaczne — pyta tani model LLM
+    1. Jeśli has_docs=True -> zawsze LEGAL_QUERY
+    2. Najpierw sprawdza reguły (zero koszt)
+    3. Jeśli niejednoznaczne — pyta tani model LLM
     """
+    if has_docs:
+        print(f"   [INTENT] Force LEGAL (wykryto załączniki)")
+        return Intent.LEGAL_QUERY
     # Krok 1: Reguły
     rule_result = classify_by_rules(message)
     if rule_result is not None:
@@ -149,6 +168,6 @@ async def classify_intent(message: str) -> Intent:
 
     # Krok 2: LLM (tylko jeśli reguły nie dały odpowiedzi)
     print(f"   [INTENT] LLM klasyfikacja dla: '{message[:50]}...'")
-    llm_result = await classify_by_llm(message)
+    llm_result = await classify_by_llm(message, model_override=model_override)
     print(f"   [INTENT] LLM: {llm_result.value}")
     return llm_result

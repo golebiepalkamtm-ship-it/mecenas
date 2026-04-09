@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
@@ -9,14 +9,20 @@ import {
   Clock,
   ChevronRight,
   Loader2,
-  FileSearch
+  FileSearch,
+  Eye,
+  SortAsc,
+  SortDesc,
+  Filter,
+  Clock as ClockIcon
 } from 'lucide-react';
-import { supabase } from '../../utils/supabaseClient';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { useKnowledgeBase, useUserDocuments, useAIDrafts } from '../../hooks';
 import { downloadAsMarkdown } from '../../utils/exportUtils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import type { Session } from '../Chat/types';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -107,14 +113,22 @@ function DocumentListItem({
                )}>
                  <FileText size={20} />
                </div>
-               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onDelete(doc.id); }}
-                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-               </div>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                   <button 
+                     onClick={(e) => { e.stopPropagation(); onSelect(doc); }}
+                     className="p-2 text-slate-500 hover:text-gold-primary hover:bg-gold-primary/10 rounded-xl transition-all"
+                     title="Podgląd"
+                   >
+                     <Eye size={14} />
+                   </button>
+                   <button 
+                     onClick={(e) => { e.stopPropagation(); onDelete(doc.id); }}
+                     className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
+                     title="Usuń"
+                   >
+                     <Trash2 size={14} />
+                   </button>
+                </div>
             </div>
 
             <div>
@@ -142,7 +156,7 @@ function DocumentListItem({
       </div>
 
       {/* Background Pattern Glow */}
-      <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-gold-primary/5 rounded-full blur-[40px] pointer-events-none group-hover:bg-gold-primary/10 transition-colors" />
+      <div className="absolute -bottom-10 -right-10 w-32 h-32 bg-gold-primary/5 rounded-full blur-2xl pointer-events-none group-hover:bg-gold-primary/10 transition-colors" />
 
       {/* Hover Preview Panel */}
       <AnimatePresence>
@@ -173,46 +187,82 @@ function DocumentListItem({
   );
 }
 
+function CompactDocumentListItem({ 
+  doc, 
+  isSelected, 
+  onSelect 
+}: { 
+  doc: Document; 
+  isSelected: boolean; 
+  onSelect: (doc: Document) => void;
+}) {
+  return (
+    <motion.div
+      layout
+      onClick={() => onSelect(doc)}
+      className={cn(
+        "cursor-pointer p-3 rounded-2xl mb-2 transition-all flex items-center gap-3 border",
+        isSelected
+          ? "glass-prestige-gold border-gold-primary/40 shadow-lg"
+          : "glass-prestige border-white/5 hover:border-gold-primary/20"
+      )}
+    >
+      <div className={cn(
+        "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
+        isSelected ? "bg-gold-primary text-black" : "bg-white/5 text-slate-500"
+      )}>
+        <FileText size={14} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h4 className="text-[10px] font-black uppercase tracking-tight truncate">{doc.title}</h4>
+        <p className="text-[7px] font-bold text-white/30 truncate">{doc.type}</p>
+      </div>
+    </motion.div>
+  );
+}
+
 export function DocumentsView() {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const rag = useKnowledgeBase();
+  const user = useUserDocuments();
+  const aidrafts = useAIDrafts();
+  const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
+  const [sortBy, setSortBy] = useState<'date-desc' | 'date-asc' | 'title-asc' | 'title-desc' | 'type-asc'>('date-desc');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const [selectedDoc, setSelectedDoc] = useState<any | null>(null);
 
-  const fetchDocuments = useCallback(async () => {
-    setIsLoading(true);
+  // TYLKO Twoje dokumenty i wersje robocze (bez Kodeksów)
+  const allDocuments = useMemo(() => {
+    const combined = [
+      ...user.documents.map(d => ({ 
+        id: d.id, 
+        title: d.name, 
+        content: d.content || '', 
+        type: d.type || 'Dokument', 
+        created_at: d.created_at,
+        isDraft: false 
+      })),
+      ...aidrafts.drafts.map(d => ({ 
+        id: d.id, 
+        title: d.title, 
+        content: d.content || '', 
+        type: 'Wersja Robocza', 
+        created_at: d.created_at,
+        isDraft: true
+      }))
+    ];
+    return combined;
+  }, [user.documents, aidrafts.drafts]);
+
+  const handleDelete = async (title: string, id: string, isDraft: boolean) => {
+    if (!confirm('Czy na pewno chcesz usunąć to pismo?')) return;
     try {
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setDocuments(data || []);
-    } catch (err: unknown) {
-      console.error('Error fetching documents:', err);
-      // setError('Nie udało się pobrać dokumentów.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Czy na pewno chcesz usunąć ten dokument?')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('documents')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      setDocuments(prev => prev.filter(d => d.id !== id));
-      if (selectedDoc?.id === id) setSelectedDoc(null);
+      if (isDraft) {
+         // Tutaj logika usuwania draftu jeśli hook to wspiera
+      } else {
+         await user.removeDocument(id);
+      }
+      if (selectedDoc?.title === title) setSelectedDoc(null);
     } catch {
       alert('Błąd podczas usuwania dokumentu.');
     }
@@ -244,26 +294,36 @@ export function DocumentsView() {
     window.print();
   };
 
-  const filteredDocs = documents.filter(doc => 
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDocs = allDocuments
+    .filter(doc => 
+      doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.type.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      if (sortBy === 'date-desc') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (sortBy === 'date-asc') return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === 'title-asc') return a.title.localeCompare(b.title);
+      if (sortBy === 'title-desc') return b.title.localeCompare(a.title);
+      if (sortBy === 'type-asc') return a.type.localeCompare(b.type);
+      return 0;
+    });
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-transparent">
+    <div className="h-full flex flex-col overflow-hidden bg-transparent bg-prestige-view">
       {/* Header Area */}
       <div className="p-6 lg:p-10 pb-4 shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black uppercase tracking-tight italic text-gold-primary mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">
-              Biblioteka Pism
+            <h2 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+              Dokumenty
             </h2>
-            <p className="text-[9px] font-black text-gold-primary/40 uppercase tracking-[0.3em]">
-              Archiwum Dokumentów Procesowych
+            <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1">
+              Archiwum Pism i Dokumentów Procesowych
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
+            {/* Search */}
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
               <input 
@@ -271,8 +331,60 @@ export function DocumentsView() {
                 placeholder="Szukaj dokumentów..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="glass-prestige rounded-xl py-2 pl-9 pr-4 text-[11px] text-white focus:outline-none focus:border-gold-primary/40 w-[200px] lg:w-[300px] transition-all"
+                className="glass-prestige rounded-xl py-2 pl-9 pr-4 text-[11px] text-white focus:outline-none focus:border-gold-primary/40 w-[180px] lg:w-[250px] transition-all"
               />
+            </div>
+
+            {/* Sort Menu */}
+            <div className="relative">
+               <button 
+                 onClick={() => setShowSortMenu(!showSortMenu)}
+                 className={cn(
+                   "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border",
+                   showSortMenu 
+                     ? "glass-prestige-gold border-gold-primary/40 text-gold-primary" 
+                     : "glass-prestige border-white/10 text-white/60 hover:text-white"
+                 )}
+               >
+                 <SortAsc size={14} />
+                 Sortuj
+               </button>
+
+               <AnimatePresence>
+                 {showSortMenu && (
+                   <motion.div
+                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                     animate={{ opacity: 1, y: 0, scale: 1 }}
+                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                     className="absolute right-0 mt-2 w-48 glass-prestige-gold border border-gold-primary/20 rounded-2xl p-2 z-[100] shadow-2xl backdrop-blur-xl"
+                   >
+                     {[
+                       { id: 'date-desc', label: 'Najnowsze', icon: <Clock size={12} /> },
+                       { id: 'date-asc', label: 'Najstarsze', icon: <Clock size={12} /> },
+                       { id: 'title-asc', label: 'Nazwa (A-Z)', icon: <SortAsc size={12} /> },
+                       { id: 'title-desc', label: 'Nazwa (Z-A)', icon: <SortAsc size={12} /> },
+                       { id: 'type-asc', label: 'Według Typu', icon: <Filter size={12} /> },
+                     ].map((option) => (
+                       <button
+                         key={option.id}
+                         onClick={() => {
+                           setSortBy(option.id as any);
+                           setShowSortMenu(false);
+                         }}
+                         className={cn(
+                           "w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest transition-all",
+                           sortBy === option.id 
+                             ? "bg-gold-primary text-black shadow-lg shadow-gold-500/20" 
+                             : "text-white/60 hover:bg-white/5 hover:text-white"
+                         )}
+                       >
+                         {option.icon}
+                         {option.label}
+                       </button>
+                     ))}
+                   </motion.div>
+                 )}
+               </AnimatePresence>
             </div>
           </div>
         </div>
@@ -288,9 +400,12 @@ export function DocumentsView() {
             : "w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 content-start"
         )}>
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 opacity-40">
-              <Loader2 size={32} className="animate-spin text-gold-primary mb-4" />
-              <p className="text-[10px] font-black uppercase tracking-widest">Wczytywanie dokumentów...</p>
+            <div className="flex flex-col items-center justify-center py-20 space-y-4">
+              <div className="w-12 h-12 rounded-2xl glass-prestige flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 neural-orb opacity-40" />
+                <Loader2 size={24} className="animate-spin text-gold-primary relative z-10" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-primary/60 animate-pulse">Wczytywanie archiwum...</p>
             </div>
           ) : filteredDocs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 opacity-40 text-center border-2 border-dashed border-gold-muted/10 rounded-4xl">
@@ -298,6 +413,15 @@ export function DocumentsView() {
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">Brak dokumentów</p>
               <p className="text-[8px] font-bold text-slate-600 mt-2 max-w-[200px]">Wygeneruj pismo w Kreatorze Pism, aby pojawiło się tutaj.</p>
             </div>
+          ) : selectedDoc ? (
+            filteredDocs.map((doc) => (
+              <CompactDocumentListItem 
+                key={doc.id}
+                doc={doc}
+                isSelected={selectedDoc?.id === doc.id}
+                onSelect={setSelectedDoc}
+              />
+            ))
           ) : (
             filteredDocs.map((doc) => (
               <DocumentListItem 
@@ -305,7 +429,7 @@ export function DocumentsView() {
                 doc={doc}
                 isSelected={selectedDoc?.id === doc.id}
                 onSelect={setSelectedDoc}
-                onDelete={handleDelete}
+                onDelete={() => handleDelete(doc.title, doc.id, doc.isDraft)}
               />
             ))
           )}
@@ -347,7 +471,7 @@ export function DocumentsView() {
                   </button>
                   <button 
                     onClick={() => downloadAsMarkdown(selectedDoc.title, selectedDoc.content)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl glass-prestige-teal text-blue-400 text-[9px] font-black uppercase tracking-wider hover:bg-blue-500/10 transition-all border border-blue-400/20"
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl glass-prestige text-white/60 text-[9px] font-black uppercase tracking-wider hover:text-gold-primary transition-all border border-white/10"
                   >
                     <Download size={12} />
                     Markdown

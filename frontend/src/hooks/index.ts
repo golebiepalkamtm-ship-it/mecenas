@@ -8,6 +8,8 @@ interface KnowledgeDocument {
   chunks: number;
   status: string;
   created_at: string;
+  type?: 'document' | 'image';
+  content?: string;
 }
 
 interface KnowledgeBaseRow {
@@ -60,57 +62,76 @@ export function useKnowledgeBase() {
     const step = 1000;
 
     while (true) {
-      const { data, error } = await supabase
-        .from("knowledge_base")
+      console.log(`[KB] Fetching range ${from}-${from + step - 1} from knowledge_base_legal...`);
+      const query = supabase
+        .from("knowledge_base_legal")
         .select("id, metadata, created_at")
-        .range(from, from + step - 1);
+        .range(from, from + step - 1)
+        .order('created_at', { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) {
-        console.error("Knowledge fetch error:", error);
+        console.error("[KB] Knowledge fetch error:", error);
         break;
       }
+      
+      console.log(`[KB] Received ${data?.length || 0} rows`);
       if (!data || data.length === 0) break;
 
       allData = allData.concat(data);
       if (data.length < step) break;
       from += step;
     }
+    
+    console.log(`[KB] Total rows collected: ${allData.length}`);
 
     if (allData.length > 0) {
-      // Group by filename — always accumulate chunk count
-      const docMap = new Map<
-        string,
-        { id: string; name: string; chunks: number; created_at: string }
-      >();
+        // Group by filename — always accumulate chunk count
+        const docMap = new Map<
+          string,
+          { id: string; name: string; chunks: number; created_at: string; type: 'document' | 'image' }
+        >();
 
-      for (const d of allData) {
-        const filename = d.metadata?.filename || "Dokument bez nazwy";
-        
-        // --- STRICT DOCUMENT FILTERING ---
-        const extension = filename.split('.').pop()?.toLowerCase() || '';
-        const isLegalDoc = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(extension);
-        
-        if (!isLegalDoc) continue; // EXCLUDE images, photos, and other non-legal files
+        for (const d of allData) {
+          let metadata = d.metadata;
+          if (typeof metadata === 'string') {
+            try { metadata = JSON.parse(metadata); } catch(e) { metadata = {}; }
+          }
+          
+          const filename = metadata?.filename || "Dokument bez nazwy";
+          const extension = filename.split('.').pop()?.toLowerCase() || '';
+          
+          const isDoc = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(extension);
+          const isImg = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'tiff'].includes(extension);
+          
+          if (!isDoc && !isImg) {
+            console.log(`[KB] Skipping file: ${filename} (Ext: ${extension})`);
+            continue; 
+          }
 
-        const existing = docMap.get(filename);
-        if (!existing) {
-          docMap.set(filename, {
-            id: d.id,
-            name: filename,
-            chunks: 1,
-            created_at: d.created_at,
-          });
-        } else {
-          docMap.set(filename, {
-            ...existing,
-            chunks: existing.chunks + 1,
-            created_at:
-              d.created_at < existing.created_at
-                ? d.created_at
-                : existing.created_at,
-          });
+          const fileType = isImg ? 'image' : 'document';
+          const existing = docMap.get(filename);
+          
+          if (!existing) {
+            docMap.set(filename, {
+              id: d.id,
+              name: filename,
+              chunks: 1,
+              created_at: d.created_at,
+              type: fileType
+            });
+          } else {
+            docMap.set(filename, {
+              ...existing,
+              chunks: existing.chunks + 1,
+              created_at:
+                d.created_at < existing.created_at
+                  ? d.created_at
+                  : existing.created_at,
+            });
+          }
         }
-      }
 
       const docs = Array.from(docMap.values()).sort((a, b) =>
         a.name.localeCompare(b.name, "pl"),
@@ -123,6 +144,7 @@ export function useKnowledgeBase() {
           chunks: d.chunks,
           status: "ready",
           created_at: d.created_at,
+          type: d.type
         })),
       );
     }
@@ -138,9 +160,10 @@ export function useKnowledgeBase() {
       try {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("category", "rag_legal");
 
-        // Use local API for PDF processing (it handles background embeddings)
-        const res = await fetch(`${API_BASE}/upload`, {
+        // Use unified upload endpoint
+        const res = await fetch(`${API_BASE}/documents/upload`, {
           method: "POST",
           body: formData,
         });
@@ -183,6 +206,113 @@ export function useKnowledgeBase() {
     isUploading,
     refresh: fetchDocuments,
   };
+}
+
+/**
+ * Hook do zarządzania dokumentami wygenerowanymi przez użytkownika (Dokumenty / Pisma).
+ * Oddzielone od centralnej bazy wiedzy RAG.
+ */
+export function useUserDocuments() {
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchDocuments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("knowledge_base_user")
+        .select("id, metadata, created_at");
+
+      if (error) throw error;
+
+      const docMap = new Map();
+      (data || []).forEach(d => {
+          const filename = d.metadata?.filename || "Dokument";
+          if(!docMap.has(filename)) {
+              docMap.set(filename, {
+                  id: d.id,
+                  name: filename,
+                  chunks: 1,
+                  status: "ready",
+                  created_at: d.created_at,
+                  type: 'document'
+              });
+          } else {
+              const existing = docMap.get(filename);
+              existing.chunks += 1;
+          }
+      });
+
+      setDocuments(Array.from(docMap.values()));
+    } catch (err) {
+      console.error("Error fetching user documents:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  const uploadUserDocument = useCallback(async (file: File) => {
+    setIsLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("category", "user_docs");
+
+      const res = await fetch(`${API_BASE}/upload-document`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error("Upload failed");
+      setTimeout(fetchDocuments, 1500);
+    } catch (err) {
+      console.error("Upload error:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchDocuments]);
+
+  const removeDocument = useCallback(async (id: string) => {
+      console.log("Remove document requested for id:", id);
+  }, []);
+
+  return {
+    documents,
+    isLoading,
+    refresh: fetchDocuments,
+    removeDocument,
+    uploadUserDocument,
+  };
+}export function useAIDrafts() {
+  const [drafts, setDrafts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchDrafts = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("documents")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setDrafts(data || []);
+    } catch (err) {
+      console.error("Error fetching AI drafts:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDrafts();
+  }, [fetchDrafts]);
+
+  return { drafts, isLoading, refresh: fetchDrafts };
 }
 
 /**
@@ -274,6 +404,8 @@ export function useSystemPrompt() {
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Sessions & Models
@@ -359,9 +491,11 @@ export function useChat() {
           console.log("🎯 Selected model:", selected);
           return selected;
         });
+        setModelsLoaded(true);
       }
     } catch (error) {
       console.error("Failed to fetch models, using defaults.", error);
+      setModelsLoaded(true); // Still consider loaded even if failed
     }
   }, []);
 
@@ -381,8 +515,10 @@ export function useChat() {
       if (!res.ok) throw new Error("Failed to fetch sessions");
       const data: ChatSession[] = await res.json();
       setSessions(data || []);
+      setSessionsLoaded(true);
     } catch (err) {
       console.error("fetchSessions error:", err);
+      setSessionsLoaded(true); // Don't block app even if history fails
     }
   }, []);
 
@@ -492,5 +628,6 @@ export function useChat() {
     switchSession,
     removeSession,
     fetchSessions,
+    isInitialLoadComplete: modelsLoaded && sessionsLoaded,
   };
 }

@@ -78,14 +78,14 @@ const DEFAULTS = {
   favoriteModels: [
     "anthropic/claude-3.5-sonnet",
     "openai/gpt-4o",
-    "google/gemini-2.0-flash-exp",
+    "google/gemini-2.0-flash-001",
     "deepseek/deepseek-r1"
   ],
   activeModels: ["anthropic/claude-3.5-sonnet"],
   expertRoleByModel: {
     "anthropic/claude-3.5-sonnet": "defender",
     "openai/gpt-4o": "proceduralist",
-    "google/gemini-2.0-flash-exp": "negotiator",
+    "google/gemini-2.0-flash-001": "negotiator",
     "deepseek/deepseek-r1": "evidencecracker"
   },
   selectedJudge: "anthropic/claude-3.5-sonnet",
@@ -198,7 +198,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       showHistory: true, 
       setShowHistory: (showHistory) => set({ showHistory }),
 
-      drafterModel: "google/gemini-2.0-flash-exp",
+      drafterModel: "google/gemini-2.0-flash-001",
       setDrafterModel: (drafterModel) => set({ drafterModel }),
 
       resetToDefaults: () => set({

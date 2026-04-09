@@ -10,7 +10,7 @@ load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = "openai/text-embedding-3-small"
-EMBEDDING_DIMENSIONS = 1536
+EMBEDDING_DIMENSIONS = 1024
 PDF_DIR = Path("pdfs")
 EDGE_FUNC_URL = "https://dhyvxspgsktpbjonejek.supabase.co/functions/v1/import-knowledge"
 
