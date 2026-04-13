@@ -25,13 +25,13 @@ SUPABASE_URL: str = os.getenv(
     "SUPABASE_URL", "https://dhyvxspgsktpbjonejek.supabase.co"
 )
 SUPABASE_ANON_KEY: str = os.getenv(
-    "SUPABASE_ANON_KEY", "sb_publishable_8HlO3_J1CxhWN27Vmoq2FA_HzZE0Jac"
+    "SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoeXZ4c3Bnc2t0cGJqb25lamVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwODA3MzYsImV4cCI6MjA4OTY1NjczNn0.jQOwDd9T1b7xBj88EyKuokme2sEHLKm1A_96ed_BCKA"
 )
 SUPABASE_IMPORT_URL: str = f"{SUPABASE_URL}/functions/v1/import-knowledge"
 
 # Kategorie dokumentów
 CAT_RAG_LEGAL = "rag_legal"      # Centralna baza wiedzy (kodeksy, prawo) - tabela knowledge_base_legal
-CAT_USER_DOCS = "user_docs"      # Zwykłe dokumenty użytkownika (pisma, skany) - tabela knowledge_base_user
+CAT_USER_DOCS = "rag_user"       # Zwykłe dokumenty użytkownika (pisma, skany) - tabela knowledge_base_user
 
 # Ścieżki lokalnego zapisu
 STORAGE_ROOT = "local_storage"
@@ -173,9 +173,9 @@ DEFAULT_ANALYST_MODELS = [
 # Retrieval defaults
 # ---------------------------------------------------------------------------
 DEFAULT_MATCH_THRESHOLD = 0.05
-DEFAULT_MATCH_COUNT = 25  # ZWIĘKSZONO: Więcej fragmentów → głębsza analiza prawna
-MAX_CONTEXT_CHARS = 80_000  # ZWIĘKSZONO: ~20k tokenów — szerszy kontekst prawny
-MAX_CONTEXT_TOKENS_ESTIMATE = 12_000
+DEFAULT_MATCH_COUNT = 30  # ZWIĘKSZONO: Bardziej agresywny retrieval
+MAX_CONTEXT_CHARS = 100_000 # ZWIĘKSZONO: Optymalny balans między precyzją, a szybkością
+MAX_CONTEXT_TOKENS_ESTIMATE = 18_000
 
 # ---------------------------------------------------------------------------
 # Retry / Resilience
@@ -188,9 +188,9 @@ RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 # ---------------------------------------------------------------------------
 # LLM defaults
 # ---------------------------------------------------------------------------
-LLM_TEMPERATURE = 0.1  # Niska temperatura → mniej halucynacji
-LLM_TIMEOUT = 45  # sekundy na odpowiedź modelu (obniżone dla przyspieszenia)
-GLOBAL_MOA_TIMEOUT = 60.0  # Twardy limit na CAŁY proces MOA (obniżony)
+LLM_TEMPERATURE = 0.1
+LLM_TIMEOUT = 30.0  # OBNIŻONO: Przyspieszenie pracy ekspertów
+GLOBAL_MOA_TIMEOUT = 50.0 # Twardy limit na CAŁY proces MOA
 
 # ---------------------------------------------------------------------------
 # Sanity Checks (Bug 22)

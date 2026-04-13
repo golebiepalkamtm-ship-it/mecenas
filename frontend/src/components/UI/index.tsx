@@ -150,3 +150,4 @@ export function Divider({ label }: { label?: string }) {
         </div>
     );
 }
+export { LiquidMetalIcon } from './LiquidMetalIcon';

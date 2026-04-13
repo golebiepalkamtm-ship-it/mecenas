@@ -1,0 +1,178 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap');
+
+:root {
+    --accent: #ffffff;
+    --bg: #000000;
+    --text: #ffffff;
+    --glass: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #000000;
+    font-family: 'Outfit', sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+#app {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+header {
+    position: absolute;
+    top: 40px;
+    left: 40px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.logo {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+.logo span {
+    font-weight: 300;
+    opacity: 0.5;
+}
+
+.ui-overlay {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+.upload-section {
+    position: relative;
+}
+
+.custom-file-upload {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px 24px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: 100px;
+    cursor: pointer;
+    backdrop-filter: blur(20px);
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.custom-file-upload:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.upload-icon {
+    width: 20px;
+    height: 20px;
+    opacity: 0.7;
+}
+
+.upload-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.upload-text .primary {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+}
+
+.upload-text .secondary {
+    font-size: 9px;
+    opacity: 0.4;
+    font-weight: 400;
+}
+
+#fileInput {
+    display: none;
+}
+
+.status-indicator {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    opacity: 0.5;
+    z-index: 10;
+}
+
+.pulse {
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.5); opacity: 0.3; }
+    100% { transform: scale(1); opacity: 0.8; }
+}
+
+footer {
+    position: absolute;
+    bottom: 40px;
+    left: 40px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    pointer-events: none;
+}
+
+.copyright, .tech-stack {
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    opacity: 0.3;
+}
+
+/* GUI Styling to match LexMind */
+.lil-gui {
+    --background-color: rgba(10, 10, 10, 0.8);
+    --text-color: #eee;
+    --title-background-color: rgba(20, 20, 20, 0.9);
+    --widget-color: rgba(255, 255, 255, 0.1);
+    --hover-color: rgba(255, 255, 255, 0.2);
+    --focus-color: rgba(255, 255, 255, 0.3);
+    --number-color: #00fedc;
+    --string-color: #00fedc;
+    font-family: 'Outfit', sans-serif !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin: 10px;
+}

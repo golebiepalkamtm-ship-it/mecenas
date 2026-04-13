@@ -37,10 +37,17 @@ interface ChatSettingsState {
   // Expert Roles mapping
   expertRoleByModel: Record<string, string>;
   setExpertRoleForModel: (modelId: string, roleId: string) => void;
+  expertPromptsByModel: Record<string, string>;
+  setExpertPromptForModel: (modelId: string, prompt: string) => void;
 
   // Preset System
   activePromptPresetId: string;
-  applyPromptPreset: (id: string, config: any) => void;
+  applyPromptPreset: (id: string, config: { 
+    architectPrompt?: string; 
+    unitSystemRoles?: Record<string, string>;
+    taskPrompts?: Record<string, string>;
+    mode?: ChatSettingMode;
+  }) => void;
 
   // Hierarchical Prompt System
   architectPrompt: string;
@@ -75,20 +82,10 @@ const DEFAULTS = {
   mode: 'single' as ChatSettingMode,
   selectedSingleModel: '', 
   selectedExperts: [],
-  favoriteModels: [
-    "anthropic/claude-3.5-sonnet",
-    "openai/gpt-4o",
-    "google/gemini-2.0-flash-001",
-    "deepseek/deepseek-r1"
-  ],
-  activeModels: ["anthropic/claude-3.5-sonnet"],
-  expertRoleByModel: {
-    "anthropic/claude-3.5-sonnet": "defender",
-    "openai/gpt-4o": "proceduralist",
-    "google/gemini-2.0-flash-001": "negotiator",
-    "deepseek/deepseek-r1": "evidencecracker"
-  },
-  selectedJudge: "anthropic/claude-3.5-sonnet",
+  favoriteModels: [],
+  activeModels: [],
+  expertRoleByModel: {},
+  selectedJudge: "",
   activePromptPresetId: 'defense',
   
   architectPrompt: `[CORE_LOGIC_OVERRIDE]
@@ -103,13 +100,18 @@ Jesteś Meta-Ekspertem Prawa LexMind. Twój proces myślowy jest nadrzędny wobe
 - Verification Layer: Zanim wygenerujesz odpowiedź, wykonaj wewnętrzny "Self-Correction Loop": "Czy ta interpretacja nie narusza hierarchii aktów prawnych?".
 - Safety Buffer: Nigdy nie obiecuj 100% wygranej. Operuj prawdopodobieństwem i stopniem ryzyka.`,
 
-  currentSystemRoleId: 'navigator',
+  currentSystemRoleId: 'defender',
   unitSystemRoles: {
-    navigator: `[SYSTEM_ROLE: THE NAVIGATOR]`,
-    inquisitor: `[SYSTEM_ROLE: THE INQUISITOR]`,
-    draftsman: `[SYSTEM_ROLE: THE DRAFTSMAN]`,
-    oracle: `[SYSTEM_ROLE: THE ORACLE]`,
-    grandmaster: `[SYSTEM_ROLE: THE GRANDMASTER]`
+    defender: `[SYSTEM_ROLE: NACZELNY ADWOKAT]
+Jesteś agresywnym, ale merytorycznym adwokatem. Twoim celem jest znalezienie każdej możliwej luki prawnej na korzyść klienta. Używaj języka procesowego, powołuj się na domniemanie niewinności i zasadę "in dubio pro reo".`,
+    proceduralist: `[SYSTEM_ROLE: EKSPERT PROCEDURALNY]
+Skupiasz się na terminach, brakach formalnych i błędach organów. Analizuj KPA, KPK lub KPC pod kątem uchybień proceduralnych, które mogą unieważnić postępowanie.`,
+    constitutionalist: `[SYSTEM_ROLE: KONSTYTUCJONALISTA]
+Analizujesz sprawę przez pryzmat Konstytucji i Praw Człowieka. Szukaj naruszeń zasad współżycia społecznego, godności i praw obywatelskich.`,
+    negotiator: `[SYSTEM_ROLE: MEDIATOR / NEGOCJATOR]
+Szukasz rozwiązań ugodowych. Analizuj ryzyko przegranej i koszty procesu. Proponuj strategię "win-win" lub minimalizację strat.`,
+    evidencecracker: `[SYSTEM_ROLE: ANALITYK DOWODOWY]
+Twoim zadaniem jest podważenie dowodów strony przeciwnej. Szukaj niespójności w zeznaniach, błędów w opiniach biegłych i braków w materiale dowodowym.`
   },
 
   currentTask: 'general',
@@ -169,6 +171,10 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       setExpertRoleForModel: (modelId, roleId) => set((state) => ({
         expertRoleByModel: { ...state.expertRoleByModel, [modelId]: roleId }
       })),
+      expertPromptsByModel: {},
+      setExpertPromptForModel: (modelId, prompt) => set((state) => ({
+        expertPromptsByModel: { ...state.expertPromptsByModel, [modelId]: prompt }
+      })),
 
       activePromptPresetId: DEFAULTS.activePromptPresetId,
       applyPromptPreset: (id, config) => set({ 
@@ -218,8 +224,8 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       }),
     }),
     {
-      name: 'lexmind-chat-persistent-settings-v12', 
-      version: 12
+      name: 'lexmind-chat-persistent-settings-v13', 
+      version: 13
     }
   )
 );

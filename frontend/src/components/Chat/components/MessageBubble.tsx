@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  User, Scale, Sparkles, FileText, Search, ExternalLink, 
+  User, Scale, Sparkles, FileText, Search, 
   ChevronDown, Check, X, Clock, Network, Gavel, 
-  BarChart3 
+  BarChart3, Shield 
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -33,8 +33,8 @@ function ExpertCard({ expert, index }: { expert: ExpertAnalysis; index: number }
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.08 }}
-      className="rounded-xl border border-white/6 overflow-hidden transition-all"
-      style={{ background: "rgba(255,255,255,0.02)" }}
+      className="rounded-xl border border-white/5 overflow-hidden transition-all"
+      style={{ background: "rgba(255,255,255,0.03)" }}
     >
       <button
         onClick={() => setExpanded(!expanded)}
@@ -44,8 +44,8 @@ function ExpertCard({ expert, index }: { expert: ExpertAnalysis; index: number }
         <div className={cn(
           "w-2 h-2 rounded-full shrink-0",
           expert.success !== false 
-            ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" 
-            : "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.5)]"
+            ? "bg-gold shadow-[0_0_12px_rgba(197,163,88,0.5)]" 
+            : "bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)]"
         )} />
 
         {/* Model info */}
@@ -70,13 +70,13 @@ function ExpertCard({ expert, index }: { expert: ExpertAnalysis; index: number }
 
         {/* Status badge */}
         <div className={cn(
-          "flex items-center gap-1 px-2 py-0.5 rounded-md text-[7px] font-bold uppercase tracking-wider",
+          "flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest",
           expert.success !== false
-            ? "bg-emerald-500/10 text-emerald-400/70 border border-emerald-500/20"
-            : "bg-red-500/10 text-red-400/70 border border-red-500/20"
+            ? "bg-gold/10 text-gold border border-gold/20"
+            : "bg-red-500/10 text-red-500 border border-red-500/20"
         )}>
           {expert.success !== false ? <Check size={8} /> : <X size={8} />}
-          {expert.success !== false ? "OK" : "Błąd"}
+          {expert.success !== false ? "SUCCESS" : "ERROR"}
         </div>
 
         {/* Expand chevron */}
@@ -145,9 +145,9 @@ function PipelineStats({ msg }: { msg: Message }) {
   return (
     <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-white/6">
       {/* MOA badge */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gold-primary/8 border border-gold-primary/20">
-        <Network size={10} className="text-gold-primary" />
-        <span className="text-[8px] font-bold text-gold-primary uppercase tracking-wider">MOA</span>
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gold/10 border border-gold/20 shadow-[0_0_15px_rgba(197,163,88,0.05)]">
+        <Network size={10} className="text-gold" />
+        <span className="text-[8px] font-black text-gold uppercase tracking-wider">MOA ARCHITECTURE</span>
       </div>
 
       {/* Experts */}
@@ -185,6 +185,52 @@ interface MessageBubbleProps {
   onPreviewDoc?: (name: string, content?: string) => void;
 }
 
+// ---------------------------------------------------------------------------
+// ELI Explanation — Highlighted verification section
+// ---------------------------------------------------------------------------
+function ELIExplanation({ content }: { content: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="mt-6 mb-2 rounded-2xl border border-gold/20 bg-gold/5 overflow-hidden shadow-2xl group/eli"
+    >
+      <button 
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-gold/10 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <Shield size={16} className="text-gold animate-pulse" />
+          <span className="text-[11px] font-black uppercase tracking-[0.25em] text-gold font-outfit">
+            ELI VERIFICATION LAYER
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[8px] font-bold text-gold/30 uppercase tracking-[0.4em] hidden sm:block">Explainable Legal Intelligence</span>
+          <ChevronDown size={14} className={cn("text-gold/50 transition-transform", expanded && "rotate-180")} />
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-gold-primary/20"
+          >
+            <div className="p-4 text-[11px] leading-[1.65] text-white/70 font-outfit bg-white/5">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
 export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
   const isUser = msg.role === "user";
   const [showExperts, setShowExperts] = useState(false);
@@ -213,8 +259,8 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
         {isUser ? <User size={15} /> : msg.consensus_used ? <Gavel size={15} /> : <Scale size={15} />}
         <div
           className={cn(
-            "absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity",
-            "bg-gold-primary",
+            "absolute inset-0 opacity-10 group-hover:opacity-30 transition-opacity",
+            "bg-gold",
           )}
         />
       </div>
@@ -227,15 +273,14 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
       >
         <div
           className={cn(
-            "relative px-4 py-3 rounded-3xl overflow-hidden glass-prestige transition-all hover:shadow-xl",
-            isUser ? "rounded-tr-none" : "rounded-tl-none",
+            "relative px-5 py-4 rounded-3xl overflow-hidden glass-lux transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)]",
+            isUser ? "rounded-tr-none border-gold/10 bg-gold/5" : "rounded-tl-none",
           )}
         >
           <div
             className={cn(
-              "absolute top-0 w-32 h-1",
-              isUser ? "right-0 liquid-glass" : "left-0",
-              msg.consensus_used ? "bg-linear-to-r from-teal-500/60 to-transparent" : "liquid-glass-gold",
+              "absolute top-0 w-48 h-[1px]",
+              isUser ? "right-0 bg-gradient-to-l from-gold to-transparent" : "left-0 bg-gradient-to-r from-gold/50 to-transparent",
             )}
           />
 
@@ -243,23 +288,23 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
             <div className="flex items-center gap-2 mb-3">
               {msg.consensus_used ? (
                 <>
-                  <Network size={10} className="text-gold-primary" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gold-primary/80">
-                    Konsylium MOA
+                  <Network size={12} className="text-gold" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold/80 font-outfit">
+                    CONSENSUS MOA
                   </span>
                 </>
               ) : (
                 <>
-                  <Sparkles size={10} className="text-gold-primary" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-gold-primary/80">
-                    Kancelaria AI Core
+                  <Sparkles size={12} className="text-gold" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold/80 font-outfit">
+                    AI LEGAL CORE
                   </span>
                 </>
               )}
             </div>
           )}
 
-          <div className="text-[13px] leading-[1.65] font-medium text-text-primary prose dark:prose-invert max-w-none prose-p:mb-3 prose-strong:text-accent prose-strong:font-black prose-headings:text-text-primary prose-headings:font-black prose-headings:tracking-tighter prose-ul:list-disc prose-li:marker:text-accent">
+          <div className="text-[14px] leading-[1.75] font-medium text-white/90 prose dark:prose-invert max-w-none prose-p:mb-4 prose-strong:text-gold prose-strong:font-black prose-headings:text-white prose-headings:font-black prose-headings:tracking-tighter prose-headings:uppercase prose-headings:font-outfit prose-ul:list-disc prose-li:marker:text-gold">
             <ReactMarkdown 
               remarkPlugins={[remarkGfm]}
               components={{
@@ -284,6 +329,9 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
                 : JSON.stringify(msg.content)}
             </ReactMarkdown>
           </div>
+
+          {/* ELI Explanation (Verification Layer) */}
+          {msg.eli_explanation && <ELIExplanation content={msg.eli_explanation} />}
 
           {/* Attachments */}
           {msg.attachments && msg.attachments.length > 0 && (
@@ -330,14 +378,14 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {msg.sources.map((src, i) => {
-                  const srcStr = typeof src === 'string' ? src : (src as any)?.name || String(src);
+                  const srcStr = typeof src === 'string' ? src : (src as unknown as { name?: string })?.name || String(src);
                   const isSaos = srcStr.toUpperCase().includes('SAOS') || srcStr.toUpperCase().includes('ORZECZENIE');
                   const isEli = srcStr.toUpperCase().includes('SEJM') || srcStr.toUpperCase().includes('ISAP') || srcStr.toUpperCase().includes('ELI');
                   
-                  const iconColor = isSaos ? 'text-red-400' : isEli ? 'text-blue-400' : 'text-emerald-400';
-                  const hoverBg = isSaos ? 'hover:bg-red-500/20 hover:text-red-400' : isEli ? 'hover:bg-blue-500/20 hover:text-blue-400' : 'hover:bg-emerald-500/20 hover:text-emerald-400';
+                  const iconColor = isSaos ? 'text-red-400' : isEli ? 'text-gold-primary' : 'text-gold-primary';
+                  const hoverBg = isSaos ? 'hover:bg-red-500/20 hover:text-red-400' : isEli ? 'hover:bg-gold-primary/20 hover:text-gold-primary' : 'hover:bg-gold-primary/20 hover:text-gold-primary';
                   const label = isSaos ? 'SAOS' : isEli ? 'ELI' : 'RAG';
-                  const borderColor = isSaos ? 'border-red-500/20' : isEli ? 'border-blue-500/20' : 'border-emerald-500/20';
+                  const borderColor = isSaos ? 'border-red-500/20' : isEli ? 'border-gold-primary/20' : 'border-gold-primary/20';
                   
                   return (
                     <button
@@ -345,7 +393,7 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
                       onClick={() => onPreviewDoc?.(srcStr)}
                       className={`flex items-center gap-1.5 glass-prestige px-2.5 py-1.5 rounded-lg text-[9px] font-bold text-white ${hoverBg} transition-all active:scale-95 border ${borderColor}`}
                     >
-                      <span className={`text-[7px] font-black px-1 py-0.5 rounded ${isSaos ? 'bg-red-500/20 text-red-400' : isEli ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                      <span className={`text-[7px] font-black px-1 py-0.5 rounded ${isSaos ? 'bg-red-500/20 text-red-400' : isEli ? 'bg-gold-primary/20 text-gold-primary' : 'bg-gold-primary/20 text-gold-primary'}`}>
                         {label}
                       </span>
                       <FileText size={10} className={iconColor} />
@@ -367,13 +415,15 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
             <div className="mt-3">
               <button
                 onClick={() => setShowExperts(!showExperts)}
-                className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-white/20 hover:text-teal-400/60 transition-colors group/exp"
+                className="flex items-center gap-3 mt-4 text-[10px] font-bold uppercase tracking-[0.25em] text-white/20 hover:text-gold transition-all group/exp"
               >
-                <ChevronDown 
-                  size={12} 
-                  className={cn("transition-transform", showExperts && "rotate-180")} 
-                />
-                {showExperts ? "Ukryj analizy ekspertów" : `Pokaż analizy ekspertów (${msg.expert_analyses!.length})`}
+                <div className="w-5 h-5 rounded flex items-center justify-center bg-white/5 group-hover/exp:bg-gold/10 transition-colors">
+                  <ChevronDown 
+                    size={14} 
+                    className={cn("transition-transform duration-500", showExperts && "rotate-180")} 
+                  />
+                </div>
+                {showExperts ? "HIDE INDEPENDENT ANALYSES" : `VIEW AGENT LOGS (${msg.expert_analyses!.length})`}
               </button>
 
               <AnimatePresence>
@@ -398,8 +448,8 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
         </div>
 
         <div className="flex items-center gap-2 px-2 opacity-30 group-hover:opacity-60 transition-opacity">
-          <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">
-            {isUser ? "Klient" : msg.consensus_used ? "Konsylium MOA" : "LexMind AI"}
+          <span className="text-[10px] text-white/20 font-black uppercase tracking-[0.3em]">
+            {isUser ? "Client Identity" : msg.consensus_used ? "MOA Network" : "LexMind Core"}
           </span>
           <div className="h-1 w-1 rounded-full bg-slate-800" />
           <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest">

@@ -325,10 +325,11 @@ def build_system_prompt(config: PromptConfig) -> str:
 
     # Warstwa Wspólna Epistemiczna
     epistemic = """## WARUNKI BRZEGOWE (EPISTEMIC LAYER):
-1. Każdy fakt MUSI pochodzić z <user_document> lub bazy RAG. 
-2. Jeśli danej informacji brak → napisz to WPROST klientowi i zapytaj, czy może dostarczyć więcej danych.
-3. Zabrania się tworzenia nieistniejących artykułów i paragrafów.
-4. Niepewności komunikuj jako: "Na ten moment, na podstawie dostępnych informacji, wygląda na to, że..." """
+1. WIEDZA PRAWNA (Przepisy, wyroki): Czerp ją WYŁĄCZNIE z <legal_context>. Zakaz brania przepisów z <user_document>.
+2. STAN FAKTYCZNY (Fakty sprawy): Czerp go z <user_document>, wiadomości klienta i historii.
+3. Jeśli danej informacji (prawnej lub faktycznej) brak -> napisz to WPROST i dopytaj klienta.
+4. Zabrania się halucynowania artykułów. Niepewność komunikuj jako: "Z dostępnych materiałów prawnych wynika, że..."
+"""
 
     return f"{identity}\n\n{epistemic}\n\n{COMMUNICATION_LAYER}\n\n{role}\n\n{task}".strip()
 

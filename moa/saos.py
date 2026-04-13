@@ -27,15 +27,25 @@ async def search_saos_judgments(query: str, page_size: int = 5) -> List[Retrieve
     
     print(f"   [SAOS] Przeszukiwanie dla: '{query[:50]}...'")
     
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        "Accept": "application/json"
+    }
+    
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.get(SAOS_API_JUDGMENTS_URL, params=params)
+        async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+            response = await client.get(SAOS_API_JUDGMENTS_URL, params=params, headers=headers)
             
             if response.status_code != 200:
                 print(f"   [SAOS][ERR] HTTP {response.status_code}: {response.text[:200]}")
                 return []
                 
-            data = response.json()
+            try:
+                data = response.json()
+            except Exception as e:
+                print(f"   [SAOS][ERR] Błąd formatu (Otrzymano uszkodzony JSON lub HTML): {response.text[:100]}")
+                return []
+                
             items = data.get("items", [])
             
             chunks = []

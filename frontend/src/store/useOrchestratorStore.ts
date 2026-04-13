@@ -56,12 +56,12 @@ interface OrchestratorStoreState {
 
 const DEFAULTS = {
   mode: 'single' as OrchestratorMode,
-  singleModelId: '', // No default model
-  moaExpertIds: [], // Empty experts
-  moaJudgeId: 'anthropic/claude-3.5-sonnet',
+  singleModelId: '', 
+  moaExpertIds: [],
+  moaJudgeId: '',
   activePresetId: null,
   recentModelIds: [] as string[],
-  favoriteModelIds: [], // Empty favorites
+  favoriteModelIds: [],
 };
 
 export const useOrchestratorStore = create<OrchestratorStoreState>()(

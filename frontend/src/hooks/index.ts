@@ -2,42 +2,24 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "../utils/supabaseClient";
 import { API_BASE } from "../config";
 
-interface KnowledgeDocument {
-  id: string;
-  name: string;
-  chunks: number;
-  status: string;
-  created_at: string;
-  type?: 'document' | 'image';
-  content?: string;
-}
+import type { Document, KnowledgeDocument } from "../types/library";
 
-interface KnowledgeBaseRow {
-  id: string;
-  metadata: {
-    filename?: string;
-  };
-  created_at: string;
-}
 
-interface ApiProvider {
+
+export interface ApiProvider {
   id: string;
   name: string;
   active: boolean;
   key: string;
 }
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  sources?: string[];
-}
+import type { ChatMessage } from "../types/chat";
 
 interface ChatSession {
   id: string;
   title: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface ChatModel {
@@ -54,99 +36,51 @@ interface ChatModel {
 export function useKnowledgeBase() {
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchDocuments = useCallback(async () => {
-    // Paginate to bypass Supabase's 1000-row default per-request limit
-    let allData: KnowledgeBaseRow[] = [];
-    let from = 0;
-    const step = 1000;
+    console.log("[KB] Fetching documents...");
+    setIsLoading(true);
+    // Absolute maximum fetch time for KB to prevent startup hang
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-    while (true) {
-      console.log(`[KB] Fetching range ${from}-${from + step - 1} from knowledge_base_legal...`);
-      const query = supabase
-        .from("knowledge_base_legal")
-        .select("id, metadata, created_at")
-        .range(from, from + step - 1)
-        .order('created_at', { ascending: false });
-
-      const { data, error } = await query;
+    try {
+      const { data, error } = await supabase
+        .from("unique_legal_documents")
+        .select("*")
+        .order('name', { ascending: true });
 
       if (error) {
         console.error("[KB] Knowledge fetch error:", error);
-        break;
+        setDocuments([]);
+        return;
       }
-      
-      console.log(`[KB] Received ${data?.length || 0} rows`);
-      if (!data || data.length === 0) break;
 
-      allData = allData.concat(data);
-      if (data.length < step) break;
-      from += step;
-    }
-    
-    console.log(`[KB] Total rows collected: ${allData.length}`);
-
-    if (allData.length > 0) {
-        // Group by filename — always accumulate chunk count
-        const docMap = new Map<
-          string,
-          { id: string; name: string; chunks: number; created_at: string; type: 'document' | 'image' }
-        >();
-
-        for (const d of allData) {
-          let metadata = d.metadata;
-          if (typeof metadata === 'string') {
-            try { metadata = JSON.parse(metadata); } catch(e) { metadata = {}; }
-          }
-          
-          const filename = metadata?.filename || "Dokument bez nazwy";
-          const extension = filename.split('.').pop()?.toLowerCase() || '';
-          
-          const isDoc = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'].includes(extension);
-          const isImg = ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'tiff'].includes(extension);
-          
-          if (!isDoc && !isImg) {
-            console.log(`[KB] Skipping file: ${filename} (Ext: ${extension})`);
-            continue; 
-          }
-
-          const fileType = isImg ? 'image' : 'document';
-          const existing = docMap.get(filename);
-          
-          if (!existing) {
-            docMap.set(filename, {
-              id: d.id,
-              name: filename,
-              chunks: 1,
-              created_at: d.created_at,
-              type: fileType
-            });
-          } else {
-            docMap.set(filename, {
-              ...existing,
-              chunks: existing.chunks + 1,
-              created_at:
-                d.created_at < existing.created_at
-                  ? d.created_at
-                  : existing.created_at,
-            });
-          }
-        }
-
-      const docs = Array.from(docMap.values()).sort((a, b) =>
-        a.name.localeCompare(b.name, "pl"),
-      );
-
-      setDocuments(
-        docs.map((d) => ({
-          id: d.id,
-          name: d.name,
-          chunks: d.chunks,
-          status: "ready",
-          created_at: d.created_at,
-          type: d.type
-        })),
-      );
+      if (data && data.length > 0) {
+        setDocuments(
+          data.map((d: KnowledgeDocument) => ({
+            id: d.id,
+            name: d.name,
+            chunks: d.chunks,
+            status: "ready",
+            created_at: d.created_at,
+            type: d.type
+          })),
+        );
+        console.log(`[KB] Loaded ${data.length} documents.`);
+      } else {
+        setDocuments([]);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.warn("[KB] Knowledge fetch timed out (6s). Continuing without fresh data.");
+      } else {
+        console.error("[KB] Error in fetchDocuments:", err);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setIsLoading(false);
     }
   }, []);
 
@@ -204,48 +138,74 @@ export function useKnowledgeBase() {
     uploadPDF,
     removeFile,
     isUploading,
+    isLoading,
     refresh: fetchDocuments,
   };
 }
 
+
 /**
- * Hook do zarządzania dokumentami wygenerowanymi przez użytkownika (Dokumenty / Pisma).
- * Oddzielone od centralnej bazy wiedzy RAG.
+ * Hook do zarządzania dokumentami użytkownika (pełna biblioteka: uploady + pisma AI).
+ * TO JEST SEKCJA "DOKUMENTY".
  */
-export function useUserDocuments() {
-  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+export function useUserLibrary() {
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchDocuments = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Pobieramy wszystkie fragmenty z bazy użytkownika
       const { data, error } = await supabase
         .from("knowledge_base_user")
-        .select("id, metadata, created_at");
+        .select("id, metadata, created_at, content")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
+      
+      if (!data) {
+        setDocuments([]);
+        return;
+      }
 
-      const docMap = new Map();
-      (data || []).forEach(d => {
-          const filename = d.metadata?.filename || "Dokument";
-          if(!docMap.has(filename)) {
-              docMap.set(filename, {
-                  id: d.id,
-                  name: filename,
-                  chunks: 1,
-                  status: "ready",
-                  created_at: d.created_at,
-                  type: 'document'
-              });
-          } else {
-              const existing = docMap.get(filename);
-              existing.chunks += 1;
+      // Grupujemy fragmenty w unikalne dokumenty na podstawie nazwy pliku w metadanych
+      const docMap = new Map<string, Document>();
+      
+      data.forEach(item => {
+        let metadata = item.metadata;
+        if (typeof metadata === 'string') {
+          try { 
+            metadata = JSON.parse(metadata); 
+          } catch { 
+            try {
+              // Handle potentially double-stringified or poorly formatted JSON
+              metadata = JSON.parse(JSON.parse(metadata));
+            } catch {
+              metadata = {}; 
+            }
           }
+        }
+        
+        const filename = metadata?.filename || "Dokument bez nazwy";
+        
+        if (!docMap.has(filename)) {
+          docMap.set(filename, {
+            id: filename, // Używamy nazwy jako ID dla unikalności w tej bazie
+            title: filename,
+            content: item.content, // Pierwszy fragment jako podgląd
+            type: metadata?.type || "uploaded",
+            created_at: item.created_at,
+            chunks: 1
+          });
+        } else {
+          const existing = docMap.get(filename);
+          if (existing) (existing.chunks as number) += 1;
+        }
       });
 
       setDocuments(Array.from(docMap.values()));
     } catch (err) {
-      console.error("Error fetching user documents:", err);
+      console.error("Error fetching user library:", err);
     } finally {
       setIsLoading(false);
     }
@@ -255,64 +215,52 @@ export function useUserDocuments() {
     fetchDocuments();
   }, [fetchDocuments]);
 
+  const removeDocument = useCallback(async (id: string, filename?: string) => {
+    try {
+      const targetFilename = filename || id;
+      // Usuwamy wszystkie fragmenty powiązane z danym plikiem (id to nazwa pliku)
+      const { error } = await supabase
+        .from("knowledge_base_user")
+        .delete()
+        .filter("metadata->>filename", "eq", targetFilename);
+      
+      if (error) throw error;
+      await fetchDocuments();
+    } catch (err) {
+      console.error("Failed to remove document:", err);
+    }
+  }, [fetchDocuments]);
+
   const uploadUserDocument = useCallback(async (file: File) => {
     setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("category", "user_docs");
+      formData.append("category", "rag_user");
 
-      const res = await fetch(`${API_BASE}/upload-document`, {
+      const res = await fetch(`${API_BASE}/documents/upload`, {
         method: "POST",
         body: formData,
       });
 
       if (!res.ok) throw new Error("Upload failed");
-      setTimeout(fetchDocuments, 1500);
-    } catch (err) {
-      console.error("Upload error:", err);
+      
+      // Delay to allow indexing to complete
+      setTimeout(fetchDocuments, 2000);
+    } catch (error) {
+      console.error("User document upload failed:", error);
     } finally {
       setIsLoading(false);
     }
   }, [fetchDocuments]);
 
-  const removeDocument = useCallback(async (id: string) => {
-      console.log("Remove document requested for id:", id);
-  }, []);
-
-  return {
-    documents,
-    isLoading,
-    refresh: fetchDocuments,
+  return { 
+    documents, 
+    isLoading, 
+    refresh: fetchDocuments, 
     removeDocument,
-    uploadUserDocument,
+    uploadUserDocument 
   };
-}export function useAIDrafts() {
-  const [drafts, setDrafts] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const fetchDrafts = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("documents")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setDrafts(data || []);
-    } catch (err) {
-      console.error("Error fetching AI drafts:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDrafts();
-  }, [fetchDrafts]);
-
-  return { drafts, isLoading, refresh: fetchDrafts };
 }
 
 /**
@@ -407,6 +355,7 @@ export function useChat() {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [initialBootDone, setInitialBootDone] = useState(false);
 
   // Sessions & Models
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -421,29 +370,7 @@ export function useChat() {
     return saved || "";
   });
 
-  const [availableModels, setAvailableModels] = useState<ChatModel[]>([
-    {
-      id: "google/gemini-2.5-flash",
-      name: "Google: Gemini 2.5 Flash",
-      active: true,
-      provider: "openrouter",
-      vision: true,
-    },
-    {
-      id: "openai/gpt-4o-2024-11-20",
-      name: "OpenAI: GPT-4o",
-      active: true,
-      provider: "openrouter",
-      vision: true,
-    },
-    {
-      id: "anthropic/claude-3.7-sonnet",
-      name: "Anthropic: Claude 3.7 Sonnet",
-      active: true,
-      provider: "openrouter",
-      vision: true,
-    },
-  ]);
+  const [availableModels, setAvailableModels] = useState<ChatModel[]>([]);
   const [selectedModel, setSelectedModel] = useState<string>(''); // No default model - user must choose
 
   // Enhanced setSelectedModel that preserves conversation context
@@ -461,15 +388,12 @@ export function useChat() {
   );
 
   const fetchModels = useCallback(async () => {
-    console.log("🔄 Fetching models from API...");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const res = await fetch(`${API_BASE}/models/all`);
+      const res = await fetch(`${API_BASE}/models/all`, { signal: controller.signal });
       const data = await res.json();
-      console.log("📦 Models received:", data.length, "models");
-
       if (Array.isArray(data) && data.length > 0) {
-        // For chat: show ALL vision models regardless of admin filters
-        // Admin panel can still filter, but chat gets full access for legal docs
         const formatted = data.map((m: ChatModel) => ({
           id: m.id,
           name: `${m.id.split("/")[0].toUpperCase()}: ${m.name || m.id.split("/").slice(-1)[0]}`.trim(),
@@ -478,30 +402,22 @@ export function useChat() {
           vision: m.vision || false,
         }));
 
-        console.log(
-          "✅ Models updated successfully:",
-          formatted.length,
-          "models available",
-        );
         setAvailableModels(formatted);
         setSelectedModel((prev) => {
-          const firstAvailable = formatted[0]?.id || "google/gemini-2.5-flash";
+          if (!prev) return "";
           const prevExists = formatted.find((m: ChatModel) => m.id === prev);
-          const selected = prevExists ? prev : firstAvailable;
-          console.log("🎯 Selected model:", selected);
-          return selected;
+          return prevExists ? prev : "";
         });
-        setModelsLoaded(true);
       }
-    } catch (error) {
-      console.error("Failed to fetch models, using defaults.", error);
-      setModelsLoaded(true); // Still consider loaded even if failed
+    } catch {
+      // Don't log full error for connection refused during boot
+    } finally {
+      clearTimeout(timeout);
+      setModelsLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    console.log("🚀 Initializing chat hook - fetching models...");
-    console.log("🔗 API Base URL:", API_BASE);
     fetchModels();
     // Add event listener for settings updates
     window.addEventListener("prawnik_models_updated", fetchModels);
@@ -510,15 +426,21 @@ export function useChat() {
   }, [fetchModels]);
 
   const fetchSessions = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
-      const res = await fetch(`${API_BASE}/sessions`);
-      if (!res.ok) throw new Error("Failed to fetch sessions");
+      const res = await fetch(`${API_BASE}/sessions`, { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ChatSession[] = await res.json();
       setSessions(data || []);
-      setSessionsLoaded(true);
     } catch (err) {
-      console.error("fetchSessions error:", err);
-      setSessionsLoaded(true); // Don't block app even if history fails
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[BOOT] Sessions fetch failed: ${message}`);
+      setSessions([]);
+    } finally {
+      clearTimeout(timeoutId);
+      setSessionsLoaded(true);
     }
   }, []);
 
@@ -526,26 +448,68 @@ export function useChat() {
     fetchSessions();
   }, [fetchSessions]);
 
-  // Fetch message history for current session from Backend
-  useEffect(() => {
+  const [messagesLoaded, setMessagesLoaded] = useState(false);
+
+  const loadMessages = useCallback(async () => {
     if (!sessionId) {
       setMessages([]);
+      setMessagesLoaded(true);
       return;
     }
 
-    const loadMessages = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/messages`);
-        if (!res.ok) throw new Error("Failed to load messages");
-        const data: ChatMessage[] = await res.json();
-        setMessages(data || []);
-      } catch (err) {
-        console.error("loadMessages error:", err);
-      }
-    };
+    setMessagesLoaded(false);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    loadMessages();
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}/messages`, { signal: controller.signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data: ChatMessage[] = await res.json();
+      setMessages(data || []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[BOOT] Messages fetch failed: ${message}`);
+      setMessages([]);
+    } finally {
+      clearTimeout(timeoutId);
+      setMessagesLoaded(true);
+    }
   }, [sessionId]);
+
+  // Fetch message history for current session from Backend
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  // Background retry: if initial fetch failed (backend was starting), retry until data arrives
+  useEffect(() => {
+    if (!modelsLoaded || !sessionsLoaded || !messagesLoaded) return;
+    
+    // Stop condition: we have all basic data
+    const hasModels = availableModels.length > 3;
+    const hasSessions = sessions.length > 0;
+    const hasMessages = !sessionId || messages.length > 0 || messagesLoaded;
+    
+    if (hasModels && hasSessions && hasMessages) return;
+
+    const interval = setInterval(() => {
+      if (availableModels.length <= 3) fetchModels();
+      if (sessions.length === 0) fetchSessions();
+      if (sessionId && messages.length === 0) loadMessages();
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [modelsLoaded, sessionsLoaded, messagesLoaded, availableModels.length, sessions.length, messages.length, sessionId, fetchModels, fetchSessions, loadMessages]);
+
+
+  // Latch: once boot completes the first time, never go back to "not complete"
+  useEffect(() => {
+    if (!initialBootDone && modelsLoaded && sessionsLoaded && messagesLoaded) {
+      setInitialBootDone(true);
+    }
+  }, [initialBootDone, modelsLoaded, sessionsLoaded, messagesLoaded]);
+
+
 
   const stopGeneration = useCallback(() => {
     if (abortControllerRef.current) {
@@ -558,7 +522,6 @@ export function useChat() {
   const sendMessage = useCallback(
     async () => {
       // NOTE: sendMessage is now deprecated in favor of useChatMutation
-      console.warn("useChat.sendMessage is deprecated. Use useChatMutation instead.");
     },
     [],
   );
@@ -566,6 +529,7 @@ export function useChat() {
   const newChat = useCallback(() => {
     setSessionId("");
     setMessages([]);
+    setMessagesLoaded(true);
     localStorage.removeItem("prawnik_session_id");
   }, []);
 
@@ -583,6 +547,7 @@ export function useChat() {
   }, [sessionId, stopGeneration, fetchSessions, newChat]);
 
   const switchSession = useCallback(async (id: string) => {
+    setMessagesLoaded(false);
     setMessages([]); // Clear current messages immediately
     setSessionId(id);
     localStorage.setItem("prawnik_session_id", id);
@@ -628,6 +593,10 @@ export function useChat() {
     switchSession,
     removeSession,
     fetchSessions,
-    isInitialLoadComplete: modelsLoaded && sessionsLoaded,
+    messagesLoaded,
+    sessionsLoaded,
+    modelsLoaded,
+    isInitialLoadComplete: initialBootDone || (modelsLoaded && sessionsLoaded && messagesLoaded),
   };
+
 }

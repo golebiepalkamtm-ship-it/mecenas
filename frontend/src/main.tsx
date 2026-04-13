@@ -5,6 +5,9 @@ import App from "./App.tsx";
 import { ChatProvider } from "./context/ChatContext";
 import "./index.css";
 
+// Precise load start tracking
+window.__prawnik_load_start = Date.now();
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

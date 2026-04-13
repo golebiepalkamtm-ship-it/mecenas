@@ -123,10 +123,10 @@ async def process_attachments(
                     )
             except Exception as e:
                 print(f"   [ATTACH ERR] Wyjątek podczas przetwarzania {att.name}: {e}")
-                logger.error(f"❌ Error processing attachment {att.name}: {e}")
+                logger.error(f"[ERROR] Error processing attachment {att.name}: {e}")
 
     if extracted_texts:
-        print(f"✅ Łącznie przetworzono {len(extracted_texts)} załączników tekstowych.")
+        print(f"[SUCCESS] Łącznie przetworzono {len(extracted_texts)} załączników tekstowych.")
     return user_content, extracted_texts
 
 
@@ -136,6 +136,7 @@ def save_chat_messages(
     assistant_content: str,
     message_type: str = "standard",
     reasoning: str = None,
+    eli_explanation: str = None,
 ):
     """Zapisuje parę wiadomości do bazy danych."""
     database.save_message(str(uuid.uuid4()), sid, "user", user_content)
@@ -146,7 +147,54 @@ def save_chat_messages(
         assistant_content,
         message_type=message_type,
         reasoning=reasoning,
+        eli_explanation=eli_explanation,
     )
+
+
+async def scrape_urls_from_text(text: str) -> list[str]:
+    """Wykrywa URL-e w tekście i pobiera ich zawartość (tekstową)."""
+    import re
+    import httpx
+    import logging
+    from typing import List
+
+    # Bardziej precyzyjny regex do URL-i
+    url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\.-]*?(?:\?\S*)?'
+    urls = list(set(re.findall(url_pattern, text)))
+    
+    if not urls:
+        return []
+
+    print(f"   [WEB SCRAPER] Wykryto {len(urls)} linków. Pobieranie treści...")
+    scraped_contents = []
+
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+        for url in urls:
+            try:
+                print(f"   [WEB] Pobieranie: {url}")
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+                res = await client.get(url, headers=headers)
+                if res.status_code == 200:
+                    # Bardzo proste czyszczenie HTML z tagów (bez BS4 dla szybkości)
+                    html = res.text
+                    # Usuwamy skrypty i style
+                    html = re.sub(r'<(script|style).*?>.*?</\1>', '', html, flags=re.DOTALL | re.IGNORECASE)
+                    # Usuwamy inne tagi
+                    clean_text = re.sub(r'<.*?>', ' ', html)
+                    # Normalizujemy spacje
+                    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+                    
+                    if len(clean_text) > 100:
+                        scraped_contents.append(f"--- TREŚĆ ZE STRONY ({url}) ---\n{clean_text[:15000]}")
+                        print(f"   [WEB SUCCESS] Pobrano {len(clean_text)} znaków z {url}")
+                    else:
+                        print(f"   [WEB WARN] Zbyt mało treści na {url}")
+            except Exception as e:
+                print(f"   [WEB ERR] Błąd pobierania {url}: {e}")
+
+    return scraped_contents
 
 
 def sanitize_filename(filename: str) -> str:

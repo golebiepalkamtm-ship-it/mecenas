@@ -80,3 +80,4 @@ class MOAResult:
     pipeline_latency_ms: float = 0.0
     success: bool = True
     error: Optional[str] = None
+    eli_explanation: Optional[str] = None  # Wyjaśnienie decyzji AI (Explainable AI)

@@ -148,7 +148,6 @@ interface ChatInputProps {
   handleSend: () => void;
   stopGeneration: () => void;
   newChat: () => void;
-  onNavigateToDrafter: () => void;
   imageInputRef: React.RefObject<HTMLInputElement | null>;
   attachmentWarning?: string | null;
   useRag: boolean;
@@ -191,8 +190,6 @@ export function ChatInput({
   useRag,
   setUseRag,
   newChat,
-  onNavigateToDrafter,
-  addAttachment,
   onPreviewDoc,
 }: ChatInputProps) {
   const [isListening, setIsListening] = useState(false);
@@ -333,11 +330,11 @@ export function ChatInput({
               }} 
               className={cn(
                 "p-2 rounded-xl transition-all flex items-center justify-center -mt-1 relative group/btn-rag",
-                useRag ? "text-emerald-500 bg-emerald-500/5 border border-emerald-500/10 shadow-lg" : "text-white/15 hover:bg-white/5"
+                useRag ? "text-gold-primary bg-gold-primary/5 border border-gold-primary/10 shadow-lg" : "text-white/15 hover:bg-white/5"
               )}
             >
                <Database size={18} className={cn("transition-transform group-hover/btn-rag:scale-110", useRag ? "animate-pulse" : "")} />
-               <div className={cn("absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20", useRag ? "bg-emerald-500" : "bg-white/10")} />
+               <div className={cn("absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20", useRag ? "bg-gold-primary" : "bg-white/10")} />
             </button>
 
             <button 

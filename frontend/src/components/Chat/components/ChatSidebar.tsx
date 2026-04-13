@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { History, X, MessageSquare, Trash2 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Clock, SortAsc, SortDesc } from "lucide-react";
+import { Clock, SortAsc } from "lucide-react";
 import type { Session } from "../types";
 
 function cn(...inputs: ClassValue[]) {
@@ -31,12 +31,14 @@ export function ChatSidebar({
 }: ChatSidebarProps) {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'az'>('newest');
 
-  const sortedSessions = [...sessions].sort((a, b) => {
-    if (sortBy === 'newest') return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
-    if (sortBy === 'oldest') return new Date(a.updated_at || a.created_at).getTime() - new Date(b.updated_at || b.created_at).getTime();
-    if (sortBy === 'az') return (a.title || 'Nowa Sprawa').localeCompare(b.title || 'Nowa Sprawa');
-    return 0;
-  });
+  const sortedSessions = useMemo(() => {
+    return [...sessions].sort((a, b) => {
+      if (sortBy === 'newest') return new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime();
+      if (sortBy === 'oldest') return new Date(a.updated_at || a.created_at || 0).getTime() - new Date(b.updated_at || b.created_at || 0).getTime();
+      if (sortBy === 'az') return (a.title || 'Nowa Sprawa').localeCompare(b.title || 'Nowa Sprawa');
+      return 0;
+    });
+  }, [sessions, sortBy]);
   return (
     <>
       {/* Sessions Sidebar Overlay Background */}
@@ -56,29 +58,22 @@ export function ChatSidebar({
       <AnimatePresence>
         {showHistory && (
           <motion.div
-            initial={{ x: -400, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: -400, opacity: 0 }}
+            initial={{ marginLeft: -320, opacity: 0 }}
+            animate={{ marginLeft: 0, opacity: 1 }}
+            exit={{ marginLeft: -320, opacity: 0 }}
             transition={{ 
-              type: "spring", 
-              stiffness: 100, 
-              damping: 28,
-              mass: 1.2,
-              restDelta: 0.001
+              type: "tween",
+              duration: 0.35,
+              ease: [0.25, 1, 0.5, 1],
             }}
-            className="fixed lg:relative inset-y-0 left-0 w-[320px] max-w-full h-full glass-prestige-gold rounded-3xl flex flex-col shrink-0 overflow-hidden z-50 transition-all shadow-2xl"
+            className="fixed lg:relative left-0 top-20 bottom-0 lg:h-[calc(100%-80px)] w-[320px] max-w-full glass-steel-monolith rounded-none z-10000 shadow-none border-t border-white/5 pointer-events-auto flex flex-col overflow-hidden"
           >
-            
-            {/* Top specular highlight */}
-            <div className="absolute top-0 left-0 right-0 h-1/4 pointer-events-none z-0 rounded-t-3xl" style={{
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%)'
-            }} />
+            {/* Liquid Metal handles the look via utility classes */}
 
-            {/* Dynamic Header Glow (Unified) */}
-            <div className="absolute top-0 left-0 w-full h-32 blur-[80px] pointer-events-none bg-gold-primary opacity-20 z-0" />
+            {/* Dynamic Header Glow (Unified) - REMOVED FOR STEEL LOOK */}
 
             {/* HEADER: TITLE + SWITCHER (Unified Structure) */}
-            <div className="px-6 py-6 border-b border-white/10 relative z-10 shrink-0">
+            <div className="px-6 py-6 pt-6 lg:pt-6 border-b border-white/10 relative z-10 shrink-0">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl glass-prestige-gold flex items-center justify-center shadow-lg">
@@ -86,22 +81,35 @@ export function ChatSidebar({
                   </div>
                   <div>
                     <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-white italic font-outfit">Historia</h3>
-                    <p className="text-[7px] text-white/30 font-bold uppercase tracking-widest leading-none mt-1">Archiwum Spraw</p>
+                    <p className="text-[7px] text-white/50 font-bold uppercase tracking-widest leading-none mt-1">Archiwum Spraw</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowHistory(false)}
-                  className="p-2.5 rounded-xl bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500 transition-all border border-white/5 hover:border-red-500/40 group/close"
+                  className="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-red-500/5 border border-red-500/20 text-red-500/40 hover:text-red-500 hover:bg-red-500/15 hover:border-red-500/40 group/close"
                 >
-                  <X size={18} className="group-hover/close:rotate-90 transition-transform" />
+                  <X size={16} className="group-hover/close:rotate-90 transition-transform duration-500" />
+                </button>
+              </div>
+
+              {/* ACTION: NOWA KONSULTACJA (Moved back to Top) */}
+              <div className="mb-4">
+                <button 
+                  onClick={() => {
+                    newChat();
+                    if (window.innerWidth < 1024) setShowHistory(false);
+                  }}
+                  className="prestige-panel-action"
+                >
+                  <span className="-mt-1 block">Nowa Konsultacja</span>
                 </button>
               </div>
 
               {/* ── SORTING SWITCHER ── */}
-               <div className="grid grid-cols-3 p-1.5 bg-black/40 border border-white/5 rounded-2xl relative shadow-inner">
+               <div className="grid grid-cols-3 p-1 bg-black/40 border border-white/5 rounded-xl relative shadow-inner">
                   <motion.div 
                     layoutId="sort-bg-v3"
-                    className="absolute inset-1.5 w-[calc(33.33%-6px)] h-[calc(100%-12px)] rounded-xl bg-gold-primary/20 shadow-xl shadow-gold-primary/10 z-0"
+                    className="absolute inset-1.5 w-[calc(33.33%-6px)] h-[calc(100%-12px)] rounded-xl bg-[#d4af37]/30 shadow-xl shadow-[#d4af37]/10 z-0"
                     animate={{ x: sortBy === 'newest' ? 0 : sortBy === 'oldest' ? '100%' : '200%' }}
                     transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
                   />
@@ -112,10 +120,10 @@ export function ChatSidebar({
                   ].map((opt) => (
                     <button
                         key={opt.id}
-                        onClick={() => setSortBy(opt.id as any)}
+                        onClick={() => setSortBy(opt.id as 'newest' | 'oldest' | 'az')}
                         className={cn(
                           "relative z-10 flex items-center justify-center gap-2 py-2 transition-all outline-none",
-                          sortBy === opt.id ? "text-gold-primary font-extrabold" : "text-white/20 font-bold"
+                          sortBy === opt.id ? "text-gold-primary font-extrabold" : "text-white/40 font-bold"
                         )}
                     >
                       {opt.icon}
@@ -126,13 +134,13 @@ export function ChatSidebar({
             </div>
 
             {/* MAIN SCROLLABLE AREA (Unified Spacing) */}
-            <div className="flex-1 overflow-y-auto px-6 space-y-3 py-4 custom-scrollbar relative z-10 pb-32">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 space-y-3 py-4 relative z-10 custom-scrollbar pb-40">
               <AnimatePresence mode="popLayout">
                 {sortedSessions.map((s: Session, i: number) => {
                   const themes = [
                     { name: 'red',    color: 'text-red-500',      border: 'border-red-500/40',      bg: 'bg-red-500',      glow: 'shadow-red-500/30' },
-                    { name: 'green',  color: 'text-emerald-500',  border: 'border-emerald-500/40',  bg: 'bg-emerald-500',  glow: 'shadow-emerald-500/30' },
-                    { name: 'blue',   color: 'text-blue-500',     border: 'border-blue-500/40',     bg: 'bg-blue-500',     glow: 'shadow-blue-500/30' },
+                    { name: 'platinum', color: 'text-white/90', border: 'border-white/40', bg: 'bg-white/10', glow: 'shadow-white/20' },
+                    { name: 'gold',   color: 'text-gold-primary', border: 'border-gold-primary/40', bg: 'bg-gold-primary', glow: 'shadow-gold-primary/30' },
                     { name: 'purple', color: 'text-purple-500',   border: 'border-purple-500/40',   bg: 'bg-purple-500',   glow: 'shadow-purple-500/30' },
                     { name: 'amber',  color: 'text-amber-500',    border: 'border-amber-500/40',    bg: 'bg-amber-500',    glow: 'shadow-amber-500/30' },
                   ];
@@ -182,7 +190,7 @@ export function ChatSidebar({
                               {s.title || "Nowa Sprawa"}
                             </h4>
                             <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest leading-none truncate">
-                              {new Date(s.updated_at || s.created_at).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: '2-digit' })} • {theme.name.toUpperCase()}
+                              {new Date(s.updated_at || s.created_at || 0).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: '2-digit' })} • {theme.name.toUpperCase()}
                             </p>
                           </div>
 
@@ -207,19 +215,6 @@ export function ChatSidebar({
                   </p>
                 </div>
               )}
-            </div>
-
-            {/* FOOTER: THE BIG BUTTON (Unified - Text Black for Contrast) */}
-            <div className="absolute bottom-0 left-0 w-full p-6 bg-linear-to-t from-[#0a0a0c] via-[#0a0a0c]/90 to-transparent z-50">
-              <button 
-                onClick={() => {
-                  newChat();
-                  if (window.innerWidth < 1024) setShowHistory(false);
-                }}
-                className="w-full py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.4em] transition-all hover:scale-[1.02] active:scale-[0.98] border shadow-[0_20px_50px_rgba(0,0,0,0.6)] font-outfit glass-prestige-gold text-black border-gold-primary/50"
-              >
-                <span className="-mt-1 block">Nowa Konsultacja</span>
-              </button>
             </div>
           </motion.div>
         )}

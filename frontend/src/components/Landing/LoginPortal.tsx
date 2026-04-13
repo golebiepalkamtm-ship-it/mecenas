@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import {
   Lock,
   Mail,
@@ -113,55 +113,104 @@ const LoginPortal = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  // Parallax logic
   const cardRef = useRef<HTMLDivElement>(null);
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+
+  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [15, -15]), { stiffness: 100, damping: 20 });
+  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-15, 15]), { stiffness: 100, damping: 20 });
+  const brightness = useTransform(y, [-0.5, 0.5], [1.2, 0.8]);
+  const glareX = useTransform(x, [-0.5, 0.5], ["-20%", "120%"]);
+  const glareY = useTransform(y, [-0.5, 0.5], ["-20%", "120%"]);
+
+  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    x.set(mouseX / rect.width - 0.5);
+    y.set(mouseY / rect.height - 0.5);
+  }
+
+  function handleMouseLeave() {
+    x.set(0);
+    y.set(0);
+  }
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setMessage(null);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
+      if (isSignUp) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (signUpError) throw signUpError;
+        setMessage({ type: 'success', text: "Wysłano link weryfikacyjny na e-mail." });
+        setLoading(false);
+      } else {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Błąd autoryzacji");
+      setMessage({ type: 'error', text: err instanceof Error ? err.message : "Błąd autoryzacji" });
       setLoading(false);
     }
   };
 
-  const [isSignUp, setIsSignUp] = useState(false);
-
   return (
-    <div className="relative flex items-center justify-center w-full max-w-[420px]">
+    <div className="relative w-full max-w-[420px] isolate" style={{ perspective: "1200px" }}>
       {/* Ambient glow under card */}
       <div
         className="absolute -inset-16 rounded-full pointer-events-none"
         style={{
           background:
-            "radial-gradient(ellipse, rgba(212,175,55,0.12) 0%, transparent 70%)",
-        }}
-      />
-      <div
-        className="absolute -inset-8 rounded-full pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse, rgba(212,175,55,0.06) 0%, transparent 65%)",
+            "radial-gradient(ellipse, rgba(212,175,55,0.15) 0%, transparent 70%)",
         }}
       />
 
       <motion.div
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
         className="relative w-full"
-        initial={{ opacity: 0, y: 28, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 1.1, delay: 0.3, ease: E }}
+        style={{
+          rotateX,
+          rotateY,
+          transformStyle: "preserve-3d",
+          filter: `brightness(${brightness.get()})`, // Simple reactivity
+        }}
+        initial={{ opacity: 0, scale: 0.9, y: 30 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: 1.2, delay: 0.2, ease: E }}
       >
         <div
-          ref={cardRef}
-          className="relative rounded-[2.5rem] overflow-hidden glass-prestige"
+          className="relative rounded-[2.5rem] overflow-hidden glass-prestige border border-white/10 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.8)]"
+          style={{ transform: "translateZ(20px)" }} // Add internal depth
         >
+          {/* Dynamic Glare Layer */}
+          <motion.div 
+            style={{
+              position: "absolute",
+              top: glareY,
+              left: glareX,
+              width: "150%",
+              height: "150%",
+              background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 50%)",
+              pointerEvents: "none",
+              zIndex: 35,
+              translate: "-50% -50%",
+            }}
+          />
           {/* ── Specular top edge ── */}
           <div
             className="absolute top-0 left-0 right-0 pointer-events-none z-30"
@@ -188,7 +237,6 @@ const LoginPortal = () => {
             style={{
               background:
                 "linear-gradient(135deg, rgba(180,220,255,0.1) 0%, rgba(160,240,200,0.03) 30%, transparent 55%, rgba(255,200,120,0.03) 75%, rgba(255,160,100,0.08) 100%)",
-              mixBlendMode: "screen",
             }}
           />
 
@@ -274,9 +322,9 @@ const LoginPortal = () => {
                 onChange={setPassword}
               />
 
-              {/* Error */}
+              {/* Message Feedback */}
               <AnimatePresence>
-                {error && (
+                {message && (
                   <motion.div
                     initial={{ opacity: 0, height: 0, y: -6 }}
                     animate={{ opacity: 1, height: "auto", y: 0 }}
@@ -284,19 +332,19 @@ const LoginPortal = () => {
                     transition={{ duration: 0.25 }}
                     className="rounded-xl px-4 py-3 overflow-hidden"
                     style={{
-                      background: "rgba(239,68,68,0.08)",
-                      borderTop: "1px solid rgba(239,68,68,0.45)",
-                      borderLeft: "1px solid rgba(239,68,68,0.15)",
-                      borderRight: "1px solid rgba(239,68,68,0.05)",
+                      background: message.type === 'error' ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
+                      borderTop: message.type === 'error' ? "1px solid rgba(239,68,68,0.45)" : "1px solid rgba(34,197,94,0.45)",
+                      borderLeft: message.type === 'error' ? "1px solid rgba(239,68,68,0.15)" : "1px solid rgba(34,197,94,0.15)",
+                      borderRight: message.type === 'error' ? "1px solid rgba(239,68,68,0.05)" : "1px solid rgba(34,197,94,0.05)",
                       borderBottom: "1px solid rgba(0,0,0,0.4)",
-                      boxShadow: "inset 0 1px 0 rgba(239,68,68,0.3)",
+                      boxShadow: message.type === 'error' ? "inset 0 1px 0 rgba(239,68,68,0.3)" : "inset 0 1px 0 rgba(34,197,94,0.3)",
                     }}
                   >
                     <p
                       className="text-[10px] font-bold uppercase tracking-wider text-center"
-                      style={{ color: "rgba(239,68,68,0.9)" }}
+                      style={{ color: message.type === 'error' ? "rgba(239,68,68,0.9)" : "rgba(34,197,94,0.9)" }}
                     >
-                      {error}
+                      {message.text}
                     </p>
                   </motion.div>
                 )}
@@ -310,36 +358,36 @@ const LoginPortal = () => {
                 className="pt-2"
               >
                 <motion.button
-                  type="submit"
-                  disabled={loading}
-                  whileHover={loading ? {} : { scale: 1.015, y: -1 }}
-                  whileTap={loading ? {} : { scale: 0.985, y: 1 }}
-                  className="w-full h-14 rounded-2xl relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed group glass-prestige-button-gold"
-                >
-                  <span className="relative z-10 flex items-center justify-center gap-3">
-                    {loading ? (
-                      <Loader2
-                        size={18}
-                        className="animate-spin"
-                        style={{ color: "#d4af37" }}
-                      />
-                    ) : (
-                      <>
-                        <span
-                          className="text-[11px] font-black uppercase tracking-[0.5em]"
-                          style={{ color: "rgba(212,175,55,0.95)" }}
-                        >
-                          Autoryzuj sesję
-                        </span>
-                        <ArrowRight
-                          size={15}
-                          className="transition-transform duration-300 group-hover:translate-x-1"
-                          style={{ color: "rgba(212,175,55,0.8)" }}
-                        />
-                      </>
-                    )}
-                  </span>
-                </motion.button>
+                   type="submit"
+                   disabled={loading}
+                   whileHover={loading ? {} : { scale: 1.015, y: -1 }}
+                   whileTap={loading ? {} : { scale: 0.985, y: 1 }}
+                   className="w-full h-14 rounded-2xl relative overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed group glass-prestige-button-gold"
+                 >
+                   <span className="relative z-10 flex items-center justify-center gap-3">
+                     {loading ? (
+                       <Loader2
+                         size={18}
+                         className="animate-spin"
+                         style={{ color: "#d4af37" }}
+                       />
+                     ) : (
+                       <>
+                         <span
+                           className="text-[11px] font-black uppercase tracking-[0.5em]"
+                           style={{ color: "rgba(212,175,55,0.95)" }}
+                         >
+                           {isSignUp ? "Wyślij zgłoszenie" : "Autoryzuj sesję"}
+                         </span>
+                         <ArrowRight
+                           size={15}
+                           className="transition-transform duration-300 group-hover:translate-x-1"
+                           style={{ color: "rgba(212,175,55,0.8)" }}
+                         />
+                       </>
+                     )}
+                   </span>
+                 </motion.button>
               </motion.div>
             </form>
 

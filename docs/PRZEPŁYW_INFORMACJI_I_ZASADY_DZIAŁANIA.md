@@ -30,15 +30,15 @@
 
 ### 1.2 Technologie
 
-| Warstwa | Technologia | Rola |
-|---------|-------------|------|
-| Frontend | React + Vite + TypeScript + Tailwind CSS + Framer Motion | UI interfejs użytkownika |
-| Backend | FastAPI + Python | REST API, orkiestracja |
-| LLM | OpenRouter API (Claude, GPT-4o, Gemini) | Generowanie odpowiedzi |
-| Embeddings | OpenAI text-embedding-3-small (1536-dim) | Wektorowe reprezentacje tekstu |
-| Baza wektorowa | Supabase pgvector (RPC: match_knowledge) | Semantyczne wyszukiwanie prawnicze |
-| Orzecznictwo | SAOS API (saos.org.pl) | Orzeczenia sądowe |
-| Baza sesji | SQLite (cache/prawnik.db) | Historia czatu, ustawienia |
+| Warstwa        | Technologia                                              | Rola                               |
+| -------------- | -------------------------------------------------------- | ---------------------------------- |
+| Frontend       | React + Vite + TypeScript + Tailwind CSS + Framer Motion | UI interfejs użytkownika           |
+| Backend        | FastAPI + Python                                         | REST API, orkiestracja             |
+| LLM            | OpenRouter API (Claude, GPT-4o, Gemini)                  | Generowanie odpowiedzi             |
+| Embeddings     | OpenAI text-embedding-3-small (1536-dim)                 | Wektorowe reprezentacje tekstu     |
+| Baza wektorowa | Supabase pgvector (RPC: match_knowledge)                 | Semantyczne wyszukiwanie prawnicze |
+| Orzecznictwo   | SAOS API (saos.org.pl)                                   | Orzeczenia sądowe                  |
+| Baza sesji     | SQLite (cache/prawnik.db)                                | Historia czatu, ustawienia         |
 
 ---
 
@@ -189,6 +189,7 @@ System działa według **ściśle określonej hierarchii wiarygodności**:
 ### 3.3 Zasady Cytowania
 
 Każde stwierdzenie prawne MUSI zawierać:
+
 - **Nazwę aktu prawnego** (np. „Kodeks cywilny")
 - **Numer artykułu, paragrafu, ustępu** (np. „Art. 415 KC")
 - **Dosłowny cytat lub precyzyjną parafrazę** z kontekstu
@@ -230,13 +231,13 @@ Każde stwierdzenie prawne MUSI zawierać:
 
 ### 4.2 Parametry konfiguracyjne
 
-| Parametr | Wartość | Opis |
-|----------|---------|------|
-| `EMBEDDING_MODEL` | text-embedding-3-small | Model embeddingów OpenAI |
-| `EMBEDDING_DIMENSIONS` | 1536 | Wymiar wektora |
-| `DEFAULT_MATCH_COUNT` | 12 | Liczba fragmentów do pobrania |
-| `DEFAULT_MATCH_THRESHOLD` | 0.05 | Próg podobieństwa (niski = więcej wyników) |
-| `MAX_CONTEXT_CHARS` | 48 000 | Limit znaków kontekstu (~12k tokenów) |
+| Parametr                  | Wartość                | Opis                                       |
+| ------------------------- | ---------------------- | ------------------------------------------ |
+| `EMBEDDING_MODEL`         | text-embedding-3-small | Model embeddingów OpenAI                   |
+| `EMBEDDING_DIMENSIONS`    | 1536                   | Wymiar wektora                             |
+| `DEFAULT_MATCH_COUNT`     | 12                     | Liczba fragmentów do pobrania              |
+| `DEFAULT_MATCH_THRESHOLD` | 0.05                   | Próg podobieństwa (niski = więcej wyników) |
+| `MAX_CONTEXT_CHARS`       | 48 000                 | Limit znaków kontekstu (~12k tokenów)      |
 
 ---
 
@@ -266,11 +267,11 @@ Każde stwierdzenie prawne MUSI zawierać:
 
 ### 5.2 Typy intencji
 
-| Intent | Zachowanie | RAG | MOA | Przykłady |
-|--------|-----------|-----|-----|-----------|
-| `GREETING` | Lekka odpowiedź, tani model | ❌ | ❌ | "Cześć", "Dzień dobry" |
-| `SMALL_TALK` | Lekka odpowiedź, tani model | ❌ | ❌ | "Jak się masz?", "Dzięki!" |
-| `LEGAL_QUERY` | Pełny pipeline | ✅ | ✅ | "Co to art. 212 KK?", "Jakie mam prawa?" |
+| Intent        | Zachowanie                  | RAG | MOA | Przykłady                                |
+| ------------- | --------------------------- | --- | --- | ---------------------------------------- |
+| `GREETING`    | Lekka odpowiedź, tani model | ❌  | ❌  | "Cześć", "Dzień dobry"                   |
+| `SMALL_TALK`  | Lekka odpowiedź, tani model | ❌  | ❌  | "Jak się masz?", "Dzięki!"               |
+| `LEGAL_QUERY` | Pełny pipeline              | ✅  | ✅  | "Co to art. 212 KK?", "Jakie mam prawa?" |
 
 ---
 
@@ -313,12 +314,12 @@ MOA to **architektura wielomodelowa** — jedno zapytanie trafia do N modeli jed
 
 ### 6.2 Domyślne modele
 
-| Rola | Model | Uzasadnienie |
-|------|-------|-------------|
+| Rola               | Model                         | Uzasadnienie                         |
+| ------------------ | ----------------------------- | ------------------------------------ |
 | **Sędzia (Judge)** | `anthropic/claude-3.5-sonnet` | Najwyższa jakość syntezy, re-ranking |
-| **Analityk A** | `anthropic/claude-3.5-sonnet` | Precyzyjna analiza prawna |
-| **Analityk B** | `openai/gpt-4o` | Alternatywna perspektywa |
-| **Analityk C** | `google/gemini-2.0-flash` | Szybki, inny paradygmat myślowy |
+| **Analityk A**     | `anthropic/claude-3.5-sonnet` | Precyzyjna analiza prawna            |
+| **Analityk B**     | `openai/gpt-4o`               | Alternatywna perspektywa             |
+| **Analityk C**     | `google/gemini-2.0-flash`     | Szybki, inny paradygmat myślowy      |
 
 ### 6.3 Mechanizmy odporności (Resilience)
 
@@ -415,23 +416,23 @@ Każda odpowiedź LLM jest budowana hierarchicznie z trzech warstw promptów:
 
 ### 7.2 Dostępne Role (SYSTEM_ROLES)
 
-| Rola | Identyfikator | Osobowość | Użycie |
-|------|--------------|-----------|--------|
-| **Navigator** | `navigator` | Diagnosta prawny — mapuje chaos na strukturę kodeksową | Domyślna dla zapytań ogólnych |
-| **Inquisitor** | `inquisitor` | Rewident kontraktowy — „niszczy" dokument w poszukiwaniu luk | Analiza dokumentów |
-| **Draftsman** | `draftsman` | Architekt tekstów — odporny na ataki procesowe | Tworzenie pism |
-| **Oracle** | `oracle` | Analityk linii orzeczniczych — czyta wyroki, nie przepisy | Badania orzecznictwa |
-| **Grandmaster** | `grandmaster` | Strateg procesowy — szach-mat w 3 ruchach | Planowanie strategii |
+| Rola            | Identyfikator | Osobowość                                                    | Użycie                        |
+| --------------- | ------------- | ------------------------------------------------------------ | ----------------------------- |
+| **Navigator**   | `navigator`   | Diagnosta prawny — mapuje chaos na strukturę kodeksową       | Domyślna dla zapytań ogólnych |
+| **Inquisitor**  | `inquisitor`  | Rewident kontraktowy — „niszczy" dokument w poszukiwaniu luk | Analiza dokumentów            |
+| **Draftsman**   | `draftsman`   | Architekt tekstów — odporny na ataki procesowe               | Tworzenie pism                |
+| **Oracle**      | `oracle`      | Analityk linii orzeczniczych — czyta wyroki, nie przepisy    | Badania orzecznictwa          |
+| **Grandmaster** | `grandmaster` | Strateg procesowy — szach-mat w 3 ruchach                    | Planowanie strategii          |
 
 ### 7.3 Dostępne Zadania (TASK_PROMPTS)
 
-| Zadanie | Identyfikator | Metodologia | Użycie |
-|---------|--------------|-------------|--------|
-| **Multi-Level Diagnosis** | `general` | Conflict Topology → Context Anchoring → Solution Path → Human Summary | Domyślne |
-| **Adversarial Audit** | `analysis` | Structural Check → Abusive Clause Detection → Risk Heatmap → Hidden Traps | Analiza umów |
-| **Bulletproof Drafting** | `drafting` | Formal Compliance → Logic Chaining → Strategic Placeholders → Final Polish | Pisma procesowe |
-| **Jurisprudence Synthesis** | `research` | Case Law Matrix → Precedent Analysis → Bias ID → Winning Argument | Badania prawne |
-| **Strategic War Room** | `strategy` | Off/Def Posture → Evidence Inventory → Anticipatory Response → Tactical Timeline | Planowanie spraw |
+| Zadanie                     | Identyfikator | Metodologia                                                                      | Użycie           |
+| --------------------------- | ------------- | -------------------------------------------------------------------------------- | ---------------- |
+| **Multi-Level Diagnosis**   | `general`     | Conflict Topology → Context Anchoring → Solution Path → Human Summary            | Domyślne         |
+| **Adversarial Audit**       | `analysis`    | Structural Check → Abusive Clause Detection → Risk Heatmap → Hidden Traps        | Analiza umów     |
+| **Bulletproof Drafting**    | `drafting`    | Formal Compliance → Logic Chaining → Strategic Placeholders → Final Polish       | Pisma procesowe  |
+| **Jurisprudence Synthesis** | `research`    | Case Law Matrix → Precedent Analysis → Bias ID → Winning Argument                | Badania prawne   |
+| **Strategic War Room**      | `strategy`    | Off/Def Posture → Evidence Inventory → Anticipatory Response → Tactical Timeline | Planowanie spraw |
 
 ---
 
@@ -439,12 +440,12 @@ Każda odpowiedź LLM jest budowana hierarchicznie z trzech warstw promptów:
 
 ### 8.1 Obsługiwane formaty
 
-| Format | Biblioteka | Uwagi |
-|--------|-----------|-------|
-| **PDF** | PyPDF2 | Ekstrakcja tekstu ze stron |
-| **DOCX** | python-docx | Akapity dokumentu |
-| **TXT** | Natywnie | UTF-8 z fallbackiem na Latin-1 |
-| **Obrazy** | EasyOCR | Polski + angielski, próg pewności > 50% |
+| Format     | Biblioteka  | Uwagi                                   |
+| ---------- | ----------- | --------------------------------------- |
+| **PDF**    | PyPDF2      | Ekstrakcja tekstu ze stron              |
+| **DOCX**   | python-docx | Akapity dokumentu                       |
+| **TXT**    | Natywnie    | UTF-8 z fallbackiem na Latin-1          |
+| **Obrazy** | EasyOCR     | Polski + angielski, próg pewności > 50% |
 
 ### 8.2 Pipeline przetwarzania
 
@@ -477,11 +478,11 @@ Plik (upload)
 
 ### 8.3 Endpointy dokumentów
 
-| Endpoint | Metoda | Opis |
-|----------|--------|------|
-| `/upload-document` | POST | Upload pliku, ekstrakcja tekstu |
-| `/upload-base64-document` | POST | Upload base64 (z frontendu) |
-| `/analyze-document` | POST | Analiza tekstu dokumentu z RAG |
+| Endpoint                  | Metoda | Opis                            |
+| ------------------------- | ------ | ------------------------------- |
+| `/upload-document`        | POST   | Upload pliku, ekstrakcja tekstu |
+| `/upload-base64-document` | POST   | Upload base64 (z frontendu)     |
+| `/analyze-document`       | POST   | Analiza tekstu dokumentu z RAG  |
 
 ---
 
@@ -514,33 +515,33 @@ settings (
 
 ### 9.2 Operacje
 
-| Operacja | Funkcja | Opis |
-|----------|---------|------|
-| Init DB | `init_db()` | Tworzy tabele + migracja domyślnego system_prompt |
-| Save Message | `save_message()` | Auto-tworzy sesję, aktualizuje tytuł |
-| Get Messages | `get_messages()` | Pobiera historię czatu (limit 200) |
-| Get Sessions | `get_sessions()` | Lista sesji sortowana po dacie |
-| Delete Session | `delete_session()` | Usuwa sesję + kaskadowo wiadomości |
-| Settings | `get_setting()` / `set_setting()` | CRUD klucz-wartość |
+| Operacja       | Funkcja                           | Opis                                              |
+| -------------- | --------------------------------- | ------------------------------------------------- |
+| Init DB        | `init_db()`                       | Tworzy tabele + migracja domyślnego system_prompt |
+| Save Message   | `save_message()`                  | Auto-tworzy sesję, aktualizuje tytuł              |
+| Get Messages   | `get_messages()`                  | Pobiera historię czatu (limit 200)                |
+| Get Sessions   | `get_sessions()`                  | Lista sesji sortowana po dacie                    |
+| Delete Session | `delete_session()`                | Usuwa sesję + kaskadowo wiadomości                |
+| Settings       | `get_setting()` / `set_setting()` | CRUD klucz-wartość                                |
 
 ---
 
 ## 🔌 10. API ENDPOINTY — PODSUMOWANIE
 
-| Endpoint | Metoda | Moduł | Opis |
-|----------|--------|-------|------|
-| `/models/all` | GET | api.py | Lista modeli z OpenRouter |
-| `/models/presets` | GET | api.py | Predefiniowane zespoły modeli |
-| `/models/admin` | GET | api.py | Modele dla panelu admina |
-| `/sessions` | GET | database.py | Lista sesji |
-| `/sessions/{id}/messages` | GET | database.py | Wiadomości sesji |
-| `/sessions/{id}` | DELETE | database.py | Usuń sesję |
-| `/chat` | POST | api.py | Single Model Chat |
-| `/chat-consensus` | POST | api.py | MOA Consensus Chat |
-| `/draft-document` | POST | api.py | Generator pism procesowych |
-| `/upload-document` | POST | document_processor.py | Upload + ekstrakcja tekstu |
-| `/upload-base64-document` | POST | document_processor.py | Upload base64 |
-| `/analyze-document` | POST | api.py | Analiza dokumentu z RAG |
+| Endpoint                  | Metoda | Moduł                 | Opis                          |
+| ------------------------- | ------ | --------------------- | ----------------------------- |
+| `/models/all`             | GET    | api.py                | Lista modeli z OpenRouter     |
+| `/models/presets`         | GET    | api.py                | Predefiniowane zespoły modeli |
+| `/models/admin`           | GET    | api.py                | Modele dla panelu admina      |
+| `/sessions`               | GET    | database.py           | Lista sesji                   |
+| `/sessions/{id}/messages` | GET    | database.py           | Wiadomości sesji              |
+| `/sessions/{id}`          | DELETE | database.py           | Usuń sesję                    |
+| `/chat`                   | POST   | api.py                | Single Model Chat             |
+| `/chat-consensus`         | POST   | api.py                | MOA Consensus Chat            |
+| `/draft-document`         | POST   | api.py                | Generator pism procesowych    |
+| `/upload-document`        | POST   | document_processor.py | Upload + ekstrakcja tekstu    |
+| `/upload-base64-document` | POST   | document_processor.py | Upload base64                 |
+| `/analyze-document`       | POST   | api.py                | Analiza dokumentu z RAG       |
 
 ---
 
@@ -567,6 +568,7 @@ params = {
 ### 11.3 Mapowanie wyników
 
 Każde orzeczenie SAOS jest mapowane na `RetrievedChunk`:
+
 - **content**: textContent wyroku (lub fallback: data + sygnatura + sąd)
 - **source**: `"ORZECZENIE SAOS ID: {id} ({court}, {case_number})"`
 - **similarity**: 0.9 (stała — SAOS nie zwraca score)
@@ -581,31 +583,31 @@ SAOS jest uruchamiany **równolegle** z keyword extraction i vector search. Wyni
 
 ### 12.1 LLM
 
-| Parametr | Wartość | Opis |
-|----------|---------|------|
-| `LLM_TEMPERATURE` | 0.1 | Niska temperatura = mniej halucynacji |
-| `LLM_TIMEOUT` | 120s | Timeout pojedynczego wywołania |
-| `GLOBAL_MOA_TIMEOUT` | 135s | Twardy limit całego MOA |
-| `MAX_RETRIES` | 3 | Liczba powtórzeń przy błędzie |
-| `RETRY_BASE_DELAY` | 1.0s | Bazowe opóźnienie (backoff) |
-| `RETRY_MAX_DELAY` | 15.0s | Maksymalne opóźnienie |
-| `RETRYABLE_STATUS_CODES` | 429, 500, 502, 503, 504 | Statusy do retry |
+| Parametr                 | Wartość                 | Opis                                  |
+| ------------------------ | ----------------------- | ------------------------------------- |
+| `LLM_TEMPERATURE`        | 0.1                     | Niska temperatura = mniej halucynacji |
+| `LLM_TIMEOUT`            | 120s                    | Timeout pojedynczego wywołania        |
+| `GLOBAL_MOA_TIMEOUT`     | 135s                    | Twardy limit całego MOA               |
+| `MAX_RETRIES`            | 3                       | Liczba powtórzeń przy błędzie         |
+| `RETRY_BASE_DELAY`       | 1.0s                    | Bazowe opóźnienie (backoff)           |
+| `RETRY_MAX_DELAY`        | 15.0s                   | Maksymalne opóźnienie                 |
+| `RETRYABLE_STATUS_CODES` | 429, 500, 502, 503, 504 | Statusy do retry                      |
 
 ### 12.2 Embeddings
 
-| Parametr | Wartość | Opis |
-|----------|---------|------|
-| `EMBEDDING_MODEL` | text-embedding-3-small | Model OpenAI |
-| `EMBEDDING_DIMENSIONS` | 1536 | Wymiar wektora |
+| Parametr                    | Wartość                 | Opis                 |
+| --------------------------- | ----------------------- | -------------------- |
+| `EMBEDDING_MODEL`           | text-embedding-3-small  | Model OpenAI         |
+| `EMBEDDING_DIMENSIONS`      | 1536                    | Wymiar wektora       |
 | `OPENROUTER_EMBEDDINGS_URL` | `{BASE_URL}/embeddings` | Endpoint embeddingów |
 
 ### 12.3 Retrieval
 
-| Parametr | Wartość | Opis |
-|----------|---------|------|
-| `DEFAULT_MATCH_COUNT` | 12 | Fragmentów do pobrania |
-| `DEFAULT_MATCH_THRESHOLD` | 0.05 | Próg podobieństwa |
-| `MAX_CONTEXT_CHARS` | 48 000 | Limit znaków kontekstu |
+| Parametr                  | Wartość | Opis                   |
+| ------------------------- | ------- | ---------------------- |
+| `DEFAULT_MATCH_COUNT`     | 12      | Fragmentów do pobrania |
+| `DEFAULT_MATCH_THRESHOLD` | 0.05    | Próg podobieństwa      |
+| `MAX_CONTEXT_CHARS`       | 48 000  | Limit znaków kontekstu |
 
 ---
 
@@ -613,23 +615,23 @@ SAOS jest uruchamiany **równolegle** z keyword extraction i vector search. Wyni
 
 ### 13.1 Główne widoki (Tabs)
 
-| Tab | Komponent | Opis |
-|-----|-----------|------|
-| `chat` | `ChatView` | Konsultacja AI (Single + MOA) |
-| `knowledge` | `KnowledgeView` | Centralna Baza Wiedzy |
-| `drafter` | `DrafterView` | Kreator Pism |
-| `documents` | `DocumentsView` | Dokumenty użytkownika |
-| `settings` | `SettingsView` | Profil i ustawienia |
-| `admin` | `AdminView` | Panel administracyjny (admin only) |
+| Tab         | Komponent       | Opis                               |
+| ----------- | --------------- | ---------------------------------- |
+| `chat`      | `ChatView`      | Konsultacja AI (Single + MOA)      |
+| `knowledge` | `KnowledgeView` | Centralna Baza Wiedzy              |
+| `drafter`   | `DrafterView`   | Kreator Pism                       |
+| `documents` | `DocumentsView` | Dokumenty użytkownika              |
+| `settings`  | `SettingsView`  | Profil i ustawienia                |
+| `admin`     | `AdminView`     | Panel administracyjny (admin only) |
 
 ### 13.2 Stan aplikacji
 
-| Store | Rola |
-|-------|------|
-| `useChatSettingsStore` | Ustawienia czatu (model, task, tab settings) |
-| `useOrchestratorStore` | Stan orchestratora modeli |
-| `uiStore` | Ogólny stan UI |
-| `ChatContext` | Kontekst czatu (współdzielony przez ChatProvider) |
+| Store                  | Rola                                              |
+| ---------------------- | ------------------------------------------------- |
+| `useChatSettingsStore` | Ustawienia czatu (model, task, tab settings)      |
+| `useOrchestratorStore` | Stan orchestratora modeli                         |
+| `uiStore`              | Ogólny stan UI                                    |
+| `ChatContext`          | Kontekst czatu (współdzielony przez ChatProvider) |
 
 ### 13.3 Auth
 
@@ -681,33 +683,33 @@ SAOS jest uruchamiany **równolegle** z keyword extraction i vector search. Wyni
 
 ## 🔒 15. BEZPIECZEŃSTWO
 
-| Aspekt | Implementacja |
-|--------|--------------|
-| **CORS** | Dozwolone origins: localhost:3000, 5173, 8003 |
-| **API Keys** | Zmienne środowiskowe (.env) — nigdy w kodzie |
-| **Anti-hallucynacja** | Zakaz konfabulacji, obowiązkowe cytowania |
-| **Timeouts** | Twarde limity na LLM (120s) i MOA (135s) |
-| **Rate Limiting** | Exponential backoff + retry na 429 |
-| **Auth** | Supabase Auth z rolami (user/admin) |
-| **Frontend** | AES-256 badge (deklaratywny) |
+| Aspekt                | Implementacja                                 |
+| --------------------- | --------------------------------------------- |
+| **CORS**              | Dozwolone origins: localhost:3000, 5173, 8003 |
+| **API Keys**          | Zmienne środowiskowe (.env) — nigdy w kodzie  |
+| **Anti-hallucynacja** | Zakaz konfabulacji, obowiązkowe cytowania     |
+| **Timeouts**          | Twarde limity na LLM (120s) i MOA (135s)      |
+| **Rate Limiting**     | Exponential backoff + retry na 429            |
+| **Auth**              | Supabase Auth z rolami (user/admin)           |
+| **Frontend**          | AES-256 badge (deklaratywny)                  |
 
 ---
 
 ## 📝 LEGENDA SKRÓTÓW
 
-| Skrót | Pełna nazwa |
-|-------|-------------|
-| MOA | Mixture of Agents |
-| RAG | Retrieval-Augmented Generation |
-| SAOS | System Analizy Orzeczeń Sądowych |
-| KPA | Kodeks Postępowania Administracyjnego |
-| KC | Kodeks Cywilny |
-| KK | Kodeks Karny |
-| KPK | Kodeks Postępowania Karnego |
-| KSH | Kodeks Spółek Handlowych |
-| LLM | Large Language Model |
-| RPC | Remote Procedure Call |
-| pgvector | Rozszerzenie PostgreSQL do wektorów |
+| Skrót    | Pełna nazwa                           |
+| -------- | ------------------------------------- |
+| MOA      | Mixture of Agents                     |
+| RAG      | Retrieval-Augmented Generation        |
+| SAOS     | System Analizy Orzeczeń Sądowych      |
+| KPA      | Kodeks Postępowania Administracyjnego |
+| KC       | Kodeks Cywilny                        |
+| KK       | Kodeks Karny                          |
+| KPK      | Kodeks Postępowania Karnego           |
+| KSH      | Kodeks Spółek Handlowych              |
+| LLM      | Large Language Model                  |
+| RPC      | Remote Procedure Call                 |
+| pgvector | Rozszerzenie PostgreSQL do wektorów   |
 
 ---
 
@@ -724,7 +726,7 @@ Na podstawie analizy architektury oraz aktualnych trendów LLMOps, wyznaczono na
 
 ### 16.2 Zaawansowany Reranking
 
-- **Cel**: Zmniejszenie "szumu" w kontekście prawnym i poprawa precyzji odpowiedzi (rozwiązanie problemu *Lost in the Middle*).
+- **Cel**: Zmniejszenie "szumu" w kontekście prawnym i poprawa precyzji odpowiedzi (rozwiązanie problemu _Lost in the Middle_).
 - **Implementacja**:
   - Dodanie kroku **Cohere Rerank** lub **BGE-Reranker** po wstępnym pobraniu 12-20 fragmentów.
   - Do modeli MOA trafiać będzie tylko 3-5 absolutnie najważniejszych fragmentów, co drastycznie zmniejszy zużycie tokenów.
@@ -747,13 +749,13 @@ Na podstawie analizy architektury oraz aktualnych trendów LLMOps, wyznaczono na
 
 ## 📈 17. OPTYMALIZACJA WYDAJNOŚCI I KOSZTÓW
 
-| Metoda | Opis | Zysk |
-| :--- | :--- | :--- |
-| **Intent Guard** | Omijanie RAG dla powitań | ~3-5s szybciej, 100% oszczędności tokenów RAG |
-| **Connection Pooling** | Współdzielenie sesji HTTP w MOA | Redukcja overheadu o ~200-500ms na model |
-| **Streaming (Planned)** | Stopniowe wyświetlanie odpowiedzi | Lepsze UX (perceived latency) |
-| **Context Pruning** | Usuwanie redundancji z pobranych tekstów | ~15-20% mniej tokenów wejściowych |
+| Metoda                  | Opis                                     | Zysk                                          |
+| :---------------------- | :--------------------------------------- | :-------------------------------------------- |
+| **Intent Guard**        | Omijanie RAG dla powitań                 | ~3-5s szybciej, 100% oszczędności tokenów RAG |
+| **Connection Pooling**  | Współdzielenie sesji HTTP w MOA          | Redukcja overheadu o ~200-500ms na model      |
+| **Streaming (Planned)** | Stopniowe wyświetlanie odpowiedzi        | Lepsze UX (perceived latency)                 |
+| **Context Pruning**     | Usuwanie redundancji z pobranych tekstów | ~15-20% mniej tokenów wejściowych             |
 
 ---
 
-*Dokumentacja aktualizowana dynamicznie na podstawie rozwoju systemu LexMind AI.*
+_Dokumentacja aktualizowana dynamicznie na podstawie rozwoju systemu LexMind AI._

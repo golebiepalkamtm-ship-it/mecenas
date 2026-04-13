@@ -1,49 +1,81 @@
 @echo off
-setlocal
-cd /d "%~dp0"
+setlocal enabledelayedexpansion
+TITLE LexMind AI - Ultimate Hybrid Boot sequence (V2.7 - SHARP)
 
-echo [SYSTEM] LEXMIND AI v4.1 - INITIALIZING ASYNC CORE...
+:: Configuration
+set API_PORT=8003
+set FE_PORT=3000
+set API_URL=http://127.0.0.1:%API_PORT%
 
-:: Check for virtual environment
-if not exist ".venv" (
-    echo [SYSTEM] Creating virtual environment...
-    python -m venv .venv
+cls
+echo ============================================================
+echo      LEXMIND AI - PRESTIGE BOOT SEQUENCE (V2.7)
+echo ============================================================
+echo [SYSTEM] Starting advanced diagnostic and boot sequence...
+echo.
+
+:: 1. Cleanup
+echo [1/4] Purging ghost processes on ports %API_PORT% and %FE_PORT%...
+:: PowerShell method is precise
+powershell -Command "Get-NetTCPConnection -LocalPort %API_PORT%,%FE_PORT% -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+:: Force fallback for stubborn node/python instances
+taskkill /IM node.exe /F >nul 2>&1
+taskkill /IM python.exe /F >nul 2>&1
+echo [SUCCESS] Ports and processes cleared.
+
+:: 2. Environment Check
+echo [2/4] Verifying Core Engine dependencies...
+dir ".venv" >nul 2>&1
+if errorlevel 1 (
+    echo [CRITICAL ERROR] Virtual environment missing.
+    pause
+    exit /b
+)
+echo [SUCCESS] Environment verified.
+
+:: 3. Backend Startup
+echo [3/4] Initializing Modular Backend Engine...
+start "LexMind Backend" cmd /c ".venv\Scripts\python -m uvicorn api:app --host 127.0.0.1 --port %API_PORT% --reload"
+
+:: 4. Poll for API Readiness
+echo [4/4] Authenticating with Backend API at %API_URL%...
+set retry_count=0
+:poll
+curl -s %API_URL%/health >nul
+if errorlevel 1 (
+    set /a retry_count+=1
+    if !retry_count! gtr 25 (
+        echo.
+        echo [CRITICAL ERROR] Backend synchronization failed.
+        pause
+        exit /b
+    )
+    echo | set /p="."
+    timeout /t 2 >nul
+    goto poll
 )
 
-:: Skip automatic pip install to prevent hanging if the user already has dependencies installed.
-echo [SYSTEM] Skipping automatic pip install (using uv or pre-installed dependencies)...
+echo.
+echo [SUCCESS] Backend linkage established after !retry_count! heartbeats.
+echo.
 
-:: Kill any previous sessions on ports 8003 and 3000
-echo [SYSTEM] Purging ghost processes...
-echo [SYSTEM] Attempting to free port 8003...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8003 ^| findstr LISTENING') do (
-    taskkill /F /PID %%a /T >nul 2>&1
+:: 5. Frontend Startup
+echo [FINAL] Deploying Ultra-Sharp Frontend Interface...
+cd frontend 2>nul || (
+    echo [ERROR] Frontend directory missing.
+    pause
+    exit /b
 )
-echo [SYSTEM] Attempting to free port 3000...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do (
-    taskkill /F /PID %%a /T >nul 2>&1
-)
-timeout /t 2 /nobreak >nul
+start /b "" cmd /c "npm run dev -- --port %FE_PORT% --strictPort --host 127.0.0.1"
+cd ..
 
-:: Prepare Frontend (Vite:3000)
-echo [SYSTEM] Preparing UI Layer (Vite:3000)...
-if not exist "frontend\node_modules\" (
-    echo [SYSTEM] Initial run detect: installing node_modules...
-    cd frontend && call npm install && cd ..
-)
+timeout /t 4 >nul
+start "" "http://127.0.0.1:%FE_PORT%"
 
-:: Start Backend and Frontend in parallel to speed up initialization
-echo [SYSTEM] Starting RAG Engine (FastAPI:8003) and Frontend server (Vite:3000) in parallel...
-start /b "" .venv\Scripts\python -m uvicorn api:app --host 127.0.0.1 --port 8003
-start /b "" cmd /c "cd frontend && npm run dev -- --port 3000 --strictPort --host 127.0.0.1"
-
-:: Wait once for both to initialize
-echo [SYSTEM] Waiting for services to initialize...
-timeout /t 5 /nobreak >nul
-
-:: Start Browser
-echo [SYSTEM] Launching Interface...
-start "" "http://127.0.0.1:3000"
-
-echo [SYSTEM] LexMind AI is running! Beide processes are working in background.
+echo ============================================================
+echo      LEXMIND AI SYSTEM IS NOW ONLINE
+echo      ACCESS: http://127.0.0.1:%FE_PORT%
+echo ============================================================
+echo [SYSTEM] System log stream active. Press Ctrl+C to terminate.
+echo.
 pause

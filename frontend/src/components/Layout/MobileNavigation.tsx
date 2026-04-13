@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogOut, Scale, Plus } from "lucide-react";
+import { Menu, X, LogOut, Scale } from "lucide-react";
 import { supabase } from "../../utils/supabaseClient";
 import { cn } from "../../utils/cn";
 import type { Tab } from "../../types/navigation";
@@ -26,20 +26,20 @@ export function MobileNavigation({ navItems, activeTab, onTabChange }: MobileNav
   return (
     <>
       {/* Mobile Header */}
-      <header className="lg:hidden fixed top-2 left-2 right-2 z-50 h-16 flex items-center justify-between px-4 backdrop-blur-xl bg-black/40 border border-white/10 rounded-lg shadow-2xl">
+      <header className="lg:hidden fixed top-2 left-2 right-2 z-50 h-16 flex items-center justify-between px-4 backdrop-blur-xl bg-[rgba(12,48,52,0.95)] border border-[rgba(167,243,208,0.4)] rounded-lg shadow-2xl">
         <div className="flex items-center gap-3">
           <motion.div
             className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
             style={{
-              background: "linear-gradient(145deg, rgba(212,175,55,0.18) 0%, rgba(3,8,18,0.72) 100%)",
-              borderTop:    "1.5px solid rgba(212,175,55,0.85)",
-              borderLeft:   "1px   solid rgba(212,175,55,0.28)",
-              borderRight:  "0.5px solid rgba(212,175,55,0.08)",
+              background: "linear-gradient(145deg, rgba(167,243,208,0.18) 0%, rgba(12,48,52,0.72) 100%)",
+              borderTop:    "1.5px solid rgba(167,243,208,0.85)",
+              borderLeft:   "1px   solid rgba(167,243,208,0.28)",
+              borderRight:  "0.5px solid rgba(167,243,208,0.08)",
               borderBottom: "1.5px solid rgba(0,0,0,0.70)",
-              boxShadow:    "0 4px 16px rgba(0,0,0,0.50), inset 0 1px 0 rgba(212,175,55,0.45)",
+              boxShadow:    "0 4px 16px rgba(0,0,0,0.50), inset 0 1px 0 rgba(167,243,208,0.45)",
             }}
           >
-            <Scale className="w-4 h-4" style={{ color: "#d4af37" }} strokeWidth={1.5} />
+            <Scale className="w-4 h-4" style={{ color: "#a7f3d0" }} strokeWidth={1.5} />
           </motion.div>
           <span className="font-bold text-sm">LexMind</span>
         </div>

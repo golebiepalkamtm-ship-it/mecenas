@@ -15,14 +15,16 @@ echo  ╚═══════════════════════�
 echo.
 
 :: ─── Czyszczenie starych procesów ───
-echo [1/4] Czyszczenie starych procesow...
+echo [1/4] Czyszczenie starych procesow (Python/Node)...
+taskkill /IM python.exe /F >nul 2>&1
+taskkill /IM node.exe /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8003 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
-timeout /t 1 /nobreak >nul
+timeout /t 2 /nobreak >nul
 
 :: ─── Uruchomienie backendu (FastAPI) ───
 echo [2/4] Uruchamianie backendu FastAPI (port 8003)...
-start "RADCA-AI-Backend" /min cmd /c ".venv\Scripts\uvicorn api:app --host 0.0.0.0 --port 8003 --reload"
+start "RADCA-AI-Backend" cmd /k ".venv\Scripts\uvicorn api:app --host 127.0.0.1 --port 8003 --reload"
 timeout /t 3 /nobreak >nul
 
 :: ─── Instalacja zależności frontendu (jeśli potrzeba) ───
@@ -36,7 +38,7 @@ if not exist "frontend\node_modules\" (
 
 :: ─── Uruchomienie frontendu (Vite) ───
 echo [4/4] Uruchamianie frontendu Vite (port 3000)...
-start "RADCA-AI-Frontend" /min cmd /c "cd frontend && npm run dev"
+start "RADCA-AI-Frontend" cmd /k "cd frontend && npm run dev"
 timeout /t 3 /nobreak >nul
 
 :: ─── Otwieranie przeglądarki ───

@@ -6,6 +6,7 @@ import {
 import { useKnowledgeBase } from "../../hooks";
 import { NeonButton } from "../UI";
 import { X, FileSearch, Maximize2 } from "lucide-react";
+import { API_BASE } from "../../config";
 
 // Sub-components
 import { DocumentCard } from "./components/DocumentCard";
@@ -18,7 +19,29 @@ export function KnowledgeView() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("wszystkie");
   const [previewDoc, setPreviewDoc] = useState<KnowledgeDocument | null>(null);
+  const [previewContent, setPreviewContent] = useState<string | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePreview = async (doc: KnowledgeDocument) => {
+    setPreviewDoc(doc);
+    setPreviewContent(null);
+    setIsPreviewLoading(true);
+    
+    try {
+      const res = await fetch(`${API_BASE}/documents/content/${encodeURIComponent(doc.name)}`);
+      const data = await res.json();
+      if (data.success) {
+        setPreviewContent(data.content);
+      } else {
+        setPreviewContent("Nie udało się pobrać treści dokumentu do podglądu.");
+      }
+    } catch {
+      setPreviewContent("Błąd połączenia z serwerem.");
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -44,15 +67,8 @@ export function KnowledgeView() {
   }, [documents, searchQuery, activeCategory]);
 
   return (
-    <div className="h-full flex flex-col p-6 lg:p-10 lg:pt-8 space-y-6 overflow-hidden bg-prestige-view">
-      <div className="mb-2">
-        <h2 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient mb-1 drop-shadow-[0_0_15px_rgba(212,175,55,0.3)] font-outfit">
-          Baza Wiedzy
-        </h2>
-        <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] font-outfit">
-          Repozytorium Aktów Prawnych i Orzecznictwa
-        </p>
-      </div>
+    <div className="h-full flex flex-col p-6 lg:p-10 lg:pt-28 space-y-6 overflow-hidden overflow-x-hidden bg-prestige-view">
+
       <input
         type="file"
         ref={fileInputRef}
@@ -75,7 +91,7 @@ export function KnowledgeView() {
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="flex flex-col gap-3">
           <AnimatePresence mode="popLayout">
             {filteredDocuments.map((doc: KnowledgeDocument, idx: number) => (
               <DocumentCard 
@@ -85,7 +101,7 @@ export function KnowledgeView() {
                  onDelete={(name) => {
                    if (confirm(`Czy na pewno usunąć ${name}?`)) removeFile(name);
                  }}
-                 onPreview={() => setPreviewDoc(doc)}
+                 onPreview={() => handlePreview(doc)}
               />
             ))}
           </AnimatePresence>
@@ -144,14 +160,16 @@ export function KnowledgeView() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setPreviewDoc(null)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-100"
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm cursor-pointer"
+              style={{ zIndex: 9998 }}
             />
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 w-[400px] h-full glass-liquid-shell border-l border-white/10 z-101 flex flex-col shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
+              transition={{ type: 'tween', duration: 0.35, ease: [0.25, 1, 0.5, 1] }}
+              className="fixed top-0 right-0 w-[500px] h-full glass-liquid-shell border-l border-white/10 flex flex-col shadow-[-20px_0_50px_rgba(0,0,0,0.5)]"
+              style={{ zIndex: 9999 }}
             >
                <div className="p-8 border-b border-white/5 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-4">
@@ -168,31 +186,42 @@ export function KnowledgeView() {
                   </button>
                </div>
                
-               <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+               <div className="flex-1 min-h-0 overflow-y-auto p-8 custom-scrollbar">
                   <h4 className="text-[14px] font-black uppercase tracking-wider text-gold-primary mb-6 leading-tight">{previewDoc.name}</h4>
                   
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                        <div className="bg-white/2 rounded-2xl p-4 border border-white/5">
-                          <span className="block text-[8px] text-white/20 uppercase font-black mb-1">Status Indeksowania</span>
-                          <span className="text-[11px] text-emerald-400 font-black uppercase">Zakończono</span>
+                          <span className="block text-[8px] text-white/20 uppercase font-black mb-1">Status Operacyjny</span>
+                          <span className="text-[11px] text-emerald-400 font-black uppercase flex items-center gap-1.5">
+                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                             Aktywny / RAG
+                          </span>
                        </div>
                        <div className="bg-white/2 rounded-2xl p-4 border border-white/5">
-                          <span className="block text-[8px] text-white/20 uppercase font-black mb-1">Liczba Chunków</span>
-                          <span className="text-[11px] text-gold-primary font-black">{previewDoc.chunks || 0}</span>
+                          <span className="block text-[8px] text-white/20 uppercase font-black mb-1">Liczba Fragmentów</span>
+                          <span className="text-[11px] text-gold-primary font-black uppercase tracking-wider">{previewDoc.chunks || 0} Segmentów</span>
                        </div>
                     </div>
 
                     <div className="space-y-4">
-                       <span className="block text-[9px] text-white/20 uppercase font-black tracking-widest">Informacje Techniczne</span>
-                       <div className="prose prose-invert prose-xs max-w-none text-[11px] text-white/60 leading-relaxed font-outfit bg-black/40 p-6 rounded-3xl border border-white/5">
-                          <p>Dokument został w pełni zaindeksowany i przemapowany na wektory przestrzenne o wysokiej gęstości.</p>
-                          <p className="mt-4">Plik jest dostępny dla wszystkich modeli w systemie MOA jako źródło prawne (Source of Truth).</p>
+                       <span className="block text-[9px] text-white/20 uppercase font-black tracking-widest">Podgląd Treści (OCR)</span>
+                       <div className="relative min-h-[200px] border border-white/5 rounded-3xl overflow-hidden bg-black/40">
+                         {isPreviewLoading ? (
+                           <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3">
+                             <div className="w-8 h-8 border-2 border-gold-primary/20 border-t-gold-primary rounded-full animate-spin" />
+                             <span className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Pobieranie danych...</span>
+                           </div>
+                         ) : (
+                           <div className="p-6 text-[11px] text-white/60 leading-relaxed font-outfit whitespace-pre-wrap select-text">
+                              {previewContent || "Brak dostępnej treści do wyświetlenia."}
+                           </div>
+                         )}
                        </div>
                     </div>
 
                     <div className="pt-6 border-t border-white/5">
-                       <p className="text-[9px] text-white/30 italic">Pełna treść dokumentu jest chroniona i dostępna dla silnika RAG podczas generowania odpowiedzi. Podgląd wyświetla metadane oraz status gotowości operacyjnej.</p>
+                       <p className="text-[9px] text-white/30 italic">Powyższy tekst jest wynikiem automatycznej ekstrakcji (OCR) i służy jako podstawa do operacji wektorowych. Pełny dokument jest dostępny dla silnika MOA jako źródło prawne (Ground Truth).</p>
                     </div>
                   </div>
                </div>

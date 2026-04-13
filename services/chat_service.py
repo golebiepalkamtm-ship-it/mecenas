@@ -86,7 +86,12 @@ async def generate_moa_stream(
     yield f"data: {json.dumps({'type': 'chunk', 'text': '🚀 *Inicjalizacja zespołu ekspertów i analiza dokumentów...*\n'})}\n\n"
     
     # 3. Uruchom MOA (blokująco w tym asynchronicznym generatorze, ale yielding przedtem pozwala UI zareagować)
+    # 3. Uruchom MOA
     try:
+        # Poinformuj o rozpoczęciu retrievalu
+        yield f"data: {json.dumps({'type': 'chunk', 'text': '🔍 *Przeszukiwanie bazy prawnej i dokumentów użytkownika...*\n'})}\n\n"
+        
+        # Przekazujemy callback do pipeline (jeśli go zaraz dodamy) lub symulujemy postęp
         result = await chat_consensus_moa(request, sid, combined_doc_text, context_text)
         
         if not result.success:
@@ -95,11 +100,20 @@ async def generate_moa_stream(
             yield "data: [DONE]\n\n"
             return
 
-        # 4. Wyślij finalną odpowiedź (całość na raz jako jeden duży chunk lub fragmenty)
-        # Dla MOA sędzia zwraca całość po zakończeniu, więc wysyłamy to jako finalny tekst.
-        yield f"data: {json.dumps({'type': 'chunk', 'text': result.final_answer})}\n\n"
+        # Status po analizie ekspertów
+        expert_count = len(result.analyst_results or [])
+        success_count = sum(1 for r in (result.analyst_results or []) if r.success)
+        yield f"data: {json.dumps({'type': 'chunk', 'text': f'🧪 *Eksperci ({success_count}/{expert_count}) zakończyli analizę. Synteza sędziego...*\n\n'})}\n\n"
+
+        # 4. Wyślij finalną odpowiedź strumieniowo
+        final_text = result.final_answer
+        chunk_size = 128 # Więcej na raz dla płynności
+        for i in range(0, len(final_text), chunk_size):
+            part = final_text[i:i+chunk_size]
+            yield f"data: {json.dumps({'type': 'chunk', 'text': part})}\n\n"
+            await asyncio.sleep(0.005) 
         
-        # 5. Zapisz w bazie (jak w zwykłym czacie)
+        # 5. Zapisz w bazie
         db_user = request.message
         if combined_doc_text and "KONTEKST PRAWNY" not in combined_doc_text:
              db_user += f"\n\n[DOKUMENTY]:\n{combined_doc_text[:2000]}"
@@ -109,7 +123,8 @@ async def generate_moa_stream(
             db_user, 
             result.final_answer, 
             message_type="moa_consensus",
-            reasoning=json.dumps([{"m": r.model_id, "s": r.success} for r in (result.analyst_results or [])])
+            reasoning=json.dumps([{"m": r.model_id, "s": r.success} for r in (result.analyst_results or [])]),
+            eli_explanation=result.eli_explanation
         )
         
     except Exception as e:

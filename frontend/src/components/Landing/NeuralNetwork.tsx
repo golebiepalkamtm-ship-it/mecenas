@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Brain,
   Cpu,
@@ -181,15 +181,17 @@ const NODE_DATA: NodeDef[] = [
   },
 ];
 
-function NodeItem({
+const NodeItem = React.memo(({
   node,
   vp,
   index,
+  onHoverChange,
 }: {
   node: NodeDef;
   vp: { w: number; h: number };
   index: number;
-}) {
+  onHoverChange: (id: string | null) => void;
+}) => {
   const [isHovered, setIsHovered] = useState(false);
   const Icon = node.icon;
   const { size, isCenter, x, y } = node;
@@ -200,8 +202,14 @@ function NodeItem({
 
   return (
     <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        onHoverChange(node.id);
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        onHoverChange(null);
+      }}
       style={{
         position: "absolute",
         left: px,
@@ -209,9 +217,9 @@ function NodeItem({
         zIndex: isHovered ? 100 : (isCenter ? 5 : 4),
         pointerEvents: "auto",
         cursor: "pointer",
-        transform: `translate(-50%, -50%) scale(${isHovered ? 1.85 : 1}) rotate(${isHovered ? "-10deg" : "0deg"})`,
+        transform: `translate(-50%, ${isHovered ? "-85%" : "-50%"}) scale(${isHovered ? 1.85 : 1}) rotate(${isHovered ? "-10deg" : "0deg"})`,
         animation: isHovered ? "none" : `nodeFloat ${floatDuration}s ease-in-out ${floatDelay}s infinite`,
-        transition: "transform 0.7s cubic-bezier(0.2, 1.25, 0.45, 1), z-index 0.3s",
+        transition: "transform 0.45s cubic-bezier(0.2, 1.25, 0.45, 1), z-index 0.3s",
       }}
     >
       {/* Background Aura */}
@@ -309,10 +317,11 @@ function NodeItem({
       </div>
     </div>
   );
-}
+});
 
 export default function NeuralNetwork() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [vp, setVp] = useState({
     w: typeof window !== "undefined" ? window.innerWidth : 1440,
     h: typeof window !== "undefined" ? window.innerHeight : 900,
@@ -368,10 +377,15 @@ export default function NeuralNetwork() {
       connections.forEach(([i, j], connIdx) => {
         const n1 = NODE_DATA[i];
         const n2 = NODE_DATA[j];
+        
         const x1 = (n1.x / 100) * w;
-        const y1 = (n1.y / 100) * h;
+        let y1 = (n1.y / 100) * h;
         const x2 = (n2.x / 100) * w;
-        const y2 = (n2.y / 100) * h;
+        let y2 = (n2.y / 100) * h;
+
+        // Apply lift offset if node is hovered (sync with DOM transform)
+        if (hoveredId === n1.id) y1 -= 25;
+        if (hoveredId === n2.id) y2 -= 25;
 
 
         // Staggered flash pulse - each connection fires independently
@@ -389,7 +403,7 @@ export default function NeuralNetwork() {
         const pulseIntensity = isActive ? Math.pow(1 - (cycleTime / pulseWindow), 0.5) : 0;
 
         // Breathing opacity + Pulse highlight
-        const basePulse = 0.12 + Math.sin(time + (i + j)) * 0.03;
+        const basePulse = 0.35 + Math.sin(time + (i + j)) * 0.07;
         const lineOpacity = Math.min(0.9, basePulse + (pulseIntensity * 0.55));
         const lineWidth = 0.5 + (pulseIntensity * 0.2); // Redukcja pogrubienia (z 0.6 na 0.2)
 
@@ -497,14 +511,14 @@ export default function NeuralNetwork() {
 
     animate();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [connections]);
+  }, [connections, hoveredId]);
 
   return (
     <div
       style={{
         position: "absolute",
         inset: 0,
-        pointerEvents: "none", // Prevent main container from blocking
+        pointerEvents: "none",
         zIndex: 1,
         overflow: "hidden",
       }}
@@ -514,7 +528,13 @@ export default function NeuralNetwork() {
         style={{ position: "absolute", inset: 0, opacity: 0.6 }}
       />
       {NODE_DATA.map((node, index) => (
-        <NodeItem key={node.id} node={node} vp={vp} index={index} />
+        <NodeItem 
+          key={node.id} 
+          node={node} 
+          vp={vp} 
+          index={index} 
+          onHoverChange={setHoveredId}
+        />
       ))}
     </div>
   );

@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { History, Cpu, Network, Shield, Target, Zap } from "lucide-react";
+import { History, Cpu, Network, Shield, Target, Zap, FileSearch, X } from "lucide-react";
 
-const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENTS = 20;
 
 // Context & Hooks
 import { useSharedChat } from "../../context/useSharedChat";
 import { useChatSettingsStore } from "../../store/useChatSettingsStore";
 import { useChatMutation } from "../../hooks/useChatMutation";
+import type { ChatMessage, ExpertAnalysis } from "../../types/chat";
+import type { Tab } from "../../types/navigation";
 
 // Internal Components
 import { MessageBubble } from "./components/MessageBubble";
@@ -24,11 +26,16 @@ import { API_BASE } from "../../config";
 
 import { cn } from "../../utils/cn";
 
-export function ChatView({ 
-  onNavigate 
-}: { 
-  onNavigate?: (tab: "chat" | "knowledge" | "prompts" | "drafter" | "documents" | "admin" | "settings") => void 
-}) {
+export interface ChatViewProps {
+  onNavigate?: (tab: Tab) => void;
+}
+
+export function ChatView({ onNavigate }: ChatViewProps = {}) {
+  // Navigation helper
+  const goToTab = useCallback((tab: Tab) => {
+    onNavigate?.(tab);
+  }, [onNavigate]);
+
   const {
     messages,
     setMessages,
@@ -39,12 +46,13 @@ export function ChatView({
     newChat,
     switchSession,
     removeSession,
-    fetchSessions
+    fetchSessions,
+    messagesLoaded
   } = useSharedChat();
 
   // Zustand Store
   const { mode, isOpen, setIsOpen, showHistory, setShowHistory } = useChatSettingsStore();
-  const isConsensusMode = mode === 'consensus';
+  const isConsensusMode = mode === 'consensus' || mode === 'moa';
 
   const chatMutation = useChatMutation();
 
@@ -54,8 +62,9 @@ export function ChatView({
   const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const [libraryMode, setLibraryMode] = useState<'all' | 'documents' | 'images'>('all');
-  const [previewDoc, setPreviewDoc] = useState<any>(null);
+  const [previewDoc, setPreviewDoc] = useState<{ name: string; content?: string } | null>(null);
   const [useRag, setUseRag] = useState(true);
+  const [dismissedExpertPanelMsgId, setDismissedExpertPanelMsgId] = useState<string | null>(null);
   
   const processingQueue = useRef<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,9 +73,24 @@ export function ChatView({
 
   const { isPending: isLoading } = chatMutation;
 
+  const isFirstLoadAfterSwitch = useRef(true);
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-  }, [messages, isLoading]);
+    isFirstLoadAfterSwitch.current = true;
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (!messagesLoaded) return;
+    
+    // Use 'auto' (instant) for the first scroll after loading a new session 
+    // to prevent janky 'smooth' transitions over hundreds of messages
+    const behavior = isFirstLoadAfterSwitch.current ? 'auto' : 'smooth';
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
+    
+    if (isFirstLoadAfterSwitch.current) {
+      isFirstLoadAfterSwitch.current = false;
+    }
+  }, [messages, isLoading, messagesLoaded]);
 
   const startOCRProcessing = async (id: string, file: File) => {
     if (processingQueue.current.has(id)) return;
@@ -79,12 +103,15 @@ export function ChatView({
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${API_BASE}/upload-document`, {
+      const response = await fetch(`${API_BASE}/documents/upload-document`, {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Błąd serwera (${response.status}): ${errorText.substring(0, 100)}`);
+      }
       
       // Phase 2: Processing (OCR)
       setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'processing', progress: 50 } : a));
@@ -99,11 +126,11 @@ export function ChatView({
           extractedText: data.extracted_text 
         } : a));
       } else {
-        throw new Error(data.error || 'Błąd OCR');
+        throw new Error(data.error || 'Błąd przetwarzania dokumentu (pusty wynik)');
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Wystąpił nieznany błąd OCR';
-      console.error("OCR Error:", err);
+      const errorMessage = err instanceof Error ? err.message : 'Wystąpił nieznany błąd podczas dodawania pliku';
+      console.error("Upload/OCR Error:", err);
       setAttachments(prev => prev.map(a => a.id === id ? { 
         ...a, 
         status: 'error', 
@@ -122,9 +149,9 @@ export function ChatView({
       return;
     }
 
-    const isAnyProcessing = attachments.some(a => a.status === 'uploading' || a.status === 'processing');
+    const isAnyProcessing = attachments.some(a => ['waiting', 'uploading', 'processing'].includes(a.status));
     if (isAnyProcessing) {
-      setAttachmentWarning("Poczekaj na zakończenie OCR dokumentów...");
+      setAttachmentWarning("Poczekaj na zakończenie przetwarzania dokumentów...");
       return;
     }
 
@@ -164,7 +191,7 @@ export function ChatView({
       attachments: attachmentData,
       created_at: new Date().toISOString(),
     };
-    setMessages((prev: Message[]) => [...prev, userMsg]);
+    setMessages((prev: ChatMessage[]) => [...prev, userMsg as ChatMessage]);
     
     const currentInput = input;
     setInput("");
@@ -187,7 +214,7 @@ export function ChatView({
           expert_analyses: data.expert_analyses || [],
           created_at: new Date().toISOString(),
         };
-        setMessages((prev: Message[]) => [...prev, assistantMsg]);
+        setMessages((prev: ChatMessage[]) => [...prev, assistantMsg as ChatMessage]);
         
         if (!sessionId && data.sessionId) {
           setSessionId(data.sessionId);
@@ -197,7 +224,7 @@ export function ChatView({
         fetchSessions();
       },
       onError: (error: Error) => {
-        setMessages((prev: Message[]) => [
+        setMessages((prev: ChatMessage[]) => [
           ...prev,
           {
             id: Date.now().toString(),
@@ -292,7 +319,7 @@ export function ChatView({
   }, [attachmentWarning]);
 
   return (
-    <div className="h-full flex relative overflow-hidden bg-transparent">
+    <div className="h-full flex relative overflow-visible bg-transparent">
       <ChatSidebar 
         showHistory={showHistory}
         setShowHistory={setShowHistory}
@@ -309,7 +336,7 @@ export function ChatView({
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             onClick={() => setShowHistory(true)}
-            className="absolute left-1 lg:left-2 top-1/2 -translate-y-1/2 z-30 p-3 lg:p-4 glass-prestige-gold rounded-full text-white/40 hover:text-gold-primary hover:scale-110 transition-all shadow-xl group/hist"
+            className="absolute left-1 lg:left-2 top-1/2 -translate-y-1/2 z-30 p-3 lg:p-4 glass-prestige-platinum rounded-full text-black/40 hover:text-black hover:scale-110 transition-all shadow-xl group/hist"
             title="Pokaż Historię"
           >
             <History className="w-5 h-5 group-hover/hist:rotate-12 transition-transform" />
@@ -324,8 +351,8 @@ export function ChatView({
             className={cn(
                "absolute right-1 lg:right-2 top-1/2 -translate-y-1/2 z-30 p-3 lg:p-4 rounded-full transition-all shadow-xl border flex items-center justify-center group/config",
                isConsensusMode 
-                 ? "bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white shadow-lg"
-                 : "glass-prestige-gold border-white/5 text-white/40 hover:text-gold-primary hover:scale-110"
+                 ? "bg-white text-black border-black hover:bg-black/5 hover:text-black shadow-lg"
+                 : "glass-prestige-platinum border-black/5 text-black/40 hover:text-black hover:scale-110"
             )}
             title={isConsensusMode ? "Skonfiguruj Konsylium" : "Wybierz Model"}
           >
@@ -335,10 +362,17 @@ export function ChatView({
 
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto px-3 md:px-8 lg:px-12 xl:px-16 py-3 space-y-3 scroll-smooth custom-scrollbar"
+          className="flex-1 min-h-0 overflow-y-auto px-3 md:px-8 lg:px-12 xl:px-16 py-3 space-y-3 scroll-smooth custom-scrollbar"
         >
-          {messages.length === 0 ? (
-            <WelcomeView />
+          {!messagesLoaded ? (
+            <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-40">
+              <div className="w-12 h-12 rounded-2xl glass-prestige animate-pulse flex items-center justify-center">
+                <History className="w-6 h-6 text-gold-primary" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]">Ładowanie Archiwum...</p>
+            </div>
+          ) : messages.length === 0 ? (
+            <WelcomeView onNavigate={goToTab} />
           ) : (
             <AnimatePresence initial={false} mode="popLayout">
               {messages.map((m, i) => (
@@ -365,7 +399,7 @@ export function ChatView({
             >
               <div className="w-10 h-10 rounded-2xl glass-prestige shrink-0 flex items-center justify-center border border-white/10 relative overflow-hidden">
                 <div className="absolute inset-0 neural-orb opacity-40" />
-                <Zap className="w-4 h-4 text-white/50 relative z-10 animate-pulse" />
+                <Zap className="w-4 h-4 text-white/50 relative z-10" />
               </div>
               
               <div className="liquid-glass px-6 py-5 rounded-2xl relative overflow-hidden flex-1 border border-white/5 shadow-2xl">
@@ -376,7 +410,7 @@ export function ChatView({
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.3em] italic flex items-center gap-2">
-                         <Network className="w-3 h-3 text-blue-400 animate-pulse" />
+                         <Network className="w-3 h-3 text-gold-primary animate-pulse" />
                          Konsylium Prawne MOA — Proces Myślowy...
                       </p>
                       <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest hidden sm:block">Legal Reasoning Pipeline</span>
@@ -391,7 +425,7 @@ export function ChatView({
                       ].map((phase, idx) => (
                         <div key={idx} className="flex items-center gap-2 sm:gap-3">
                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 glass-prestige">
-                             <div className="w-1 h-1 rounded-full bg-gold-primary animate-ping" />
+                             <div className="w-1 h-1 rounded-full bg-gold-primary" />
                              <span className="text-[8px] font-black text-white/60 uppercase tracking-wider">{phase.label}</span>
                            </div>
                            {idx < 2 && <div className="hidden sm:block w-4 h-px bg-white/10" />}
@@ -402,7 +436,7 @@ export function ChatView({
                 ) : (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-gold-primary animate-ping" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-gold-primary" />
                       <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] italic">
                         Generowanie strategii procesowej...
                       </p>
@@ -419,12 +453,71 @@ export function ChatView({
           )}
         </div>
 
+        {/* Active Consensus Summary Results (Shown if last message has experts) */}
+        {!chatMutation.isPending && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && messages[messages.length - 1].expert_analyses && messages[messages.length - 1].expert_analyses!.length > 0 && messages[messages.length - 1].id !== dismissedExpertPanelMsgId && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 mb-4 px-4 max-w-[1400px] mx-auto"
+          >
+            <div className="glass-prestige-platinum rounded-3xl p-6 border-4 border-black shadow-2xl relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gold-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="flex items-center justify-between mb-6 relative z-10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gold-primary/10 border border-gold-primary/20 flex items-center justify-center">
+                    <History size={20} className="text-gold-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white italic">Opinie Pozostałych Ekspertów</h3>
+                    <p className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">Niezależne Analizy Agentów AI</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="px-3 py-1.5 rounded-full bg-gold-primary/10 border border-gold-primary/20 text-[9px] font-black text-gold-primary uppercase tracking-widest hidden sm:block">
+                    {messages[messages.length - 1].expert_analyses?.length} Agentów Zsynchronizowanych
+                  </div>
+                  <button 
+                    onClick={() => setDismissedExpertPanelMsgId(messages[messages.length - 1].id ?? null)}
+                    className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500 border border-white/5 hover:border-red-500/30 transition-all hover:scale-110"
+                    title="Zamknij panel ekspertów dla tej odpowiedzi"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-row overflow-x-auto gap-3 pb-2 no-scrollbar relative z-10">
+                {messages[messages.length - 1].expert_analyses?.map((expert: ExpertAnalysis, idx: number) => {
+                  const modelStr = String(expert.model || "");
+                  const vendor = modelStr.split("/")[0]?.toUpperCase() || "AI";
+                  const modelName = modelStr.split("/")[1] || modelStr;
+                  return (
+                    <div key={idx} className="min-w-[220px] max-w-[280px] p-4 rounded-2xl bg-black/40 border border-white/5 hover:border-gold-primary/30 transition-all group/card shadow-xl">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[8px] font-black text-gold-primary uppercase tracking-widest opacity-60">{vendor}</span>
+                        <div className={cn("w-2 h-2 rounded-full", expert.success !== false ? "bg-gold-primary shadow-[0_0_8px_rgba(var(--gold-rgb),0.5)]" : "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]")} />
+                      </div>
+                      <p className="text-[11px] font-black text-white/80 mb-4 truncate italic font-outfit uppercase tracking-tighter">{modelName}</p>
+                      <button 
+                        onClick={() => setPreviewDoc({ name: `Analiza: ${modelName}`, content: String(expert.response || "") })}
+                        className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-gold-primary/10 text-[8px] font-black text-white/30 hover:text-gold-primary uppercase tracking-widest transition-all border border-white/5 hover:border-gold-primary/30"
+                      >
+                        Zobacz Pełną Opinię
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
         <div className="px-2 md:px-4 lg:px-6 pt-0 pb-8 bg-transparent relative z-20">
           <div className="w-full flex flex-col gap-2">
              <div className="flex flex-row items-center justify-center gap-2 sm:gap-3 px-2 mb-1 overflow-x-auto no-scrollbar">
                 <FeatureCard icon={<Shield size={14} className="text-white/60" />} title="Prywatność" bgColor="glass-prestige" />
                 <FeatureCard icon={<Target size={14} className="text-white/60" />} title="Precyzja" bgColor="glass-prestige" />
-                <FeatureCard icon={<Zap size={14} className="text-gold-primary" />} title="Szybkość" bgColor="glass-prestige-gold" />
+                <FeatureCard icon={<Zap size={14} className="text-black" />} title="Szybkość" bgColor="glass-prestige-platinum" />
              </div>
 
              <ChatInput 
@@ -437,7 +530,6 @@ export function ChatView({
                   handleSend={handleSend}
                   stopGeneration={stopGeneration}
                   newChat={newChat}
-                  onNavigateToDrafter={() => onNavigate?.("drafter")}
                   imageInputRef={imageInputRef}
                   attachmentWarning={attachmentWarning}
                   useRag={useRag}
@@ -468,16 +560,34 @@ export function ChatView({
             mode={libraryMode}
             onClose={() => setIsLibraryOpen(false)}
             onSelect={(docs: { id: string; name: string; chunks: number; created_at: string }[]) => {
-              docs.forEach(doc => {
+              docs.forEach(async (doc) => {
+                 const id = `lib-${doc.id}-${Date.now()}`;
                  const newAttachment: QueuedAttachment = {
-                   id: `lib-${doc.id}-${Date.now()}`,
+                   id,
                    file: new File([], doc.name),
-                   status: 'ready',
-                   progress: 100,
+                   status: 'processing',
+                   progress: 50,
                    previewUrl: undefined,
-                   extractedText: '' // Fetch via context
+                   extractedText: ''
                  };
                  setAttachments(prev => [...prev, newAttachment]);
+                 
+                 try {
+                   const res = await fetch(`${API_BASE}/documents/content/${encodeURIComponent(doc.name)}`);
+                   const data = await res.json();
+                   if (data.success) {
+                     setAttachments(prev => prev.map(a => a.id === id ? { 
+                       ...a, 
+                       status: 'ready', 
+                       progress: 100, 
+                       extractedText: data.content 
+                     } : a));
+                   } else {
+                     setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'error', error: data.error } : a));
+                   }
+                 } catch {
+                   setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'error', error: 'Błąd pobierania' } : a));
+                 }
               });
               setIsLibraryOpen(false);
               setUseRag(true);
@@ -492,31 +602,34 @@ export function ChatView({
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: '100%', opacity: 0 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed top-0 right-0 w-[450px] max-w-full h-full glass-prestige border-l border-gold-primary/40 z-[2000] flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
-                style={{ background: 'rgba(10, 12, 16, 0.98)', backdropFilter: 'blur(30px)' }}
+                className="fixed top-0 right-0 w-[450px] max-w-full h-full glass-steel-monolith z-999999 flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
               >
                 <div className="p-6 border-b border-white/10 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-2xl bg-gold-primary/10 flex items-center justify-center border border-gold-primary/20">
                       <FileSearch className="text-gold-primary" size={20} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Szybki Podgląd</h3>
-                      <p className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-1">Dokumentacja Sprawy</p>
+                      <div className="flex items-center gap-3">
+                         <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Opina Eksperta AI</h3>
+                         {/* PRZYCISK ZAMYKANIA BEZPOŚREDNIO OBOK NAGŁÓWKA */}
+                         <button 
+                           onClick={() => setPreviewDoc(null)} 
+                           className="flex items-center gap-2 ml-2 px-3 py-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-colors border border-red-500/50 pointer-events-auto shadow-lg"
+                         >
+                           <X size={16} strokeWidth={3} />
+                           <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Zamknij</span>
+                         </button>
+                      </div>
+                      <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mt-1">Podgląd pełnej analizy</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => setPreviewDoc(null)} 
-                    className="w-10 h-10 rounded-full bg-white/5 hover:bg-red-500/20 flex items-center justify-center text-white/40 hover:text-red-500 transition-all border border-transparent hover:border-red-500/30 group/close"
-                  >
-                    <X size={20} className="group-hover/close:rotate-180 transition-all duration-300" />
-                  </button>
                 </div>
-                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                   <h4 className="text-lg font-black text-gold-primary uppercase tracking-tight mb-6 leading-tight border-b border-gold-primary/10 pb-4">{previewDoc.name}</h4>
-                   <div className="prose prose-invert prose-sm max-w-none text-white/70 leading-relaxed font-outfit whitespace-pre-wrap">
+                <div className="flex-1 min-h-0 overflow-y-auto p-8 lg:p-10">
+                   <h4 className="text-lg font-black text-gold-primary uppercase tracking-tight mb-6 leading-tight border-b border-white/10 pb-4">{previewDoc.name}</h4>
+                   <div className="prose prose-invert prose-sm max-w-none text-white/80 leading-relaxed font-outfit whitespace-pre-wrap">
                       {previewDoc.content || (
-                        <div className="italic opacity-40 py-20 text-center">
+                        <div className="italic opacity-40 py-20 text-center text-white/60">
                            Treść dokumentu jest ładowana z bazy wiedzy... <br/>Możesz go użyć w rozmowie do pełnej analizy.
                         </div>
                       )}
@@ -528,8 +641,8 @@ export function ChatView({
           
           <div className="flex justify-center items-center mt-2.5">
             <div className="flex items-center gap-2 group/verify cursor-default opacity-50 hover:opacity-100 transition-opacity">
-              <div className="h-1 w-1 rounded-full bg-green-500 animate-pulse" />
-              <p className="text-[7px] text-white/40 font-black uppercase tracking-widest italic group-hover/verify:text-green-400 transition-colors">
+              <div className="h-1 w-1 rounded-full bg-gold-primary" />
+              <p className="text-[7px] text-white/40 font-black uppercase tracking-widest italic group-hover/verify:text-gold-bright transition-colors">
                 Verified by LexMind Core Legal Network node
               </p>
             </div>
@@ -540,19 +653,17 @@ export function ChatView({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ x: "100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "100%", opacity: 0 }}
+            initial={{ marginRight: -320, opacity: 0 }}
+            animate={{ marginRight: 0, opacity: 1 }}
+            exit={{ marginRight: -320, opacity: 0 }}
             transition={{ 
-              type: "spring", 
-              stiffness: 100, 
-              damping: 28,
-              mass: 1.2,
-              restDelta: 0.001
+              type: "tween",
+              duration: 0.35,
+              ease: [0.25, 1, 0.5, 1],
             }}
-            className="fixed lg:relative inset-y-0 right-0 w-[320px] max-w-full h-full glass-prestige-gold rounded-3xl flex flex-col shrink-0 overflow-hidden z-50 transition-all shadow-2xl"
+            className="z-50 shrink-0"
           >
-            <QuickIntelligencePanel onNavigate={onNavigate} />
+            <QuickIntelligencePanel />
           </motion.div>
         )}
         </AnimatePresence>

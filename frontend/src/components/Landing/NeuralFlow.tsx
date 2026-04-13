@@ -1,5 +1,5 @@
-import React from "react";
-import { motion } from "framer-motion";
+import { useMemo, useEffect } from "react";
+import { motion, useSpring, useTransform, animate, MotionValue } from "framer-motion";
 import {
   Brain,
   Cpu,
@@ -9,306 +9,221 @@ import {
   Activity,
   Database,
   Scale,
+  type LucideIcon,
 } from "lucide-react";
 
-const NeuralNode = ({
-  icon: Icon,
-  label,
-  sublabel,
-  active = false,
-  delay = 0,
-  size = "md",
-}: {
-  icon: any;
+// Static random values for pure components
+const RANDOM_POOL = Array.from({ length: 256 }, (_, i) => {
+  const x = Math.sin(i + 1) * 10000;
+  return x - Math.floor(x);
+});
+
+interface NodeData {
+  id: string;
+  icon: LucideIcon;
   label: string;
   sublabel: string;
+  x: number;
+  y: number;
+  size: "sm" | "md" | "lg";
   active?: boolean;
-  delay?: number;
-  size?: "sm" | "md" | "lg";
+}
+
+const NODES: NodeData[] = [
+  { id: "brain", icon: Brain, label: "Inference", sublabel: "Vector Matrix", x: 160, y: 110, size: "sm" },
+  { id: "zap", icon: Zap, label: "Neural Core", sublabel: "Syntactic Logic", x: 350, y: 70, size: "sm" },
+  { id: "network", icon: Network, label: "Contextual Engine", sublabel: "Semantic Sync", x: 600, y: 70, size: "sm" },
+  { id: "database", icon: Database, label: "Knowledge Base", sublabel: "Legal Vault", x: 790, y: 110, size: "sm" },
+  { id: "analyzer", icon: Activity, label: "Analyzer", sublabel: "Heuristic Filter", x: 240, y: 350, size: "md" },
+  { id: "synthesizer", icon: Scale, label: "Synthesizer", sublabel: "Legal Rigor", x: 710, y: 350, size: "md" },
+  { id: "consensus", icon: Cpu, label: "Consensus Engine", sublabel: "Final Adjudication", x: 475, y: 550, size: "lg", active: true },
+  { id: "verdict", icon: ShieldCheck, label: "Secure Verdict", sublabel: "Certifiable Origin", x: 475, y: 690, size: "md" },
+];
+
+const LINKS = [
+  { from: "brain", to: "analyzer" },
+  { from: "zap", to: "analyzer" },
+  { from: "network", to: "synthesizer" },
+  { from: "database", to: "synthesizer" },
+  { from: "analyzer", to: "consensus" },
+  { from: "synthesizer", to: "consensus" },
+  { from: "consensus", to: "verdict", active: true },
+];
+
+const NeuralNode = ({
+  node,
+  rawOffset,
+  onHover,
+}: {
+  node: NodeData;
+  rawOffset: MotionValue<number>;
+  onHover: (hovered: boolean) => void;
 }) => {
-  const sizeClasses = {
-    sm: "w-14 h-14",
-    md: "w-18 h-18",
-    lg: "w-24 h-24",
-  };
-  const iconSizes = {
-    sm: "w-5 h-5",
-    md: "w-7 h-7",
-    lg: "w-10 h-10",
-  };
+  const yOffset = useSpring(rawOffset, { stiffness: 80, damping: 20 });
+  const orbitalDuration = useMemo(() => 12 + RANDOM_POOL[node.id.length % 256] * 10, [node.id]);
+
+  const sizeClasses = { sm: "w-14 h-14", md: "w-18 h-18", lg: "w-24 h-24" };
+  const iconSizes = { sm: "w-5 h-5", md: "w-7 h-7", lg: "w-10 h-10" };
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 1, delay, ease: [0.16, 1, 0.3, 1] }}
-      className="relative flex flex-col items-center group pointer-events-auto"
+      style={{
+        position: "absolute",
+        left: node.x,
+        top: node.y,
+        y: yOffset,
+        x: "-50%",
+      }}
+      className="flex flex-col items-center group pointer-events-auto z-20"
+      onMouseEnter={() => onHover(true)}
+      onMouseLeave={() => onHover(false)}
     >
-      {/* Node Aura */}
-      <div
-        className={`absolute -inset-4 rounded-full blur-xl transition-opacity duration-1000 ${
-          active
-            ? "bg-gold-primary/60 opacity-100"
-            : "bg-white/20 opacity-0 group-hover:opacity-100"
-        }`}
-      />
+      <div className={`absolute -inset-10 rounded-full transition-all duration-1000 ${node.active ? "bg-white/5 opacity-100 scale-110" : "bg-white/5 opacity-0 group-hover:opacity-100 group-hover:scale-105"}`} />
 
-      {/* Main Circle */}
-      <div
-        className={`relative ${sizeClasses[size]} rounded-full border flex items-center justify-center transition-all duration-700 shadow-2xl ${
-          active
-            ? "bg-gold-primary/25 border-gold-primary/90 shadow-gold ring-2 ring-gold-primary/50"
-            : "bg-white/[0.12] border-white/40 group-hover:border-gold-primary/70"
-        }`}
+      <motion.div
+        whileHover={{ scale: 1.15 }}
+        className={`relative ${sizeClasses[node.size]} rounded-full border flex items-center justify-center transition-all duration-700 ${node.active ? "bg-white/20 border-white/60 ring-1 ring-white/40" : "bg-white/10 border-white/20 group-hover:border-white/50 group-hover:bg-white/20"}`}
       >
-        <Icon
-          className={`transition-colors duration-700 ${
-            active
-              ? "text-gold-primary animate-glow-pulse"
-              : "text-white/70 group-hover:text-gold-primary/90"
-          } ${iconSizes[size]}`}
-          strokeWidth={1.2}
-        />
+        <node.icon className={`transition-all duration-700 ${node.active ? "text-white" : "text-white/40 group-hover:text-white/90"} ${iconSizes[node.size]}`} strokeWidth={node.active ? 1.5 : 0.75} />
 
-        {/* Orbital Ring */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{
-            duration: 12 + Math.random() * 5,
-            repeat: Infinity,
-            ease: "linear",
-          }}
-          className="absolute -inset-2 border border-dashed border-white/25 rounded-full"
-        />
-
-        {active && (
+        {[0.8, 1, 1.25].map((_, i) => (
           <motion.div
-            animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 3, repeat: Infinity }}
-            className="absolute inset-0 rounded-full bg-gold-primary/20"
+            key={i}
+            animate={{ rotate: i % 2 === 0 ? 360 : -360 }}
+            transition={{ duration: orbitalDuration * (1 + i * 0.3), repeat: Infinity, ease: "linear" }}
+            className="absolute border border-dashed border-white/10 rounded-full"
+            style={{ inset: `${-6 - (i * 3)}px`, opacity: 1 - (i * 0.3) }}
           />
-        )}
-      </div>
+        ))}
+      </motion.div>
 
-      {/* Labels */}
-      <div className="mt-3 text-center">
-        <p
-          className={`text-[9px] font-inter font-black uppercase tracking-[0.35em] transition-colors duration-500 whitespace-nowrap ${
-            active ? "text-white" : "text-white/75 group-hover:text-white"
-          }`}
-        >
-          {label}
+      <div className="mt-5 text-center pointer-events-none">
+        <p className={`text-[11px] font-inter font-black uppercase tracking-[0.45em] transition-all duration-500 whitespace-nowrap ${node.active ? "text-white scale-110" : "text-white/60 group-hover:text-white"}`}>
+          {node.label}
         </p>
-        <p className="text-[7px] font-inter font-bold uppercase tracking-[0.2em] text-gold-primary/95 mt-0.5 italic">
-          {sublabel}
+        <p className={`text-[9px] font-outfit font-medium uppercase tracking-[0.3em] mt-1.5 italic transition-colors duration-500 ${node.active ? "text-white/90" : "text-white/30 group-hover:text-white/50"}`}>
+          {node.sublabel}
         </p>
       </div>
     </motion.div>
   );
 };
 
-const DataStream = ({
-  path,
-  delay = 0,
-  color = "gold",
+const DynamicLink = ({
+  fromNode,
+  toNode,
+  rawFromY,
+  rawToY,
+  active = false,
 }: {
-  path: string;
-  delay?: number;
-  color?: "gold" | "teal";
+  fromNode: NodeData;
+  toNode: NodeData;
+  rawFromY: MotionValue<number>;
+  rawToY: MotionValue<number>;
+  active?: boolean;
 }) => {
-  const strokeColor = color === "gold" ? "#d4af37" : "#00ced1";
+  const fromY = useSpring(rawFromY, { stiffness: 80, damping: 20 });
+  const toY = useSpring(rawToY, { stiffness: 80, damping: 20 });
+
+  const path = useTransform([fromY, toY], ([fy, ty]) => {
+    const sx = fromNode.x;
+    const sy = fromNode.y + (fy as number);
+    const tx = toNode.x;
+    const ty_coord = toNode.y + (ty as number);
+    const midX = (sx + tx) / 2;
+    const midY = (sy + ty_coord) / 2 + 60;
+    return `M ${sx} ${sy} Q ${midX} ${midY} ${tx} ${ty_coord}`;
+  });
+
+  const duration = useMemo(() => 3 + RANDOM_POOL[(fromNode.id + toNode.id).length % 256] * 5, [fromNode.id, toNode.id]);
+  const delay = useMemo(() => RANDOM_POOL[(fromNode.id.length * 3) % 256] * 2, [fromNode.id]);
 
   return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none overflow-visible"
-      fill="none"
-    >
+    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible z-10">
       <defs>
-        <linearGradient
-          id={`gradient-path-${delay}`}
-          x1="0%"
-          y1="0%"
-          x2="100%"
-          y2="100%"
-        >
-          <stop offset="0%" stopColor={strokeColor} stopOpacity="0" />
-          <stop offset="50%" stopColor={strokeColor} stopOpacity="0.5" />
-          <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
+        <linearGradient id={`grad-${fromNode.id}-${toNode.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="white" stopOpacity="0" />
+          <stop offset="50%" stopColor="white" stopOpacity={active ? 0.4 : 0.15} />
+          <stop offset="100%" stopColor="white" stopOpacity="0" />
         </linearGradient>
-        <linearGradient
-          id={`gradient-pulse-${delay}`}
-          x1="0%"
-          y1="0%"
-          x2="100%"
-          y2="100%"
-        >
-          <stop offset="0%" stopColor="transparent" />
-          <stop offset="50%" stopColor={strokeColor} />
-          <stop offset="100%" stopColor="transparent" />
-        </linearGradient>
+        <filter id="glow-synapse" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2.5" result="blur" />
+          <feComposite in="SourceGraphic" in2="blur" operator="over" />
+        </filter>
       </defs>
-
-      {/* Base Path */}
+      <motion.path d={path} stroke={`url(#grad-${fromNode.id}-${toNode.id})`} strokeWidth="1.2" strokeLinecap="round" fill="transparent" className="opacity-60" />
       <motion.path
         d={path}
-        stroke={`url(#gradient-path-${delay})`}
-        strokeWidth="1.5"
+        stroke={active ? "white" : "rgba(255,255,255,0.6)"}
+        strokeWidth={active ? "3" : "1.8"}
         strokeLinecap="round"
-        initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 2.5, delay, ease: "easeInOut" }}
-      />
-
-      {/* Animated Data Pulse */}
-      <motion.path
-        d={path}
-        stroke={`url(#gradient-pulse-${delay})`}
-        strokeWidth="3"
-        strokeLinecap="round"
-        initial={{ pathLength: 0.05, pathOffset: 0, opacity: 0 }}
-        animate={{
-          pathOffset: [0, 1],
-          opacity: [0, 0.8, 0],
-        }}
-        transition={{
-          duration: 3 + Math.random(),
-          repeat: Infinity,
-          delay: delay + 1,
-          ease: "linear",
-        }}
+        fill="transparent"
+        filter="url(#glow-synapse)"
+        initial={{ pathLength: 0.1, pathOffset: 0, opacity: 0 }}
+        animate={{ pathOffset: [0, 1], opacity: [0, active ? 1 : 0.7, 0] }}
+        transition={{ duration, repeat: Infinity, ease: "easeInOut", delay }}
       />
     </svg>
   );
 };
 
 export default function NeuralFlow() {
+  const nodeOffsets = useMemo(() => {
+    return NODES.reduce((acc, node) => {
+      acc[node.id] = new MotionValue(0);
+      return acc;
+    }, {} as Record<string, MotionValue<number>>);
+  }, []);
+
+  useEffect(() => {
+    NODES.forEach((node, i) => {
+      const duration = 5 + RANDOM_POOL[i % 256] * 5;
+      const delay = RANDOM_POOL[(i + 12) % 256] * 3;
+      animate(nodeOffsets[node.id], [0, 20, 0], { duration, delay, repeat: Infinity, ease: "easeInOut" });
+    });
+  }, [nodeOffsets]);
+
+  const handleHover = (id: string, hovered: boolean) => {
+    const target = hovered ? -80 : 0;
+    animate(nodeOffsets[id], target, { type: "spring", stiffness: 200, damping: 18 });
+
+    if (!hovered) {
+      setTimeout(() => {
+        const i = NODES.findIndex(n => n.id === id);
+        const duration = 5 + RANDOM_POOL[i % 256] * 5;
+        animate(nodeOffsets[id], [0, 20, 0], { duration, repeat: Infinity, ease: "easeInOut" });
+      }, 800);
+    }
+  };
+
   return (
-    <div className="relative w-full max-w-[800px] h-[650px] flex items-center justify-center p-4">
-      {/* Background Glow */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(212,175,55,0.02)_0%,transparent_80%)]" />
-
-      {/* SVG STREAMS - Coordinated with redistributed nodes */}
-      {/* Row 1 -> Row 2 */}
-      <DataStream path="M 120 100 Q 150 200 180 250" delay={0.2} />
-      <DataStream path="M 280 60 Q 250 150 200 250" delay={0.4} />
-      <DataStream path="M 520 60 Q 550 150 600 250" delay={0.6} />
-      <DataStream path="M 680 100 Q 650 200 620 250" delay={0.8} />
-
-      {/* Row 2 -> Row 3 (Consensus) */}
-      <DataStream path="M 180 320 Q 250 400 380 430" delay={1.2} />
-      <DataStream path="M 620 320 Q 550 400 420 430" delay={1.4} />
-      <DataStream path="M 400 120 L 400 400" delay={1.0} color="teal" />
-
-      {/* Row 3 -> Row 4 (Output) */}
-      <DataStream path="M 400 480 L 400 580" delay={2.0} />
-
-      {/* NEURAL NODES - REDISTRIBUTED FOR CLARITY */}
+    <div className="relative w-full max-w-[950px] h-[780px] flex items-center justify-center p-12 bg-black/20 rounded-[4rem] border border-white/10 overflow-hidden shadow-[0_0_100px_rgba(255,255,255,0.05)]">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.04)_0%,transparent_70%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-size-[40px_40px]" />
+      
       <div className="relative z-10 w-full h-full">
-        {/* ROW 1: CORE SOURCES */}
-        <div className="absolute top-4 left-[5%]">
-          <NeuralNode
-            icon={Brain}
-            label="Agentic RAG"
-            sublabel="Vector Core"
-            size="sm"
-            delay={0.1}
+        {LINKS.map((link) => (
+          <DynamicLink
+            key={`${link.from}-${link.to}`}
+            fromNode={NODES.find(n => n.id === link.from)!}
+            toNode={NODES.find(n => n.id === link.to)!}
+            rawFromY={nodeOffsets[link.from]}
+            rawToY={nodeOffsets[link.to]}
+            active={link.active}
           />
-        </div>
-
-        <div className="absolute top-0 left-[30%]">
-          <NeuralNode
-            icon={Zap}
-            label="Neural Core A"
-            sublabel="Logic layer"
-            size="sm"
-            delay={0.3}
-          />
-        </div>
-
-        <div className="absolute top-0 right-[30%]">
-          <NeuralNode
-            icon={Network}
-            label="Neural Core B"
-            sublabel="Context sync"
-            size="sm"
-            delay={0.5}
-          />
-        </div>
-
-        <div className="absolute top-4 right-[5%]">
-          <NeuralNode
-            icon={Database}
-            label="Knowledge"
-            sublabel="Legal Vault"
-            size="sm"
-            delay={0.7}
-          />
-        </div>
-
-        {/* ROW 2: PROCESSING LAYER */}
-        <div className="absolute top-[35%] left-[15%]">
-          <NeuralNode
-            icon={Activity}
-            label="Analysis"
-            sublabel="Pre-processing"
-            size="md"
-            delay={1.0}
-          />
-        </div>
-
-        <div className="absolute top-[35%] right-[15%]">
-          <NeuralNode
-            icon={Scale}
-            label="Synthesis"
-            sublabel="Evaluation"
-            size="md"
-            delay={1.2}
-          />
-        </div>
-
-        {/* ROW 3: MAIN HUB */}
-        <div className="absolute top-[60%] left-1/2 -translate-x-1/2">
-          <NeuralNode
-            icon={Cpu}
-            label="Consensus Engine"
-            sublabel="Final Decision"
-            active
-            size="lg"
-            delay={1.8}
-          />
-        </div>
-
-        {/* ROW 4: OUTPUT */}
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2">
-          <NeuralNode
-            icon={ShieldCheck}
-            label="Secure Verdict"
-            sublabel="Zero Hallucination"
-            size="md"
-            delay={2.5}
-          />
-        </div>
+        ))}
+        {NODES.map((node) => (
+          <NeuralNode key={node.id} node={node} rawOffset={nodeOffsets[node.id]} onHover={(h) => handleHover(node.id, h)} />
+        ))}
       </div>
 
-      {/* Ambient Floating Particles */}
-      {[...Array(15)].map((_, i) => (
+      {[...Array(20)].map((_, i) => (
         <motion.div
           key={i}
-          animate={{
-            y: [-40, 40, -40],
-            x: [-20, 20, -20],
-            opacity: [0.05, 0.25, 0.05],
-          }}
-          transition={{
-            duration: 3 + Math.random() * 5,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="absolute w-1 h-1 bg-gold-primary rounded-full blur-[1px]"
-          style={{
-            top: `${Math.random() * 100}%`,
-            left: `${Math.random() * 100}%`,
-          }}
+          animate={{ y: [-100, 100, -100], x: [-50, 50, -50], opacity: [0.01, 0.1, 0.01] }}
+          transition={{ duration: 10 + RANDOM_POOL[i % 256] * 15, repeat: Infinity, ease: "linear" }}
+          className="absolute w-1 h-1 bg-white rounded-full pointer-events-none"
+          style={{ top: `${RANDOM_POOL[(i + 20) % 256] * 100}%`, left: `${RANDOM_POOL[(i + 40) % 256] * 100}%` }}
         />
       ))}
     </div>

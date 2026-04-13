@@ -22,7 +22,7 @@ export function ExpertMode({ selectedPrompt, onSelect }: ExpertModeProps) {
       </label>
       <div className="grid grid-cols-2 gap-1.5">
         {(
-          Object.entries(DRAFTING_PROMPTS) as [ExpertModeKey, any][]
+          Object.entries(DRAFTING_PROMPTS) as [ExpertModeKey, { label: string; icon: React.ElementType }][]
         ).map(([key, item]) => {
           const ItemIcon = item.icon;
           const isSelected = selectedPrompt === key;

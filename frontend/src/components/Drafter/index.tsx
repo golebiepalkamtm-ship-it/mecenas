@@ -4,12 +4,12 @@ import {
   Loader2,
   Sparkles,
   AlertTriangle,
-  Wand2,
   UserCircle,
   Scale,
   Calendar,
 } from "lucide-react";
 import { supabase } from "../../utils/supabaseClient";
+import { LiquidMetalIcon } from "../UI";
 import { cn } from "./utils";
 import { DRAFTING_PROMPTS, DOCUMENT_TYPES } from "./constants";
 import { useChatSettingsStore } from "../../store/useChatSettingsStore";
@@ -128,13 +128,20 @@ export function DrafterView() {
       const currentDocType = DOCUMENT_TYPES.find((d) => d.id === selectedType);
       const docTitle = firstLine || `${currentDocType?.label || "Pismo"} - ${new Date().toLocaleDateString("pl-PL")}`;
 
-      const { error: saveError } = await supabase.from("documents").insert({
-        title: docTitle,
-        content: generatedDocument,
-        type: currentDocType?.label || "Inne",
-        user_id: session.user.id,
+      const res = await fetch("http://localhost:8003/documents/save-draft", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          document_text: generatedDocument,
+          question: docTitle, // used as filename/title in backend
+          model: drafterModel
+        })
       });
-      if (saveError) throw saveError;
+
+      if (!res.ok) throw new Error("Failed to save draft on server");
+      
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: unknown) {
@@ -142,50 +149,43 @@ export function DrafterView() {
     } finally {
       setIsSaving(false);
     }
-  }, [generatedDocument, selectedType]);
+  }, [generatedDocument, selectedType, drafterModel]);
 
   return (
-    <div className="flex flex-col h-full bg-prestige-view overflow-hidden font-outfit relative">
+    <div className="flex flex-col h-full bg-prestige-view overflow-hidden font-outfit relative lg:pt-28">
       <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
       {/* Ambient Glows */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-gold-primary/5 blur-[120px] pointer-events-none" />
 
       {/* ── TOP BAR ── */}
-      <header className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-white/5 relative z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl glass-prestige-gold flex items-center justify-center text-gold-primary shadow-lg border-t border-white/20">
-            <Wand2 size={18} />
-          </div>
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient leading-none font-outfit">
-              Kreator Pism
-            </h1>
-            <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 font-outfit">
-              LexMind Prestige Drafter • Inteligentny System Redakcyjny
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {currentMessages.length > 0 && (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-full glass-prestige border border-emerald-500/20 shadow-emerald-500/5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">
-                Kontekst: {currentMessages.length}
-              </span>
-            </div>
-          )}
-        </div>
-      </header>
 
       {/* ── MAIN BODY ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT PANEL: Configuration */}
         <aside className={cn(
-            "flex flex-col border-r border-white/10 overflow-y-auto custom-scrollbar shrink-0 transition-all duration-500",
+            "flex flex-col border-r border-white/10 overflow-y-auto custom-scrollbar shrink-0 transition-all duration-500 relative",
             generatedDocument ? "w-full lg:w-[380px] xl:w-[440px]" : "w-full lg:max-w-lg mx-auto"
         )}>
-           <div className="flex flex-col gap-3 p-3">
+           {/* Decorative Liquid Metal Background for Sidebar */}
+           <div className="absolute top-0 right-0 pointer-events-none opacity-20 -mr-20 -mt-20">
+             <LiquidMetalIcon size={300} color="#00fedc" speed={0.2} distortion={0.8} scale={0.001} />
+           </div>
+           
+           <div className="flex flex-col gap-3 p-3 relative z-10">
+              {currentMessages.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-2 mb-2 rounded-xl glass-prestige border border-emerald-500/20 bg-emerald-500/5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">
+                      Aktywny Kontekst Rozmowy
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black text-emerald-400/60">
+                    {currentMessages.length} WIAD.
+                  </span>
+                </div>
+              )}
               <TypeSelector selectedType={selectedType} onSelect={setSelectedType} />
               <ExpertMode selectedPrompt={selectedPrompt} onSelect={setSelectedPrompt} />
 
@@ -213,6 +213,10 @@ export function DrafterView() {
                     )}
                 </AnimatePresence>
               </section>
+              
+              <div className="absolute bottom-40 -left-20 pointer-events-none opacity-10">
+                 <LiquidMetalIcon size={250} color="#ffffff" speed={0.15} distortion={0.5} scale={0.002} />
+              </div>
 
               {/* Instructions */}
               <section className="glass-prestige rounded-2xl p-3">

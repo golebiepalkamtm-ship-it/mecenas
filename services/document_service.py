@@ -2,8 +2,9 @@ import asyncio
 import os
 import httpx
 from typing import List, Dict, Any, Optional
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from document_processor import process_document
+# Lazy imports
+# from langchain_text_splitters import RecursiveCharacterTextSplitter (Moved to function)
+# from document_processor import process_document (Moved to function)
 from moa.config import (
     SUPABASE_IMPORT_URL,
     SUPABASE_ANON_KEY,
@@ -71,6 +72,7 @@ async def index_document_to_supabase(
     
     try:
         # 1. Ekstrakcja tekstu (używamy gotowca jeśli jest)
+        from document_processor import process_document
         if pre_extracted_text:
             extracted_text = pre_extracted_text
             error = None
@@ -84,8 +86,13 @@ async def index_document_to_supabase(
             return {"success": False, "error": error or "Brak tekstu."}
 
         # 2. Chunking
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
         splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=300)
-        metadata = {"filename": filename, "category": category}
+        metadata = {
+            "filename": filename, 
+            "category": category,
+            "type": "uploaded" # Oznaczamy jako dokument przesłany
+        }
         chunks = splitter.create_documents([extracted_text], metadatas=[metadata])
         
         print(f"   [Cloud-Engine] {filename} -> {len(chunks)} fragmentów (Cloud/1536d)")
@@ -133,20 +140,7 @@ async def index_document_to_supabase(
             results = await asyncio.gather(*tasks)
             total = sum(results)
 
-            # 5. DODANIE WPISU DO TABELI 'documents' (Biblioteka Dokumentów)
-            # Dzięki temu plik pojawi się w UI w zakładce Dokumenty
-            try:
-                doc_record = {
-                    "title": filename,
-                    "content": extracted_text,
-                    "type": content_type or (filename.split('.')[-1] if '.' in filename else "Unknown"),
-                    "user_id": user_id
-                }
-                print(f"      [STORAGE] Dodawanie do Archiwum Dokumentów: {filename}")
-                await client.post(f"{SUPABASE_URL.rstrip('/')}/rest/v1/documents", headers=supabase_headers, json=doc_record)
-            except Exception as e:
-                print(f"      [!] Błąd zapisu w bibliotece dokumentów: {e}")
-
+            # 5. ZAKOŃCZENIE
             return {
                 "success": True, 
                 "filename": filename, 

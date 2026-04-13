@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Save, Edit3, Shield, Target, BrainCircuit, Check, Info } from "lucide-react";
+import { Save, Edit3, Shield, Target, BrainCircuit, Check, Info } from "lucide-react";
 import { useChatSettingsStore } from "../../store/useChatSettingsStore";
 import { cn } from "../../utils/cn";
 import { API_BASE } from "../../config";
@@ -39,9 +39,9 @@ export function PromptsView() {
   };
 
   const categories = [
-    { id: 'roles', label: 'Eksperci (Role)', icon: Target, count: Object.keys(unitSystemRoles).length, color: 'text-white/80', rgb: '255,255,255' },
-    { id: 'tasks', label: 'Zadania AI', icon: Shield, count: Object.keys(taskPrompts).length, color: 'text-white/40', rgb: '200,200,200' },
-    { id: 'architect', label: 'System (Master)', icon: BrainCircuit, count: 1, color: 'text-gold-primary', rgb: '212,175,55' }
+    { id: 'roles', label: 'Eksperci (Role)', icon: Target, count: Object.keys(unitSystemRoles).length, color: 'text-[#064e3b]', rgb: '6,78,59' },
+    { id: 'tasks', label: 'Zadania AI', icon: Shield, count: Object.keys(taskPrompts).length, color: 'text-[#0c0f16]/40', rgb: '12,15,22' },
+    { id: 'architect', label: 'System (Master)', icon: BrainCircuit, count: 1, color: 'text-[#064e3b]', rgb: '6,78,59' }
   ];
 
   const handleEdit = (key: string, content: string) => {
@@ -72,31 +72,19 @@ export function PromptsView() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col p-4 lg:p-10 lg:pt-8 bg-prestige-view relative overflow-hidden">
+    <div className="w-full h-full flex flex-col p-4 lg:p-10 lg:pt-28 bg-prestige-view relative overflow-hidden">
       <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8 shrink-0">
-        <div className="w-12 h-12 rounded-lg flex items-center justify-center"
-             style={{
-               background: "linear-gradient(135deg, rgba(212,175,55,0.2) 0%, rgba(30,30,35,0.95) 100%)",
-               border: "1px solid rgba(212,175,55,0.3)",
-               boxShadow: "0 8px 24px rgba(212,175,55,0.15), inset 0 2px 4px rgba(255,255,255,0.1)"
-             }}>
-          <Sparkles className="text-gold-primary w-6 h-6" />
-        </div>
-        <div>
-           <h1 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient leading-none font-outfit">Biblioteka Promptów</h1>
-           <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 font-outfit">Zarządzanie Instruktorami Systemowymi i Logiką AI</p>
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
+      {/* Preset Controls */}
+      <div className="flex items-center justify-end gap-3 mb-6 shrink-0">
+        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-[#0c0f16]/30 mr-auto">Zestawy Strategiczne</label>
           <button
             onClick={() => loadPreset('defense')}
             disabled={isLoadingPreset}
             className={cn(
               "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-              "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15",
-              activePromptPresetId === 'defense' && "ring-2 ring-emerald-500/50 bg-emerald-500/20",
+              "border border-[#064e3b]/30 bg-[#064e3b]/5 text-[#064e3b] hover:bg-[#064e3b]/10",
+              activePromptPresetId === 'defense' && "ring-2 ring-[#064e3b]/50 bg-[#064e3b]/20",
               isLoadingPreset ? "opacity-60 cursor-not-allowed" : ""
             )}
             title="Załaduj zestaw OBRONY (DREAM DEFENSE TEAM)"
@@ -108,8 +96,8 @@ export function PromptsView() {
             disabled={isLoadingPreset}
             className={cn(
               "px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-              "border border-[#991b1b]/40 bg-[#991b1b]/10 text-red-200 hover:bg-[#991b1b]/15",
-              activePromptPresetId === 'prosecution' && "ring-2 ring-[#991b1b]/50 bg-[#991b1b]/20",
+              "border border-red-500/30 bg-red-500/5 text-red-700 hover:bg-red-500/10",
+              activePromptPresetId === 'prosecution' && "ring-2 ring-red-500/50 bg-red-500/20",
               isLoadingPreset ? "opacity-60 cursor-not-allowed" : ""
             )}
             title="Załaduj zestaw OSKARŻENIA (PROSECUTION MACHINE)"
@@ -120,15 +108,15 @@ export function PromptsView() {
             "px-3 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all",
             activePromptPresetId 
               ? cn(
-                  "border-gold-primary/30 bg-gold-primary/10 text-gold-primary",
-                  activePromptPresetId === 'defense' ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "border-[#991b1b]/50 bg-[#991b1b]/10 text-red-300"
+                  "border-[#064e3b]/30 bg-[#064e3b]/10 text-[#064e3b]",
+                  activePromptPresetId === 'defense' ? "border-[#064e3b]/50 bg-[#064e3b]/10 text-[#064e3b]" : "border-red-500/50 bg-red-500/10 text-red-600"
                 )
-              : "border-white/10 bg-black/20 text-white/40"
+              : "border-black/10 bg-black/5 text-black/40"
           )}>
             {activePromptPresetId ? activePromptPresetId.toUpperCase() : "BRAK PRESETU"}
           </div>
         </div>
-      </div>
+
 
       <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
         
@@ -145,11 +133,11 @@ export function PromptsView() {
                    : "bg-black/5 hover:bg-black/10 border border-white/5 text-white/40 hover:text-white"
                )}
                style={activeCategory === cat.id ? {
-                 background: `linear-gradient(145deg, rgba(${cat.rgb},0.15) 0%, rgba(3,2,1,0.85) 100%)`,
-                 borderTop: `1.5px solid rgba(${cat.rgb},0.85)`,
-                 borderLeft: `1px solid rgba(${cat.rgb},0.35)`,
-                 borderBottom: "2px solid rgba(0,0,0,0.6)",
-                 boxShadow: `0 12px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(${cat.rgb},0.45)`
+                 background: `linear-gradient(145deg, rgba(${cat.rgb},0.05) 0%, rgba(255,255,255,0.95) 100%)`,
+                 borderTop: `2px solid rgba(${cat.rgb},0.6)`,
+                 borderLeft: `1px solid rgba(${cat.rgb},0.2)`,
+                 borderBottom: "2px solid rgba(0,0,0,0.1)",
+                 boxShadow: `0 12px 32px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.9)`
                } : {}}
              >
                <div className="flex items-center gap-3 relative z-10">
@@ -263,7 +251,7 @@ function PromptCard({
              >
                <Check size={12} strokeWidth={isActive ? 3 : 2} />
              </button>
-             <h3 className={cn("font-black tracking-wide text-sm", isActive ? "text-gold-primary" : "text-white/70")}>{title}</h3>
+             <h3 className={cn("font-black tracking-wide text-sm", isActive ? "text-[#064e3b]" : "text-[#0c0f16]/70")}>{title}</h3>
           </div>
           <div className="flex items-center gap-2">
              {isEditing ? (
@@ -293,8 +281,8 @@ function PromptCard({
               style={{ caretColor: "#d4af37" }}
             />
           ) : (
-            <div className="text-xs font-mono text-white/50 leading-relaxed max-h-32 overflow-hidden relative">
-              <div className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-[#151515] to-transparent pointer-events-none" />
+            <div className="text-xs font-mono text-[#0c0f16]/60 leading-relaxed max-h-32 overflow-hidden relative">
+              <div className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-white/10 to-transparent pointer-events-none" />
               <div className="whitespace-pre-wrap">{content}</div>
             </div>
           )}

@@ -16,7 +16,8 @@ import {
   Trash2,
   LockIcon,
   Eye,
-  EyeOff
+  EyeOff,
+  Layers
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Title, GlassCard, Badge, NeonButton, AnimatedNumber } from '../UI';
@@ -176,8 +177,8 @@ function ModelManagement() {
             'WizardLM': 'text-indigo-400',
             'Mancer': 'text-red-400',
             'Inne': 'text-gray-400',
-            'Vision': 'text-emerald-400',
-            'Free': 'text-lime-400'
+            'Vision': 'text-gold-primary',
+            'Free': 'text-gold-bright'
         };
         return colors[groupName] || 'text-gray-400';
     };
@@ -206,13 +207,13 @@ function ModelManagement() {
                         onClick={() => setFilterVision(!filterVision)}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
                             filterVision 
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                                ? 'bg-gold-primary/20 text-gold-primary border border-gold-primary/30' 
                                 : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'
                         }`}
                     >
                         <span className="text-lg">👁️</span>
                         <span>Tylko Vision</span>
-                        <span className="text-[8px] bg-emerald-500/30 px-1.5 py-0.5 rounded">({visionCount})</span>
+                        <span className="text-[8px] bg-gold-primary/30 px-1.5 py-0.5 rounded">({visionCount})</span>
                     </button>
                     {filterVision && (
                         <span className="text-[8px] text-emerald-400 font-bold uppercase">
@@ -314,6 +315,7 @@ export function AdminView() {
   const { providers, toggleProvider, updateKey } = useApiManagement();
   const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
   const [stats, setStats] = useState({
       users: 0,
       docs: 0,
@@ -349,6 +351,25 @@ export function AdminView() {
       setShowKeys(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const handleDedupe = async () => {
+    if (!confirm('Uruchomić procedurę usuwania duplikowanych plików?')) return;
+    setIsDeduplicating(true);
+    try {
+      const res = await fetch('http://localhost:8003/dedupe-db');
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert('Deduplikacja zakończona pomyślnie.');
+      } else {
+        alert('Błąd deduplikacji: ' + data.message);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      alert('Błąd połączenia: ' + errorMsg);
+    } finally {
+      setIsDeduplicating(false);
+    }
+  };
+
 
 
     return (
@@ -356,16 +377,9 @@ export function AdminView() {
         <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
         
         {/* Main Header */}
-        <div className="px-8 lg:px-12 pt-8 pb-2">
-            <h1 className="text-2xl font-black uppercase tracking-tight italic text-gold-gradient leading-none font-outfit">
-                Panel Administracyjny
-            </h1>
-            <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mt-1 font-outfit">
-                Zarządzanie Infrastrukturą i Operacjami Systemu LexMind
-            </p>
-        </div>
-        {/* SUB NAVIGATION */}
-        <div className="flex items-center px-8 lg:px-12 py-4 gap-8 shrink-0 overflow-x-auto no-scrollbar border-b border-white/5 glass-liquid-shell sticky top-0 z-50">
+
+        {/* SUB NAVIGATION - Prestige Compact Header (Height adjusted for balance) */}
+        <div className="flex items-center justify-start px-4 h-20 gap-8 shrink-0 overflow-x-auto no-scrollbar border-none! glass-liquid-shell sticky top-0 z-50">
             <SubNavItem 
                 active={activeSubTab === 'system'} 
                 onClick={() => setActiveSubTab('system')} 
@@ -435,11 +449,20 @@ export function AdminView() {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex gap-4">
-                                        <NeonButton variant="secondary" className="flex-1 py-4" onClick={() => {}}>
+                                    <div className="flex gap-4 flex-wrap">
+                                        <NeonButton variant="secondary" className="flex-1 min-w-[140px] py-4" onClick={() => {}}>
                                             <RefreshCw size={14} className="mr-2" /> Re-indeksacja
                                         </NeonButton>
-                                        <NeonButton variant="danger" className="flex-1 py-4" onClick={() => {}}>
+                                        <NeonButton 
+                                            variant="secondary" 
+                                            className="flex-1 min-w-[140px] py-4" 
+                                            onClick={handleDedupe}
+                                            disabled={isDeduplicating}
+                                        >
+                                            <Layers size={14} className={cn("mr-2", isDeduplicating && "animate-spin")} /> 
+                                            {isDeduplicating ? "Analiza..." : "Deduplikacja"}
+                                        </NeonButton>
+                                        <NeonButton variant="danger" className="flex-1 min-w-[140px] py-4" onClick={() => {}}>
                                             <Trash2 size={14} className="mr-2" /> Wyczyść Cache
                                         </NeonButton>
                                     </div>
@@ -643,7 +666,7 @@ function HealthRow({ label, status, ping }: { label: string, status: 'online' | 
             <div className="flex items-center gap-3">
                 <div className={cn(
                     "w-2 h-2 rounded-full",
-                    status === 'online' ? "bg-emerald-500 shadow-[0_0_10px_#10b981]" : "bg-red-500 shadow-[0_0_10px_#ef4444]"
+                    status === 'online' ? "bg-gold-primary shadow-[0_0_10px_rgba(var(--gold-rgb),0.5)]" : "bg-red-500 shadow-[0_0_10px_#ef4444]"
                 )} />
                 <span className="text-[11px] font-bold text-white/40 group-hover:text-white transition-colors uppercase tracking-tight">{label}</span>
             </div>

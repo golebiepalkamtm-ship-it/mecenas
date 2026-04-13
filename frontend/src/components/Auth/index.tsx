@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Scale,
   Mail,
   Lock,
   Loader2,
@@ -12,6 +11,7 @@ import {
   Cpu,
 } from "lucide-react";
 import { supabase } from "../../utils/supabaseClient";
+import { LiquidMetalIcon } from "../UI";
 
 export function AuthView() {
   const [email, setEmail] = useState("");
@@ -165,15 +165,25 @@ export function AuthView() {
               {/* The Prestige Card */}
               <div className="relative overflow-hidden rounded-[4rem] border border-white/40 bg-[#0f2236]/95 backdrop-blur-xl shadow-[0_40px_120px_-20px_rgba(0,0,0,0.8)] p-12 lg:p-20 group/glass transition-all duration-700 hover:border-gold-primary/60">
                 {/* Moving highlight inside card */}
+                <div className="absolute -top-20 -right-20 pointer-events-none opacity-40">
+                  <LiquidMetalIcon size={250} color="#ffffff" speed={0.4} distortion={1.5} scale={0.002} />
+                </div>
+                <div className="absolute -bottom-24 -left-24 pointer-events-none opacity-30 rotate-45">
+                  <LiquidMetalIcon size={300} color="#00fedc" speed={0.3} distortion={1.2} scale={0.0015} />
+                </div>
 
                 {/* Header */}
                 <div className="flex flex-col items-center text-center mb-16">
                   <div className="lg:hidden mb-12">
-                    <div className="w-24 h-24 rounded-[2.5rem] bg-gold-primary flex items-center justify-center shadow-gold animate-glow-pulse">
-                      <Scale
-                        className="text-black w-12 h-12"
-                        fill="currentColor"
-                        strokeWidth={1}
+                    <div className="w-40 h-40 flex items-center justify-center relative translate-y-4">
+                      {/* Aura behind icon */}
+                      <div className="absolute inset-0 bg-gold-primary/20 blur-[60px] rounded-full animate-pulse" />
+                      <LiquidMetalIcon 
+                        size={160} 
+                        color="#d4af37" 
+                        speed={0.8}
+                        distortion={2.0}
+                        scale={0.004}
                       />
                     </div>
                   </div>

@@ -2,6 +2,7 @@ import uuid
 import json
 import logging
 import traceback
+from dataclasses import asdict
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from models.request_models import ChatRequest, DraftRequest, DocumentAnalysisRequest
@@ -19,6 +20,7 @@ from utils.helpers import (
     process_attachments,
     format_history_for_openai,
     save_chat_messages,
+    scrape_urls_from_text,
 )
 
 router = APIRouter()
@@ -37,6 +39,11 @@ async def chat_endpoint(request: ChatRequest):
         )
         if extracted_texts:
             combined_doc_text += "\n" + "\n".join(extracted_texts)
+
+        # NOWOŚĆ: Ściąganie linków z wiadomości
+        web_texts = await scrape_urls_from_text(request.message)
+        if web_texts:
+             combined_doc_text += "\n" + "\n".join(web_texts)
 
         _chunks, context_text = await perform_rag_if_needed(
             intent,
@@ -131,6 +138,11 @@ async def chat_consensus_endpoint(request: ChatRequest):
         if extracted_texts:
             combined_doc_text += "\n" + "\n".join(extracted_texts)
 
+        # NOWOŚĆ: Ściąganie linków z wiadomości
+        web_texts = await scrape_urls_from_text(request.message)
+        if web_texts:
+             combined_doc_text += "\n" + "\n".join(web_texts)
+
         intent = await classify_intent(request.message, model_override=request.model)
         _chunks, context_text = await perform_rag_if_needed(
             intent,
@@ -186,7 +198,8 @@ async def chat_consensus_endpoint(request: ChatRequest):
             json.dumps(moa_user_content),
             result.final_answer,
             message_type="moa_consensus",
-            reasoning=str(result.analyst_results),
+            reasoning=json.dumps([asdict(r) for r in (result.analyst_results or [])]),
+            eli_explanation=result.eli_explanation,
         )
 
         return {
@@ -202,8 +215,11 @@ async def chat_consensus_endpoint(request: ChatRequest):
             ],
             "rag_used": bool(context_text),
             "pipeline_latency_ms": result.pipeline_latency_ms,
+            "eli_explanation": result.eli_explanation,
         }
     except Exception as e:
+        print(f"\n❌ [CRITICAL ERROR] chat_consensus_moa failed:")
+        traceback.print_exc()
         logger.error(f"❌ MOA Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 

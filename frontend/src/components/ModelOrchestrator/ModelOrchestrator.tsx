@@ -11,10 +11,8 @@ import {
   RotateCcw,
   Gavel,
   Trash2,
-  Save,
-  CheckCircle2
+  Save
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useOrchestratorStore } from '../../store/useOrchestratorStore';
@@ -34,7 +32,7 @@ interface OrchestratorModel extends Model {
   isRecommended: boolean;
 }
 
-const LEGAL_RECOMMENDED_IDS = new Set([
+const LEGAL_RECOMMENDED_IDS = new Set<string>([
   // Legal models will be dynamically loaded
 ]);
 
@@ -89,14 +87,19 @@ export function ModelOrchestrator() {
 
   const handleSaveModels = async () => {
     setIsSaving(true);
+    setSuccessMsg('');
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not found');
 
+      // Use upsert to ensure row exists
       const { error } = await supabase
         .from('profiles')
-        .update({ favorite_models: favoriteModelIds })
-        .eq('id', user.id);
+        .upsert({ 
+          id: user.id, 
+          favorite_models: favoriteModelIds,
+          updated_at: new Date().toISOString()
+        });
       
       if (error) throw error;
 
@@ -105,10 +108,13 @@ export function ModelOrchestrator() {
         detail: { favorite_models: favoriteModelIds }
       }));
 
-      setSuccessMsg('Zapisano modele!');
+      setSuccessMsg('ZAPISANO!');
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (error) {
       console.error('Error saving models:', error);
+      const message = error instanceof Error ? error.message : 'Nieznany';
+      setSuccessMsg(`BŁĄD: ${message}`);
+      setTimeout(() => setSuccessMsg(''), 5000);
     } finally {
       setIsSaving(false);
     }
@@ -165,13 +171,8 @@ export function ModelOrchestrator() {
   return (
     <div className="flex flex-col h-full bg-black/20 overflow-hidden relative">
       
-      {/* HEADER WITH WAVY GRADIENT & COMPACT FILTERS */}
+      {/* HEADER WITH COMPACT FILTERS */}
       <div className="relative z-20 border-b border-white/5 bg-black/40 backdrop-blur-3xl overflow-hidden">
-        {/* Background "Waves" - Static and sharp */}
-        <div className="absolute inset-0 opacity-5 pointer-events-none overflow-hidden">
-            <div className="absolute -top-20 -left-20 w-96 h-96 bg-blue-500/10 rounded-full blur-[60px]" />
-            <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-gold-primary/10 rounded-full blur-[60px]" />
-        </div>
 
         <div className="p-6 space-y-6 relative z-10">
             {/* Search Bar */}
@@ -218,13 +219,9 @@ export function ModelOrchestrator() {
                         <RotateCcw size={12} />
                     </button>
                     {successMsg && (
-                        <motion.div 
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            className="ml-4 text-emerald-400 text-[8px] font-black uppercase tracking-widest flex items-center gap-2"
-                        >
-                            <CheckCircle2 size={10} /> {successMsg}
-                        </motion.div>
+                        <div className="ml-4 text-emerald-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                            {successMsg}
+                        </div>
                     )}
                 </div>
             </div>
@@ -296,7 +293,7 @@ export function ModelOrchestrator() {
                         <div className="w-1.5 h-1.5 rounded-full bg-gold-primary/20" />
                         <span className="text-[8px] font-black uppercase tracking-[0.4em] text-white/40">Twoje Ulubione</span>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-1.5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {favoriteModels.map(m => (
                             <ModelMiniTile key={m.id} model={m} isFavorite={true} onToggle={() => toggleFavoriteModel(m.id)} />
                         ))}
@@ -316,7 +313,7 @@ export function ModelOrchestrator() {
                             </div>
                             <span className="text-[7px] text-white/10 font-black">{vendorModels.length}</span>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-10 gap-1.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                             {vendorModels.map((m) => (
                                 <ModelMiniTile
                                     key={m.id}
@@ -348,35 +345,35 @@ function ModelMiniTile({ model, isFavorite, onToggle }: { model: OrchestratorMod
     <button
       onClick={onToggle}
       className={cn(
-        'group flex items-center gap-2 p-2 px-3 rounded-xl transition-all border relative overflow-hidden min-h-[46px] h-auto w-full text-left',
+        'group flex items-center gap-4 p-4 px-6 rounded-2xl border relative overflow-hidden min-h-[64px] h-auto w-full text-left transition-none no-shimmer',
         isFavorite 
-            ? cn(brand.bg, brand.border, "shadow-[0_8px_20px_rgba(0,0,0,0.3)] ring-1 ring-white/10") 
+            ? cn(brand.bg, brand.border, "shadow-[0_12px_24px_rgba(0,0,0,0.4)] ring-1 ring-white/20") 
             : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/15'
       )}
+      style={{ animation: 'none' }}
     >
       {/* Selected indicator - Sharp and solid */}
       {isFavorite && (
           <div className={cn("absolute inset-0 opacity-10 pointer-events-none bg-current")} />
       )}
 
-      <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border transition-all z-10", 
+      <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border z-10 transition-none", 
           isFavorite ? cn(brand.bg.replace('/10', '/30'), brand.border, brand.color) : "bg-black/40 border-white/10 text-white/10 group-hover:text-white/30")}>
-        <brand.icon size={12} />
+        <brand.icon size={16} />
       </div>
       
-      <span className={cn("text-[10px] font-black uppercase tracking-tight leading-[1.2] flex-1 py-1 transition-colors z-10", 
-          isFavorite ? "text-white" : "text-white/60 group-hover:text-white")}>
-        {cleanName || model.id}
-      </span>
+      <div className="flex-1 flex flex-col min-w-0 z-10">
+        <span className={cn("text-[11px] font-black uppercase tracking-tight leading-tight truncate", 
+            isFavorite ? "text-white" : "text-white/60 group-hover:text-white")}>
+            {cleanName || model.id}
+        </span>
+        <span className="text-[7px] text-white/20 font-bold uppercase tracking-widest mt-0.5">{(model.provider || (model.id.includes('/') ? model.id.split('/')[0] : 'unknown')).toUpperCase()}</span>
+      </div>
 
       {isFavorite && (
-          <motion.div 
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className={cn("shrink-0 ml-1 z-10 p-1 rounded-full bg-white/10", brand.color)}
-          >
-              <Star size={8} fill="currentColor" />
-          </motion.div>
+          <div className={cn("shrink-0 ml-1 z-10 p-1.5 rounded-full bg-white/10", brand.color)}>
+              <Star size={10} fill="currentColor" />
+          </div>
       )}
     </button>
   );

@@ -17,9 +17,10 @@ import base64
 import threading
 import hashlib
 
-from PyPDF2 import PdfReader
-from docx import Document
 from PIL import Image
+# Lazy imports for better startup performance
+# from PyPDF2 import PdfReader (Moved to function)
+# from docx import Document (Moved to function)
 
 # Optymalizacja Surya dla CPU (zgodnie z dokumentacją)
 os.environ["DETECTOR_BATCH_SIZE"] = "6"      # Optymalne dla CPU
@@ -44,7 +45,7 @@ def get_cached_ocr_result(content: bytes, ocr_func, *args, **kwargs) -> Tuple[st
     content_hash = hashlib.md5(content).hexdigest()
     with _ocr_cache_lock:
         if content_hash in _ocr_cache:
-            print("🚀 OCR Cache: Użyto cache'a dla dokumentu")
+            print("OCR Cache: Użyto cache'a dla dokumentu")
             return _ocr_cache[content_hash]
     
     # Oblicz wynik
@@ -69,7 +70,7 @@ def get_surya_models():
             try:
                 from surya.models import load_predictors
 
-                print("🚀 Inicjalizacja modeli Surya (OCR + Layout)...")
+                print("Inicjalizacja modeli Surya (OCR + Layout)...")
                 predictors = load_predictors()
                 _surya_models["det"] = predictors.get("detection")
                 _surya_models["rec"] = predictors.get("recognition")
@@ -80,30 +81,22 @@ def get_surya_models():
         return _surya_models["det"], _surya_models["rec"], _surya_models["layout"]
 
 
-# 1. Sprawdź dostępność Surya
+# 1. Sprawdź dostępność Surya (Leniwie przy pierwszym użyciu)
+SURYA_AVAILABLE = True # Zakładamy dostępność jeśli zainstalowane, sprawdzimy przy imporcie
 try:
-    from surya.models import load_predictors
-
-    SURYA_AVAILABLE = True
-    print("[OK] Surya OCR jest wykryta i dostępna (v0.17+)")
-except (ImportError, ModuleNotFoundError):
-    print("[WARN] Surya OCR nie jest zainstalowana")
-except Exception as e:
-    print(f"[WARN] Błąd podczas weryfikacji Surya: {e}")
+    import importlib.util
+    SURYA_AVAILABLE = importlib.util.find_spec("surya") is not None
+    if SURYA_AVAILABLE:
+        print("[OK] Surya OCR detected (Initialization deferred)")
+except:
+    SURYA_AVAILABLE = False
 
 # 2. Fallback do EasyOCR (stary system)
 if not SURYA_AVAILABLE:
-    try:
-        import easyocr
-        import numpy as np
-
-        EASY_OCR_AVAILABLE = True
-        _easyocr_reader = None
-        print("✅ EasyOCR jest gotowy (jako fallback)")
-    except ImportError:
-        print("⚠️ EasyOCR nie jest dostępny")
-    except Exception as e:
-        print(f"⚠️ Błąd inicjalizacji EasyOCR: {e}")
+    import importlib.util
+    EASY_OCR_AVAILABLE = importlib.util.find_spec("easyocr") is not None
+    if EASY_OCR_AVAILABLE:
+        print("[OK] EasyOCR detected (jako fallback)")
 
 
 def get_easyocr_reader():
@@ -166,7 +159,7 @@ def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
             "Content-Type": "application/json"
         }
 
-        print(f"🚀 [AI OCR] Wysyłanie strony do {model}...")
+        print(f"[AI OCR] Wysyłanie strony do {model}...")
         with httpx.Client(timeout=45.0) as client:
             response = client.post(
                 f"{OPENROUTER_BASE_URL}/chat/completions",
@@ -178,12 +171,12 @@ def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
             
             text = result_json['choices'][0]['message']['content']
             if text:
-                print(f"✅ [AI OCR] Sukces ({len(text)} znaków)")
+                print(f"[OK] [AI OCR] Sukces ({len(text)} znaków)")
                 return text.strip(), None
             return "", "AI OCR zwróciło pustą odpowiedź"
 
     except Exception as e:
-        print(f"❌ [AI OCR] Błąd: {e}")
+        print(f"[ERR] [AI OCR] Błąd: {e}")
         return "", f"Błąd Vision OCR: {str(e)}"
 
 
@@ -191,7 +184,7 @@ def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z PDF (z auto-detekcją skanów i OCR)."""
     try:
         import fitz  # PyMuPDF
-        
+        from PIL import Image
         doc = fitz.open(stream=pdf_content, filetype="pdf")
         text = ""
         for page in doc:
@@ -199,14 +192,14 @@ def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
 
         # Jeśli PDF jest pusty lub ma bardzo mało tekstu (prawdopodobnie skan), spróbuj OCR
         if (not text.strip() or len(text.strip()) < 50) and (SURYA_AVAILABLE or EASY_OCR_AVAILABLE or AI_VISION_OCR_AVAILABLE):
-            print(f"🚀 PDF ma zbyt mało tekstu ({len(text.strip())} zn.). Uruchamiam silnik OCR...")
+            print(f"PDF ma zbyt mało tekstu ({len(text.strip())} zn.). Uruchamiam silnik OCR...")
             
             # Sprawdź cache dla OCR
             content_hash = hashlib.md5(pdf_content).hexdigest()
             cache_key = f"pdf_ocr_{content_hash}"
             with _ocr_cache_lock:
                 if cache_key in _ocr_cache:
-                    print("🚀 PDF OCR Cache: Użyto cache'a dla dokumentu")
+                    print("PDF OCR Cache: Użyto cache'a dla dokumentu")
                     cached_result = _ocr_cache[cache_key]
                     if cached_result[0]:  # Jeśli jest tekst
                         return cached_result
@@ -247,6 +240,7 @@ def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
 def extract_text_from_docx(docx_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z DOCX."""
     try:
+        from docx import Document
         docx_file = io.BytesIO(docx_content)
         doc = Document(docx_file)
 
@@ -310,14 +304,14 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
     cache_key = f"pil_ocr_{content_hash}"
     with _ocr_cache_lock:
         if cache_key in _ocr_cache:
-            print("🚀 PIL OCR Cache: Użyto cache'a dla obrazu")
+            print("PIL OCR Cache: Użyto cache'a dla obrazu")
             return _ocr_cache[cache_key]
 
     # 1. Próba użycia AI Vision OCR (CHMURA - NAJSZYBSZA I NAJDOKŁADNIEJSZA)
     from moa.config import OPENROUTER_API_KEY
     if AI_VISION_OCR_AVAILABLE and OPENROUTER_API_KEY:
         try:
-            print("☁️ [AI OCR] Przesyłanie do chmury (Gemini Vision)...")
+            print("[CLOUD] [AI OCR] Przesyłanie do chmury (Gemini Vision)...")
             text, err = extract_text_via_ai(img_bytes)
             if text and not err:
                 result = text, None
@@ -335,7 +329,7 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
                 # Upewniamy się, że obraz jest w formacie RGB
                 rgb_image = image.convert("RGB")
 
-                print("🚀 [LOKALNY FALLBACK] Surya...")
+                print("[LOCAL] [LOKALNY FALLBACK] Surya...")
                 ocr_results = rec_predictor([rgb_image], det_predictor=det_predictor)
 
                 full_text = ""
@@ -347,7 +341,7 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
                         full_text += line.text + "\n"
 
                 if full_text.strip():
-                    print("✅ [LOKALNY FALLBACK] Surya sukces")
+                    print("[OK] [LOKALNY FALLBACK] Surya sukces")
                     result = full_text.strip(), None
                     with _ocr_cache_lock:
                         _ocr_cache[cache_key] = result
@@ -387,10 +381,11 @@ def extract_text_from_image(image_content: bytes) -> Tuple[str, Optional[str]]:
     cache_key = f"image_ocr_{content_hash}"
     with _ocr_cache_lock:
         if cache_key in _ocr_cache:
-            print("🚀 Image OCR Cache: Użyto cache'a dla obrazu")
+            print("Image OCR Cache: Użyto cache'a dla obrazu")
             return _ocr_cache[cache_key]
     
     try:
+        from PIL import Image
         image = Image.open(io.BytesIO(image_content))
         result = extract_text_from_pil_image(image)
         

@@ -35,6 +35,9 @@ vi.mock('../utils/supabaseClient', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
+        order: vi.fn(() => ({
+          range: vi.fn(() => Promise.resolve({ data: [], error: null }))
+        })),
         range: vi.fn(() => Promise.resolve({ data: [], error: null }))
       }))
     })),
@@ -67,7 +70,7 @@ describe('useKnowledgeBase Document Processing', () => {
 
     // Sprawdzamy czy upload został wywołany
     expect(mockFetch).toHaveBeenCalledWith(
-      'http://127.0.0.1:8002/upload',
+      'http://127.0.0.1:8003/documents/upload',
       {
         method: 'POST',
         body: expect.any(FormData)
@@ -124,7 +127,7 @@ describe('useKnowledgeBase Document Processing', () => {
 
     // Sprawdzamy czy delete został wywołany
     expect(mockFetch).toHaveBeenCalledWith(
-      `http://127.0.0.1:8002/documents/${filename}`,
+      `http://127.0.0.1:8003/documents/${filename}`,
       {
         method: 'DELETE'
       }

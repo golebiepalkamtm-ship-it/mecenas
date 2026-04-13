@@ -25,9 +25,16 @@ export function SettingsView() {
                 const { data } = await supabase
                     .from('profiles')
                     .select('*')
-                    .eq('id', user.id)
-                    .single();
-                setProfile(data);
+                    .eq('id', user.id);
+                
+                if (data && data.length > 0) {
+                    setProfile(data[0]);
+                } else {
+                    // Create profile if missing
+                    const newProfile: Profile = { id: user.id, role: 'user' };
+                    await supabase.from('profiles').insert(newProfile);
+                    setProfile(newProfile);
+                }
             }
             setIsLoading(false);
         }
@@ -39,7 +46,7 @@ export function SettingsView() {
         const statusDot = { active: 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]', warning: 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]', neutral: 'bg-gold-primary shadow-[0_0_6px_rgba(212,175,55,0.5)]' }[status];
     return (
         <div className="p-3.5 rounded-xl glass-prestige flex items-center gap-2.5 hover:bg-white/5 transition-all">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/5 flex-shrink-0">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/5 shrink-0">
                     <Icon size={13} className={statusColor} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -57,7 +64,7 @@ export function SettingsView() {
         return (
             <div className="px-4 py-3 rounded-xl glass-prestige flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer" onClick={() => setIsOn(!isOn)}>
                 <span className="text-[8px] font-black uppercase tracking-widest text-white/80 truncate mr-2">{label}</span>
-                <div className={`w-7 h-3.5 rounded-full transition-all flex items-center px-0.5 flex-shrink-0 ${isOn ? 'bg-gold-primary' : 'bg-white/20'}`}>
+                <div className={`w-7 h-3.5 rounded-full transition-all flex items-center px-0.5 shrink-0 ${isOn ? 'bg-gold-primary' : 'bg-white/20'}`}>
                     <motion.div animate={{ x: isOn ? 13 : 0 }} className={`w-2.5 h-2.5 rounded-full ${isOn ? 'bg-black' : 'bg-white/40'}`} />
                 </div>
             </div>
@@ -113,7 +120,7 @@ export function SettingsView() {
                     transition={{ duration: 0.15 }}
                 >
                     {currentSettingsTab === 'Profil' && (
-                        <div className="w-full mx-auto px-10 pt-0 pb-10">
+                        <div className="w-full mx-auto px-10 pt-28 pb-10">
                             <motion.section
                                 key="profile-4col"
                                 initial={{ opacity: 0 }}
@@ -132,7 +139,7 @@ export function SettingsView() {
                                             <div className="min-w-0">
                                                 <h2 className="text-lg font-black text-white italic tracking-tight truncate">{profile?.full_name || 'Użytkownik LexMind'}</h2>
                                                 <p className="text-gold-300/60 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5 truncate">
-                                                    <Mail size={10} className="text-gold-primary flex-shrink-0" /> {user?.email}
+                                                    <Mail size={10} className="text-gold-primary shrink-0" /> {user?.email}
                                                 </p>
                                             </div>
                                         </div>
@@ -180,7 +187,7 @@ export function SettingsView() {
                                             </span>
                                         </div>
 
-                                        <div className="p-6 rounded-xl glass-prestige-gold relative overflow-hidden group flex-grow">
+                                        <div className="p-6 rounded-xl glass-prestige-gold relative overflow-hidden group grow">
                                             <Sparkles size={80} className="absolute -right-6 -bottom-6 text-gold-primary/10 -rotate-12 group-hover:scale-110 transition-transform duration-700" />
                                             <p className="text-gold-primary font-black text-sm uppercase tracking-[0.2em] italic">Twój pakiet: LexMind Trial</p>
                                             <div className="mt-3 space-y-2">
@@ -206,7 +213,7 @@ export function SettingsView() {
                                             <Shield size={12} className="text-gold-primary" />
                                             Bezpieczeństwo
                                         </h3>
-                                        <div className="space-y-1.5 flex-grow">
+                                        <div className="space-y-1.5 grow">
                                             <div className="p-4 rounded-xl glass-prestige flex items-center justify-between gap-3">
                                                 <div className="min-w-0">
                                                     <p className="text-[10px] font-black text-white uppercase tracking-widest">Zmiana Hasła</p>
@@ -214,7 +221,7 @@ export function SettingsView() {
                                                 </div>
                                                 <button
                                                     onClick={() => supabase.auth.resetPasswordForEmail(user?.email || '')}
-                                                    className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-black rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex-shrink-0"
+                                                    className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-black rounded-lg text-[8px] font-black uppercase tracking-widest transition-all shrink-0"
                                                 >
                                                     Wyślij Link
                                                 </button>
@@ -224,7 +231,7 @@ export function SettingsView() {
                                                     <p className="text-[10px] font-black text-white uppercase tracking-widest">Dwuetapowa Weryfikacja</p>
                                                     <p className="text-[8px] text-white/30 font-bold uppercase mt-0.5 truncate">Zwiększ bezpieczeństwo konta</p>
                                                 </div>
-                                                <span className="text-[7px] font-black uppercase text-gold-primary flex-shrink-0">Wkrótce</span>
+                                                <span className="text-[7px] font-black uppercase text-gold-primary shrink-0">Wkrótce</span>
                                             </div>
                                         </div>
                                     </div>
@@ -275,8 +282,8 @@ export function SettingsView() {
                     )}
 
                     {currentSettingsTab === 'Modele AI' && (
-                        <div className="px-6 py-6">
-                            <div className="glass-prestige rounded-[2.5rem] shadow-3xl overflow-hidden h-[calc(100vh-220px)] border border-white/5">
+                        <div className="px-4 pt-24 pb-8 h-[calc(100vh-100px)]">
+                            <div className="glass-prestige no-shimmer rounded-[2.5rem] shadow-3xl overflow-hidden h-[calc(100vh-200px)] border border-white/5">
                                 <ModelOrchestrator />
                             </div>
                         </div>

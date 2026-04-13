@@ -50,109 +50,93 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
     print(f"{'=' * 60}")
 
     try:
-        # 1. RETRIEVAL — łącz pytanie z treścią dokumentu, aby wykryć
-        #    kluczowe artykuły i skróty kodeksów (KPA, KC, KK…) nawet
-        #    jeśli użytkownik nie wymienił ich w pytaniu.
+        # 1. RETRIEVAL
+        print(f"\n[WAIT] KROK 1: Przeszukiwanie bazy wiedzy (RAG)...")
         rag_query = request.query
-        if request.document_text:
-            rag_query = f"{request.query}\n\n{request.document_text[:8000]}"
         try:
             chunks, context_text = await retrieve_legal_context(
-                rag_query, 
+                query=rag_query, 
                 category=request.category,
-                match_count=request.match_count,
-                match_threshold=request.match_threshold,
-                history=request.history
+                document_text=request.document_text
             )
             has_legal_context = bool(context_text.strip())
-            print(f"   [OK] RAG: {len(chunks)} fragmentów, {len(context_text)} znaków")
+            print(f"[OK] RAG zakonczony. Znaleziono {len(chunks)} fragmentow.")
         except Exception as rag_err:
-            print(f"   [WARN] RAG nie powiódł się, kontynuuję bez kontekstu: {rag_err}")
-            chunks = []
-            context_text = ""
-            has_legal_context = False
+            print(f"[ERR] RAG nie zadzialal: {str(rag_err)}")
+            chunks, context_text, has_legal_context = [], "", False
 
-        # --- KROK 1.2: Podsumowanie historii (Summarization) ---
-        history_summary = ""
-        if request.history and len(request.history) > 3:
-            try:
-                from moa.llm_agents import _call_with_retry
-                print("   [*] Generowanie podsumowania historii...")
-                hist_text = "\n".join([f"{m['role']}: {m['content'][:500]}" for m in request.history[-15:]])
-                sum_prompt = f"Podsumuj krótko dotychczasowe ustalenia prawne i fakty z tej rozmowy:\n\n{hist_text}"
-                
-                async with AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL) as sum_client:
-                    history_summary, _ = await _call_with_retry(
-                        sum_client, 
-                        model="google/gemini-2.0-flash-001", 
-                        system_prompt="Jesteś asystentem prawnym streszczającym kluczowe fakty.",
-                        user_prompt=sum_prompt,
-                        max_tokens=600
-                    )
-                print("   [OK] History summarized.")
-            except Exception as sum_err:
-                print(f"   [WARN] History summary failed: {sum_err}")
-
-        # --- KROK 1.5: Pobieranie Pamięci Ekspertów (Active Case Memory) ---
-        expert_memory = ""
-        if request.session_id:
-            try:
-                from database import get_messages
-                past_msgs = get_messages(request.session_id, limit=30)
-                past_reasonings = [m["reasoning"] for m in past_msgs if m.get("role") == "assistant" and m.get("reasoning")]
-                if past_reasonings:
-                    expert_memory = "\n\n".join(past_reasonings[-3:])
-                    print(f"   [OK] Expert Memory cached: {len(expert_memory)} chars")
-            except Exception as mem_err:
-                print(f"   [WARN] Failed to fetch expert memory: {mem_err}")
-
-        # Inicjalizacja współdzielonego klienta (Connection Pooling)
+        # 2. ANALYSIS
         async with AsyncOpenAI(
             api_key=OPENROUTER_API_KEY,
             base_url=OPENROUTER_BASE_URL,
             timeout=LLM_TIMEOUT,
-            default_headers={
-                "HTTP-Referer": "http://127.0.0.1:8003",
-                "X-Title": "LexMind AI",
-            },
         ) as shared_client:
-            # 2. ANALYSIS
+            print(f"[WAIT] KROK 2: Analiza rownolegla ({len(analyst_models)} ekspertow)...")
+            # Logujemy przypisane role jeśli istnieją
+            if request.expert_roles:
+                for m_id in analyst_models:
+                    role = request.expert_roles.get(m_id, "default")
+                    print(f"       -> Agent: {m_id} | Rola: {role}")
+            else:
+                print(f"   [INFO] Korzystanie z ustandaryzowanych ról z bazowego PromptBuilder.")
+
             analyst_results = await run_parallel_analysis(
                 context=context_text,
                 query=request.query,
                 models=analyst_models,
-                task=request.task,
-                custom_task_prompt=request.custom_task_prompt,
-                architect_prompt=request.architect_prompt,
-                system_role_prompt=request.system_role_prompt,
                 client=shared_client,
-                has_legal_context=has_legal_context,
                 document_text=request.document_text,
-                history_summary=history_summary,
                 history=request.history[-10:],
-                expert_memory=expert_memory,
+                expert_roles=request.expert_roles,
+                expert_role_prompts=request.expert_role_prompts,
                 mode=IdentityMode(request.mode or "advocate"),
             )
+            
+            success_count = sum(1 for r in analyst_results if r.success)
+            print(f"[OK] Eksperci zakonczyli prace. Sukces: {success_count}/{len(analyst_results)}")
 
-            # 3. SYNTHESIS (Re-ranking Judge) — z dynamicznym promptem sędziego
+            for res in analyst_results:
+                if not res.success:
+                    print(f"      [ERR] Model {res.model} zawiodl: {res.response[:100]}...")
+
+            if success_count == 0:
+                print("[CRITICAL] Zaden ekspert nie odpowiedzial poprawnie!")
+
+            # 3. SYNTHESIS
+            print(f"[WAIT] KROK 3: Synteza sedziego ({judge_model})...")
             current_mode = IdentityMode(request.mode or "advocate")
-            final_answer = await synthesize_judgment(
-                client=shared_client,
-                query=request.query,
-                analyst_results=analyst_results,
-                raw_context=context_text,
-                judge_model=judge_model,
-                has_legal_context=has_legal_context,
-                document_text=request.document_text,
-                history_summary=history_summary,
-                history=request.history[-10:],
-                expert_memory=expert_memory,
-                judge_system_prompt=build_judge_system_prompt(current_mode),
-                mode=current_mode,
-            )
+            try:
+                final_answer = await synthesize_judgment(
+                    client=shared_client,
+                    query=request.query,
+                    analyst_results=analyst_results,
+                    raw_context=context_text,
+                    judge_model=judge_model,
+                    judge_system_prompt=request.judge_system_prompt or build_judge_system_prompt(current_mode),
+                    mode=current_mode,
+                )
+                print(f"[OK] Sedzia wygenerowal werdykt ({len(final_answer)} znakow).")
+            except Exception as j_err:
+                print(f"[ERR] Blad krytyczny sedziego: {str(j_err)}")
+                final_answer = f"Blad syntezy sedziego: {str(j_err)}"
+
+            # 4. ELI
+            print("[WAIT] KROK 4: Weryfikacja ELI (Explainable AI)...")
+            try:
+                from moa.eli import generate_eli_explanation
+                eli_explanation = await generate_eli_explanation(
+                    final_answer=final_answer,
+                    retrieved_chunks=chunks,
+                    query=request.query
+                )
+                print("[OK] Warstwa ELI gotowa.")
+            except Exception as e_err:
+                print(f"[ERR] Blad warstwy ELI: {str(e_err)}")
+                eli_explanation = "Nie udalo sie wygenerowac wyjasnienia ELI."
 
         pipeline_latency = (time.perf_counter() - pipeline_start) * 1000
-        print(f"[OK] Pipeline zakonczony w {pipeline_latency:.0f}ms")
+        print(f"[SUCCESS] Pipeline finished in {pipeline_latency:.0f}ms")
+        print(f"{'=' * 60}\n")
 
         return MOAResult(
             final_answer=final_answer,
@@ -163,6 +147,7 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
             retrieved_chunks_count=len(chunks),
             pipeline_latency_ms=pipeline_latency,
             success=True,
+            eli_explanation=eli_explanation, # Dodane wyjaśnienie ELI
         )
 
     except Exception as e:

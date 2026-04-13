@@ -1,23 +1,9 @@
+// LexMind Chat Mutation Hook - Stable v1.1
 import { useMutation } from '@tanstack/react-query';
 import { useChatSettingsStore } from '../store/useChatSettingsStore';
 import { API_BASE } from '../config';
 
-interface ChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-interface ExpertAnalysis {
-  model: string;
-  response: string;
-  success?: boolean;
-}
-
-interface Attachment {
-  name: string;
-  type: string;
-  content: string;
-}
+import type { ChatMessage, ExpertAnalysis, Attachment } from '../types/chat';
 
 interface ChatResponse {
   id: string;
@@ -40,7 +26,9 @@ export function useChatMutation() {
     taskPrompts,
     architectPrompt,
     currentSystemRoleId,
-    unitSystemRoles
+    unitSystemRoles,
+    expertRoleByModel,
+    expertPromptsByModel
   } = useChatSettingsStore();
   
   // Decide consensus based on either old mode or if user has multiple active models in the new panel
@@ -63,14 +51,16 @@ export function useChatMutation() {
          sessionId,
          attachments,
          document_text,
-         context_category: (history.length === 0 && message.includes('[DOK]')) ? 'user_docs' : 'rag_legal', // Logic can be more sophisticated
+         context_category: (history.length === 0 && message.includes('[DOK]')) ? 'rag_user' : 'rag_legal', // Logic can be more sophisticated
          model: (isConsensusMode && experts.length > 0) ? judge : (activeModels[0] || selectedSingleModel),
          selected_models: (isConsensusMode && experts.length > 0) ? experts : undefined,
          aggregator_model: (isConsensusMode && experts.length > 0) ? judge : undefined,
          task: currentTask,
          custom_task_prompt: taskPrompts[currentTask] || undefined,
          architect_prompt: architectPrompt,
-         system_role_prompt: unitSystemRoles[currentSystemRoleId]
+         system_role_prompt: unitSystemRoles[currentSystemRoleId],
+         expert_roles: expertRoleByModel,
+         expert_role_prompts: { ...unitSystemRoles, ...expertPromptsByModel }
        };
 
       const res = await fetch(`${API_BASE}${endpoint}`, {

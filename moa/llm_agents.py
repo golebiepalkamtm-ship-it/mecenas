@@ -30,17 +30,14 @@ from moa.prompt_builder import (
 )
 
 ANALYST_SYSTEM_PROMPT = """[ROLE: LEGAL_EXPERT_ANALYST]
-Jesteś wybitnym ekspertem prawnym powołanym do rygorystycznej analizy stanu faktycznego i prawnego.
-TWOJE ZADANIA:
-1. Przeanalizuj dostarczony <legal_context> oraz <user_document> pod kątem zapytania.
-2. Zidentyfikuj konkretne podstawy prawne (artykuły, paragrafy) mające zastosowanie.
-3. Wskaż ryzyka i szanse procesowe wynikające z Twojej specjalizacji.
-4. Przedstaw logiczne wnioskowanie, które doprowadziło Cię do konkluzji.
+Jesteś najwyższej klasy analitykiem prawnym. Twoim zadaniem jest rygorystyczne oddzielenie stanu faktycznego od podstawy prawnej.
 
-WYMOGI FORMALNE:
-- Pisz w sposób profesjonalny, surowy i precyzyjny.
-- Każde twierdzenie prawne musi mieć zakotwiczenie w dostarczonym kontekście.
-- Jeśli Twoja analiza koliduje z poprzednimi ustaleniami (patrz: expert_memory_cache), wyjaśnij dlaczego nowa interpretacja jest właściwsza.
+ZASADY ANALIZY (KRYTYCZNE):
+1. WIEDZA PRAWNA (USTAWY, WYROKI): Czerp ją WYŁĄCZNIE z sekcji <legal_context>. Nie szukaj przepisów w dokumentach użytkownika i nie zmyślaj paragrafów. Jeśli czegoś nie ma w RAG, przyznaj to.
+2. STAN FAKTYCZNY (FAKTY SPRAWY): Czerp go z sekcji <user_document>, historii rozmowy oraz aktualnej wiadomości. To tutaj znajdują się daty, nazwiska i opisy zdarzeń Twojego klienta.
+3. LOGIKA: Nałóż prawo z <legal_context> na fakty z <user_document>.
+4. DOKŁADNOŚĆ: Zawsze podawaj nazwę aktu prawnego i numer artykułu, na który się powołujesz, ale TYLKO jeśli znajduje się on w <legal_context>.
+5. ADVERSARIAL THINKING: Szukaj słabych punktów w oskarżeniu/decyzji na podstawie faktów klienta, stosując twarde prawo z bazy wiedzy.
 """
 
 def _build_analyst_user_prompt(
@@ -102,6 +99,7 @@ async def _call_with_retry(
     messages.append({"role": "user", "content": user_prompt})
 
     for attempt in range(MAX_RETRIES + 1):
+        print(f"   [>] Ekspert {model} (próba {attempt+1})...")
         try:
             response = await client.chat.completions.create(
                 model=model,
@@ -109,7 +107,12 @@ async def _call_with_retry(
                 temperature=LLM_TEMPERATURE,
                 max_tokens=max_tokens,
             )
-            return response.choices[0].message.content or "", attempt
+            if not response or not response.choices:
+                 raise Exception(f"Model {model} zwrócił pustą odpowiedź (brak choices).")
+            
+            content = response.choices[0].message.content or ""
+            print(f"   [OK] Ekspert {model} ukończył analizę.")
+            return content, attempt
         except Exception as e:
             if attempt < MAX_RETRIES:
                 await asyncio.sleep(RETRY_BASE_DELAY * (2**attempt))
@@ -147,7 +150,7 @@ async def run_parallel_analysis(
     custom_task_prompt: Optional[str] = None,
     architect_prompt: Optional[str] = None,
     system_role_prompt: Optional[str] = None,
-    expert_roles: list[str] | None = None,
+    expert_roles: dict[str, str] | None = None,
     expert_role_prompts: dict[str, str] | None = None,
     client: Optional[AsyncOpenAI] = None,
     has_legal_context: bool = True,
@@ -160,6 +163,20 @@ async def run_parallel_analysis(
     models = models or DEFAULT_ANALYST_MODELS
     pb_config = PromptConfig(mode=mode, task=task or "general", has_legal_context=has_legal_context, has_document=bool(document_text))
     model_prompts = build_moa_prompts(models, pb_config)
+    
+    if expert_roles and expert_role_prompts:
+        from moa.prompt_builder import DEFENSE_UNIVERSE, PROSECUTION_UNIVERSE, COMMUNICATION_LAYER
+        universe = DEFENSE_UNIVERSE if mode == IdentityMode.ADVOCATE else PROSECUTION_UNIVERSE
+        identity = universe["identity"]
+        task_prompt = universe["tasks"].get(task or "general", "")
+        epistemic = "## WARUNKI BRZEGOWE (EPISTEMIC LAYER):\n1. Każdy fakt MUSI pochodzić z dokumentów lub RAG.\n2. Nie twórz fałszywych przepisów."
+        
+        for mid in models:
+            role_key = expert_roles.get(mid)
+            if role_key and role_key in expert_role_prompts:
+                custom_role = expert_role_prompts[role_key]
+                model_prompts[mid] = f"{identity}\n\n{epistemic}\n\n{COMMUNICATION_LAYER}\n\n{custom_role}\n\n{task_prompt}".strip()
+                print(f"   [PROMPT Override] Zastosowano rolę '{role_key}' dla {mid}")
     
     start = time.perf_counter()
     async def _execute_with_client(shared_client: AsyncOpenAI):

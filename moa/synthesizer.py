@@ -40,7 +40,9 @@ def _build_judge_prompt(
     for r in analyst_results:
         parts.append(f"### EKSPERT: {r.model_id}\n{r.response}\n")
 
-    parts.append("\nWYMÓG KRYTYCZNY: Zsyntetyzuj WSZYSTKIE powyższe raporty w jedną spójną i profesjonalną odpowiedź prawną.")
+    parts.append("\nWYMÓN KRYTYCZNY: Zsyntetyzuj WSZYSTKIE powyższe raporty w jedną spójną i ostateczną odpowiedź prawną.")
+    parts.append("DYREKTYWA KOMUNIKACYJNA: Jesteś frontem dla klienta. Masz bezwzględny obowiązek tłumaczyć zawiły język prawniczy i suche paragrafy na zrozumiały, jasny i ludzki język.")
+    parts.append("Jeżeli eksperci powołują się na art. / ust. / k.c. / k.p.k. - wyjaśniaj od razu co one w praktyce oznaczają dla klienta. Odpowiedź ma być profesjonalna, ale wysoce empatyczna (ELI5 - tłumacz tak, by laik zrozumiał).")
     return "\n".join(parts)
 
 async def synthesize_judgment(
@@ -66,12 +68,19 @@ async def synthesize_judgment(
 
     messages.append({"role": "user", "content": user_prompt})
 
+    print(f"   [>] Synteza końcowa ({judge_model})...")
     try:
         response = await client.chat.completions.create(
             model=judge_model,
             messages=messages,
             temperature=LLM_TEMPERATURE,
         )
-        return response.choices[0].message.content or ""
+        if not response or not response.choices:
+             raise Exception(f"Sędzia {judge_model} nie zwrócił żadnej odpowiedzi.")
+             
+        content = response.choices[0].message.content or ""
+        print(f"   [OK] Synteza gotowa ({len(content)} znaków)")
+        return content
     except Exception as e:
+        print(f"   [ERROR] Synthesizer Error: {e}")
         return f"[Synthesizer Error] {str(e)}"
