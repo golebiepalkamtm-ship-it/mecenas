@@ -8,12 +8,14 @@ interface AnimatedSectionProps {
   children: React.ReactNode;
   className?: string;
   id?: string;
+  delay?: number;
 }
 
 export const AnimatedSection = ({ 
   children, 
   className = "", 
-  id 
+  id,
+  delay = 0
 }: AnimatedSectionProps) => {
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -21,20 +23,26 @@ export const AnimatedSection = ({
     const element = sectionRef.current;
     if (!element) return;
 
+    // Professional Entrance: Slide + Blur + Scale
     gsap.fromTo(element,
       {
         opacity: 0,
-        y: 50
+        y: 60,
+        scale: 0.98,
+        filter: "blur(10px)"
       },
       {
         opacity: 1,
         y: 0,
-        duration: 1.2,
-        ease: "power3.out",
+        scale: 1,
+        filter: "blur(0px)",
+        duration: 1.5,
+        delay,
+        ease: "expo.out",
         scrollTrigger: {
           trigger: element,
-          start: "top 85%",
-          end: "bottom 15%",
+          start: "top 90%",
+          end: "bottom 10%",
           toggleActions: "play none none none",
           once: true
         }
@@ -44,10 +52,15 @@ export const AnimatedSection = ({
     return () => {
       ScrollTrigger.getAll().forEach(st => st.kill());
     };
-  }, []);
+  }, [delay]);
 
   return (
-    <section ref={sectionRef} id={id} className={className}>
+    <section 
+      ref={sectionRef} 
+      id={id} 
+      className={className}
+      style={{ willChange: "transform, opacity, filter" }}
+    >
       {children}
     </section>
   );

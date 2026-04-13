@@ -12,8 +12,8 @@ export const Solution = () => {
             viewport={{ once: true }}
           >
             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 mb-4 block">Rozwiązanie</span>
-            <h2 className="text-4xl md:text-6xl font-outfit font-black italic uppercase tracking-tight text-[#808080] mb-8 leading-[0.9]">
-              Twój prawnik 24/7 w zasięgu ręki
+            <h2 className="text-4xl md:text-6xl font-outfit font-black italic uppercase tracking-wider text-[#808080] mb-8 leading-[0.9]">
+              Twój prawnik w zasięgu ręki 24/h 7 dni w tygodniu
             </h2>
             <p className="text-lg text-white/60 mb-10 leading-relaxed font-medium">
               LexMind AI eliminuje bariery w dostępie do informacji prawnej. Zamiast czekać na termin, otrzymujesz rzetelną odpowiedź w kilka sekund. Zamiast płacić fortunę, inwestujesz raz i korzystasz bez limitu.
@@ -45,20 +45,24 @@ export const Solution = () => {
 
         <div className="flex-1 relative">
           <motion.div
-            initial={{ opacity: 0, scale: 0.8 }}
-            whileInView={{ opacity: 1, scale: 1 }}
+            initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+            whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
             viewport={{ once: true }}
-            className="relative z-10 p-4 rounded-4xl glass-prestige border border-white/20 aspect-square flex items-center justify-center"
+            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative z-10 rounded-3xl overflow-hidden border border-white/10 shadow-[0_50px_100px_-20px_rgba(255,255,255,0.05)]"
+            data-lag="0.1"
           >
-            <div className="text-center">
-              <div className="text-7xl font-outfit font-black text-white mb-2">24/7</div>
-              <p className="text-[10px] font-black uppercase tracking-[0.5em] text-white/40">Dostępność Systemu</p>
-            </div>
+            <img 
+              src="/neural-brain.png" 
+              alt="Neural Law Intelligence" 
+              className="w-full h-full object-cover grayscale-[0.2] hover:grayscale-0 transition-all duration-1000"
+            />
+            <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-transparent opacity-40" />
+
           </motion.div>
           
-          {/* Static premium ambient light - No blur */}
-          <div className="absolute -top-20 -right-20 w-80 h-80 bg-white/5 rounded-full" />
-          <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-gold-primary/5 rounded-full" />
+          {/* Static premium ambient light */}
+          <div className="absolute -top-10 -right-10 w-64 h-64 bg-white/5 rounded-full blur-3xl -z-10" />
         </div>
       </div>
     </section>

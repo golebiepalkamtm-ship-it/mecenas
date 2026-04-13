@@ -4,7 +4,6 @@ import { Hero } from "./Hero";
 import { Problem } from "./Problem";
 import { Solution } from "./Solution";
 import { Features } from "./Features";
-import { Consensus } from "./Consensus";
 import { Stats } from "./Stats";
 import { Pricing } from "./Pricing";
 import { FAQ } from "./FAQ";
@@ -27,18 +26,36 @@ const LandingPage = ({ onGoToPortal }: { onGoToPortal?: () => void }) => {
     document.documentElement.style.overflow = "auto";
     document.body.style.overflow = "auto";
 
-    // Bardzo masywny gładki scroll
+    // Force GSAP to 60 FPS for that "buttery" feel
+    gsap.ticker.fps(60);
+
+    // Bardzo masywny, maślany gładki scroll (premium feel)
     const smoother = ScrollSmoother.create({
       wrapper: "#smooth-wrapper",
       content: "#smooth-content",
-      smooth: 1.8,
-      smoothTouch: 0.8,
-      effects: true,
-      normalizeScroll: true
+      smooth: 2.2, // Increased for "powolny" feel
+      smoothTouch: 0.1,
+      effects: true, // Enable data-speed and data-lag effects
+      normalizeScroll: true,
+      ignoreMobileResize: true
+    });
+
+    // Optional: add subtle parallax to all images automatically
+    gsap.utils.toArray('img').forEach((img: any) => {
+      gsap.to(img, {
+        y: -40,
+        ease: "none",
+        scrollTrigger: {
+          trigger: img,
+          start: "top bottom",
+          end: "bottom top",
+          scrub: true
+        }
+      });
     });
 
     return () => {
-      smoother.kill();
+      if (smoother) smoother.kill();
       ScrollTrigger.getAll().forEach(st => st.kill());
       document.documentElement.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
@@ -48,7 +65,7 @@ const LandingPage = ({ onGoToPortal }: { onGoToPortal?: () => void }) => {
   return (
     <div className="relative bg-[#050505] text-white selection:bg-white selection:text-black overflow-hidden">
       <div id="smooth-wrapper">
-        <div id="smooth-content">
+        <div id="smooth-content" style={{ willChange: "transform" }}>
           <Navbar 
             onLoginOpen={() => setIsLoginOpen(true)} 
             onPortalClick={onGoToPortal}
@@ -57,43 +74,39 @@ const LandingPage = ({ onGoToPortal }: { onGoToPortal?: () => void }) => {
           <main>
             <Hero onStartTrial={() => setIsLoginOpen(true)} />
             
-            <AnimatedSection id="problem">
+            <AnimatedSection id="problem" delay={0.1}>
               <Problem />
             </AnimatedSection>
             
-            <AnimatedSection>
+            <AnimatedSection delay={0.2}>
               <Solution />
             </AnimatedSection>
             
-            <AnimatedSection id="funkcje">
+            <AnimatedSection id="funkcje" delay={0.1}>
               <Features />
             </AnimatedSection>
             
-            <AnimatedSection>
-              <Consensus />
-            </AnimatedSection>
-            
-            <AnimatedSection>
+            <AnimatedSection delay={0.2}>
               <Security />
             </AnimatedSection>
             
-            <AnimatedSection>
+            <AnimatedSection delay={0.1}>
               <Stats />
             </AnimatedSection>
             
-            <AnimatedSection>
+            <AnimatedSection delay={0.2}>
               <Testimonials />
             </AnimatedSection>
             
-            <AnimatedSection id="cennik">
+            <AnimatedSection id="cennik" delay={0.1}>
               <Pricing onStartTrial={() => setIsLoginOpen(true)} />
             </AnimatedSection>
             
-            <AnimatedSection>
+            <AnimatedSection delay={0.1}>
               <FAQ />
             </AnimatedSection>
             
-            <AnimatedSection>
+            <AnimatedSection delay={0.2}>
               <FinalCTA onStartTrial={() => setIsLoginOpen(true)} />
             </AnimatedSection>
           </main>
@@ -104,7 +117,7 @@ const LandingPage = ({ onGoToPortal }: { onGoToPortal?: () => void }) => {
             {/* Platinum Global Ambient Lighting - Sharp/Direct */}
             <div className="absolute top-0 left-0 w-full h-[150vh] bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.08)_0%,transparent_60%)]" />
             <div className="absolute top-[20%] right-0 w-full h-[200vh] bg-[radial-gradient(circle_at_80%_40%,rgba(255,255,255,0.04)_0%,transparent_70%)]" />
-            <div className="absolute inset-0 bg-linear-to-b from-transparent via-white/[0.02] to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-b from-transparent via-white/2 to-transparent" />
           </div>
         </div>
       </div>

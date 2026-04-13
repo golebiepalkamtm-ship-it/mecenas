@@ -7,17 +7,19 @@ export const Security = () => {
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-center gap-20">
         <div className="flex-1 order-2 lg:order-1 relative group">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 1.1 }}
+            whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
-            className="relative rounded-3xl overflow-hidden border border-white/10 shadow-3xl"
+            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+            className="relative rounded-3xl overflow-hidden border border-white/10 shadow-[0_50px_100px_-20px_rgba(255,255,255,0.02)]"
           >
             <img 
-              src="/privacy-shield.png" 
-              alt="Bezpieczeństwo danych LexMind" 
+              src="/legal-architecture.png" 
+              alt="Juris AI Architecture" 
               className="w-full h-auto object-cover transform scale-100 group-hover:scale-105 transition-transform duration-1000"
             />
-            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-t from-black via-transparent to-transparent opacity-60" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
           </motion.div>
           {/* Accent glow - No blur */}
           <div className="absolute -z-10 -bottom-10 -left-10 w-64 h-64 bg-white/5 rounded-full" />
@@ -30,7 +32,7 @@ export const Security = () => {
             viewport={{ once: true }}
           >
             <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/40 mb-4 block">Prywatność i Bezpieczeństwo</span>
-            <h2 className="text-4xl md:text-6xl font-outfit font-black italic uppercase tracking-tight text-[#808080] mb-8 leading-[0.9]">
+            <h2 className="text-4xl md:text-6xl font-outfit font-black italic uppercase tracking-wider text-[#808080] mb-8 leading-[0.9]">
               Twoje dane zostają u Ciebie
             </h2>
             

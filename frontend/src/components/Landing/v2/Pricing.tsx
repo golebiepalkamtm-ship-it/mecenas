@@ -15,7 +15,7 @@ export const Pricing = ({ onStartTrial }: { onStartTrial: () => void }) => {
           className="mb-16"
         >
           <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 mb-4 block">Inwestycja</span>
-          <h2 className="text-4xl md:text-5xl font-outfit font-black italic uppercase tracking-tight text-white mb-6">
+          <h2 className="text-4xl md:text-5xl font-outfit font-black italic uppercase tracking-wider text-white mb-6">
             Prosty wybór, brak abonamentów
           </h2>
           <p className="text-white/50 max-w-2xl mx-auto font-medium">

@@ -48,7 +48,7 @@ export const Features = () => {
           className="text-center mb-20"
         >
           <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 mb-4 block">Funkcje</span>
-          <h2 className="text-4xl md:text-5xl font-outfit font-black italic uppercase tracking-tight text-[#808080] mb-6">
+          <h2 className="text-4xl md:text-5xl font-outfit font-black italic uppercase tracking-wider text-[#808080] mb-6">
             Narzędzia legal-tech nowej generacji
           </h2>
         </motion.div>

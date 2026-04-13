@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 
 export const FinalCTA = ({ onStartTrial }: { onStartTrial: () => void }) => {
   return (
-    <section className="py-32 px-6 relative overflow-hidden bg-[#0a0a0a]">
+    <section className="py-32 px-6 relative overflow-hidden bg-surface">
       {/* Background Image - Cyberpunk Warsaw */}
       <div className="absolute inset-0 z-0">
          <img 
@@ -20,7 +20,7 @@ export const FinalCTA = ({ onStartTrial }: { onStartTrial: () => void }) => {
            whileInView={{ opacity: 1, scale: 1 }}
            viewport={{ once: true }}
         >
-          <h2 className="text-5xl md:text-7xl font-outfit font-black italic uppercase tracking-tight text-white mb-10 leading-tight">
+          <h2 className="text-5xl md:text-7xl font-outfit font-black italic uppercase tracking-wider text-white mb-10 leading-tight">
             Gotowy na przyszłość<br />prawa?
           </h2>
           <p className="text-xl text-white/50 mb-12 max-w-2xl mx-auto font-medium">
@@ -51,7 +51,7 @@ export const Footer = () => {
     <footer className="py-12 px-6 border-t border-white/5 bg-black">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
         <div className="text-center md:text-left">
-          <h3 className="text-2xl font-outfit font-black italic uppercase tracking-tighter text-white mb-2">LexMind AI</h3>
+          <h3 className="text-2xl font-outfit font-black italic uppercase tracking-wider text-white mb-2">LexMind AI</h3>
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Majewski & Pałka © 2026</p>
         </div>
         

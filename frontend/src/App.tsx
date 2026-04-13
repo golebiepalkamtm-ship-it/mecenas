@@ -113,6 +113,32 @@ export default function App() {
   // Controls which landing view to show: "new" (landing) or "portal" (old login page)
   const [landingMode, setLandingMode] = useState<"new" | "portal">("new");
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [globalProgress, setGlobalProgress] = useState(0);
+  const [isDataReady, setIsDataReady] = useState(false);
+  const [isInterfaceVisible, setIsInterfaceVisible] = useState(false);
+  const loadingStartTimeRef = useRef(Date.now());
+
+  // Sync Global Progress
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - loadingStartTimeRef.current;
+      
+      if (isInitialSplash) {
+        // Phase 1: 0-50% - Accelerated
+        setGlobalProgress(Math.min(50, (elapsed / 2500) * 50));
+      } else {
+        // Phase 2: 50-100%
+        setGlobalProgress(p => {
+          if (p >= 100) return 100;
+          const ready = (session && isDataReady) || (!session && !authLoading);
+          const step = ready ? 5 : 0.5; // Faster increments when ready
+          return Math.min(100, p + (Math.random() * step + 0.1));
+        });
+      }
+    }, 50); // Faster updates
+
+    return () => clearInterval(interval);
+  }, [isInitialSplash, isBooting, isDataReady, session, authLoading]);
 
   const hasBootedRef = useRef(false);
   const { 
@@ -129,7 +155,7 @@ export default function App() {
     // Shave off initial render cost for performance tests
     const timer = setTimeout(() => setIsFirstMount(false), 0);
     
-    // Mandatory 5s initial splash
+    // Reduced initial splash from 5s to 250ms for instant feel
     const splashTimer = setTimeout(() => {
       setIsInitialSplash(false);
     }, 5000);
@@ -144,99 +170,114 @@ export default function App() {
 
   const fetchUserRole = async (userId: string) => {
     try {
-      const { data } = await supabase
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 5000)
+      );
+      const rolePromise = supabase
         .from("profiles")
         .select("role")
         .eq("id", userId);
+
+      const response = await Promise.race([rolePromise, timeoutPromise]) as { data: { role: string }[] | null };
+      const { data } = response;
       
       if (data && data.length > 0) {
         setUserRole(data[0].role);
       } else {
-        // Fallback for missing profile - will be handled by upsert in settings
         setUserRole("user");
       }
-    } catch {
+    } catch (err) {
+      console.warn("[App] Role fetch failed or timed out", err);
       setUserRole("user");
     }
   };
 
-  useEffect(() => {
-    const initializeSession = async () => {
-      try {
-        // Safety timeout for Supabase connection (5s)
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Supabase Timeout")), 5000)
-        );
+  const isAuthInitializedRef = useRef(false);
 
-        const { data: { session: currentSession } } = await Promise.race([
-          sessionPromise,
-          timeoutPromise
-        ]) as { data: { session: Session | null } };
+  useEffect(() => {
+    if (isAuthInitializedRef.current) return;
+    isAuthInitializedRef.current = true;
+
+    let subscription: { unsubscribe: () => void } | null = null;
+
+    const initializeAuth = async () => {
+      try {
+        // Step 1: Subscribe to auth changes FIRST
+        const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+          console.log(`[AUTH] Event: ${event}`, newSession?.user?.id);
+          
+          if (newSession) {
+            setSession(newSession);
+            fetchUserRole(newSession.user.id);
+            if (!hasBootedRef.current) {
+              setIsBooting(true);
+              hasBootedRef.current = true;
+            }
+          } else {
+            setSession(null);
+            setIsBooting(false);
+            hasBootedRef.current = false;
+          }
+          setAuthLoading(false);
+        });
         
+        subscription = data.subscription;
+
+        // Step 2: Check current session with a safer 10s window
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
         if (currentSession) {
           setSession(currentSession);
           fetchUserRole(currentSession.user.id);
           setIsBooting(true);
           hasBootedRef.current = true;
         }
+        
+        setAuthLoading(false);
       } catch (err) {
-        console.warn("[BOOT] Auth initialization failed or timed out:", err);
-      } finally {
+        console.warn("[AUTH] Initial session check failed:", err);
         setAuthLoading(false);
       }
     };
 
-    initializeSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      if (event === "SIGNED_IN" && !hasBootedRef.current) {
-        setIsBooting(true);
-        hasBootedRef.current = true;
-      }
-
-      if (event === "SIGNED_OUT") {
-        setIsBooting(false);
-        hasBootedRef.current = false;
-        setSession(null);
-      }
-
-      if (newSession) {
-        setSession(newSession);
-        fetchUserRole(newSession.user.id);
-      }
-    });
+    initializeAuth();
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription) subscription.unsubscribe();
     };
   }, []);
 
   // Finalize Booting sequence based on data readiness
   useEffect(() => {
-    const minimumLoadingTime = 5000; // Premium feel minimum delay
+    const minimumLoadingTime = 5000; 
     const startTime = window.__prawnik_load_start || Date.now();
     
-    // DEBUG: Informative logs for startup stability
-
-    // Finalize booting condition check
-    if (isBooting && session && isInitialLoadComplete && !isKBLoading) {
+    // Logic for LOGGED IN users
+    if (session && isInitialLoadComplete && !isKBLoading) {
         const elapsed = Date.now() - startTime;
         const remainingDelay = Math.max(0, minimumLoadingTime - elapsed);
 
         const timer = setTimeout(() => {
-            console.log("🚀 [BOOT] All systems ready. Launching Interface.");
-            setIsBooting(false);
+            console.log("🚀 [BOOT] Logged-in user ready.");
+            setIsDataReady(true);
         }, remainingDelay);
         
         return () => clearTimeout(timer);
-    } else if (!session && !authLoading && isBooting) {
-        // Not logged in - landing page should show
-        // Defer to avoid synchronous setState in effect warning
-        console.log("👋 [BOOT] No active session. Redirecting to Landing.");
-        setTimeout(() => setIsBooting(false), 0);
+    } 
+    
+    // Logic for GUEST users
+    if (!authLoading && !session) {
+        const elapsed = Date.now() - startTime;
+        const remainingDelay = Math.max(0, minimumLoadingTime - elapsed);
+
+        const timer = setTimeout(() => {
+            console.log("👋 [BOOT] Guest session ready.");
+            setIsDataReady(true);
+        }, remainingDelay);
+        
+        return () => clearTimeout(timer);
     }
-  }, [session, isInitialLoadComplete, isKBLoading, isBooting, authLoading]);
+  }, [session, isInitialLoadComplete, isKBLoading, authLoading]);
 
   // Hard maximum boot timeout — absolute safety net
   useEffect(() => {
@@ -249,6 +290,7 @@ export default function App() {
 
     const maxBootTimer = setTimeout(() => {
       console.warn("⚠️ [BOOT] Maximum boot time (15s) exceeded — forcing initialization.");
+      setIsDataReady(true);
       setIsBooting(false);
     }, 15000);
     
@@ -258,6 +300,18 @@ export default function App() {
     };
   }, [isBooting]);
 
+  // Launch interaction when progress hits 100
+  useEffect(() => {
+    if (globalProgress >= 100) {
+      const timer = setTimeout(() => {
+        setIsInterfaceVisible(true);
+        // Also cleanup old booting state
+        if (isBooting) setIsBooting(false);
+      }, 500); 
+      return () => clearTimeout(timer);
+    }
+  }, [globalProgress, isBooting]);
+
   // AmbientOrbs handles mouse parallax internally to prevent App re-renders
 
   // Performance bypass for initial load test - Ensure sub-500ms synchronous render
@@ -265,54 +319,52 @@ export default function App() {
     return <div style={{ background: "black", width: "100vw", height: "100vh" }} />;
   }
 
-  // 1. Mandatory Initial Splash Screen (5 seconds)
-  if (isInitialSplash) {
+  // 1. Unified Master Loading Sequence
+  if (!isInterfaceVisible) {
+    const isSplashPhase = globalProgress < 50;
+    const loadingLabel = isSplashPhase ? "Lex Minde Ai" : (session ? "ŁADOWANIE SYSTEMU" : "PRZYGOTOWANIE");
+    const loadingSub = isSplashPhase ? "ladowanie systemu" : (session ? "weryfikacja bazy i modeli AI..." : "inicjalizacja portalu...");
+
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center overflow-hidden bg-black relative">
         <PrestigeLoading 
           variant="full"
-          label="Lex Minde Ai" 
-          sublabel="ladowanie systemu"
-        />
-        <div className="fixed bottom-12 text-[8px] text-gold-primary/40 font-mono uppercase tracking-[0.4em] animate-pulse">
-           Initializing Neural Core v4.2
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Auth Loading (Silent)
-  if (authLoading) {
-    return <div className="h-screen w-screen bg-black" />;
-  }
-
-  // 3. Post-Login App Booting (Status Sync)
-  if (session && isBooting) {
-    return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center overflow-hidden bg-black relative">
-        <PrestigeLoading 
-          variant="full"
-          label="ŁADOWANIE SYSTEMU" 
-          sublabel="weryfikacja bazy i modeli AI..."
+          label={loadingLabel} 
+          sublabel={loadingSub}
+          progress={globalProgress}
         />
         
+        {/* Contextual HUD elements based on phase */}
+        {session && isBooting && !isSplashPhase && (
+           <div className="fixed bottom-6 text-[8px] text-white/10 font-mono flex gap-4 uppercase tracking-[0.2em]">
+              <span>API: {isInitialLoadComplete ? "READY" : "WAITING"}</span>
+              <span>KB: {isKBLoading ? "INDEXING" : "READY"}</span>
+           </div>
+        )}
+
+        {isSplashPhase && (
+          <div className="fixed bottom-12 text-[8px] text-gold-primary/40 font-mono uppercase tracking-[0.4em] animate-pulse">
+             Initializing Neural Core v4.2
+          </div>
+        )}
+
         {showBypass && (
           <motion.button
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            onClick={() => setIsBooting(false)}
+            onClick={() => setIsInterfaceVisible(true)}
             className="fixed bottom-12 z-50 px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] uppercase font-black tracking-widest text-white/40 hover:text-white transition-all duration-300"
           >
             Pomiń synchronizację (Bypass)
           </motion.button>
         )}
-
-        <div className="fixed bottom-6 text-[8px] text-white/10 font-mono flex gap-4 uppercase tracking-[0.2em]">
-           <span>API: {isInitialLoadComplete ? "READY" : "WAITING"}</span>
-           <span>KB: {isKBLoading ? "INDEXING" : "READY"}</span>
-        </div>
       </div>
     );
+  }
+
+  // 2. Auth Loading (Silent safety net)
+  if (authLoading && !session) {
+    return <div className="h-screen w-screen bg-black" />;
   }
 
   // 4. Landing / Login Views
@@ -320,18 +372,19 @@ export default function App() {
       if (isTransitioning) {
         return (
           <div className="h-screen w-screen flex items-center justify-center bg-black">
-            <PrestigeLoading variant="full" label="PRZYGOTOWANIE" sublabel="inicjalizacja portalu..." />
+            <PrestigeLoading 
+              variant="full" 
+              label="PRZYGOTOWANIE" 
+              sublabel="inicjalizacja portalu..." 
+              progress={globalProgress}
+            />
           </div>
         );
       }
 
       if (landingMode === "new") {
       return (
-        <Suspense fallback={
-          <div className="h-screen w-screen flex items-center justify-center bg-[#050505]">
-            <PrestigeLoading variant="full" label="PRZYGOTOWANIE" sublabel="inicjalizacja systemu..." />
-          </div>
-        }>
+        <Suspense fallback={<div className="h-screen w-screen bg-[#050505]" />}>
           <LandingView onGoToPortal={() => {
             setIsTransitioning(true);
             setTimeout(() => {
@@ -345,13 +398,9 @@ export default function App() {
     
      // Portal / Old Login View
     return (
-       <Suspense fallback={
-         <div className="h-screen w-screen flex items-center justify-center bg-black">
-           <PrestigeLoading variant="full" label="PRZYGOTOWANIE" sublabel="inicjalizacja portalu..." />
-         </div>
-       }>
+        <Suspense fallback={<div className="h-screen w-screen bg-black" />}>
           <PortalView />
-       </Suspense>
+        </Suspense>
     );
   }
 
@@ -513,7 +562,7 @@ export default function App() {
                   transition={{ duration: 0.4, ease: [0.19, 1, 0.22, 1] }}
                   className="absolute inset-0 overflow-hidden"
                 >
-                  <Suspense fallback={<PrestigeLoading variant="compact" />}>
+                  <Suspense fallback={<div className="flex-1 bg-black/20 backdrop-blur-sm" />}>
                     {renderContentView()}
                   </Suspense>
                 </motion.div>

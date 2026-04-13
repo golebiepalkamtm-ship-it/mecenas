@@ -34,7 +34,7 @@ const NODES: NodeData[] = [
   { id: "zap", icon: Zap, label: "Neural Core", sublabel: "Syntactic Logic", x: 350, y: 70, size: "sm" },
   { id: "network", icon: Network, label: "Contextual Engine", sublabel: "Semantic Sync", x: 600, y: 70, size: "sm" },
   { id: "database", icon: Database, label: "Knowledge Base", sublabel: "Legal Vault", x: 790, y: 110, size: "sm" },
-  { id: "analyzer", icon: Activity, label: "Analyzer", sublabel: "Heuristic Filter", x: 240, y: 350, size: "md" },
+  { id: "analyzer", icon: Activity, label: "Analyzer", sublabel: "Heuristic Logic", x: 240, y: 350, size: "md" },
   { id: "synthesizer", icon: Scale, label: "Synthesizer", sublabel: "Legal Rigor", x: 710, y: 350, size: "md" },
   { id: "consensus", icon: Cpu, label: "Consensus Engine", sublabel: "Final Adjudication", x: 475, y: 550, size: "lg", active: true },
   { id: "verdict", icon: ShieldCheck, label: "Secure Verdict", sublabel: "Certifiable Origin", x: 475, y: 690, size: "md" },
@@ -199,7 +199,6 @@ export default function NeuralFlow() {
   return (
     <div className="relative w-full max-w-[950px] h-[780px] flex items-center justify-center p-12 bg-black/20 rounded-[4rem] border border-white/10 overflow-hidden shadow-[0_0_100px_rgba(255,255,255,0.05)]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.04)_0%,transparent_70%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.01)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.01)_1px,transparent_1px)] bg-size-[40px_40px]" />
       
       <div className="relative z-10 w-full h-full">
         {LINKS.map((link) => (

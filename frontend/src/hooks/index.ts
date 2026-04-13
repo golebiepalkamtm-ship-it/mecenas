@@ -299,19 +299,30 @@ export function useSystemPrompt() {
 
   useEffect(() => {
     const fetchPrompt = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout")), 5000)
+        );
+        const userPromise = supabase.auth.getUser();
+        const authResponse = await Promise.race([userPromise, timeoutPromise]) as { data: { user: any } };
+        const { data: { user } } = authResponse;
+        
+        if (!user) return;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("system_prompt")
-        .eq("id", user.id)
-        .single();
+        const profilePromise = supabase
+          .from("profiles")
+          .select("system_prompt")
+          .eq("id", user.id)
+          .single();
+        
+        const profileResponse = await Promise.race([profilePromise, timeoutPromise]) as { data: { system_prompt: string | null } | null; error: any };
+        const { data, error } = profileResponse;
 
-      if (!error && data) {
-        setPrompt(data.system_prompt || "");
+        if (!error && data) {
+          setPrompt(data.system_prompt || "");
+        }
+      } catch (err) {
+        console.warn("[SystemPrompt] Fetch failed or timed out", err);
       }
     };
     fetchPrompt();
@@ -360,14 +371,19 @@ export function useChat() {
   // Sessions & Models
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string>(() => {
-    const saved = localStorage.getItem("prawnik_session_id");
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (saved && !uuidRegex.test(saved)) {
-      localStorage.removeItem("prawnik_session_id");
+    try {
+      const saved = localStorage.getItem("prawnik_session_id");
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (saved && !uuidRegex.test(saved)) {
+        localStorage.removeItem("prawnik_session_id");
+        return "";
+      }
+      return saved || "";
+    } catch (e) {
+      console.warn("LocalStorage access failed", e);
       return "";
     }
-    return saved || "";
   });
 
   const [availableModels, setAvailableModels] = useState<ChatModel[]>([]);
@@ -377,12 +393,15 @@ export function useChat() {
   const setSelectedModelWithContext = useCallback(
     (newModel: string) => {
       setSelectedModel(newModel);
-      // Store the change timestamp to trigger context refresh on next message
-      localStorage.setItem(
-        "prawnik_model_change_timestamp",
-        Date.now().toString(),
-      );
-      localStorage.setItem("prawnik_previous_model", selectedModel);
+      try {
+        localStorage.setItem(
+          "prawnik_model_change_timestamp",
+          Date.now().toString(),
+        );
+        localStorage.setItem("prawnik_previous_model", selectedModel);
+      } catch (e) {
+        console.warn("LocalStorage set failed", e);
+      }
     },
     [selectedModel],
   );
@@ -481,25 +500,23 @@ export function useChat() {
     loadMessages();
   }, [loadMessages]);
 
-  // Background retry: if initial fetch failed (backend was starting), retry until data arrives
+  // Background retry: if initial fetch failed (backend was starting), retry once after a delay
   useEffect(() => {
     if (!modelsLoaded || !sessionsLoaded || !messagesLoaded) return;
-    
-    // Stop condition: we have all basic data
-    const hasModels = availableModels.length > 3;
-    const hasSessions = sessions.length > 0;
-    const hasMessages = !sessionId || messages.length > 0 || messagesLoaded;
-    
-    if (hasModels && hasSessions && hasMessages) return;
+    if (initialBootDone) return;
 
-    const interval = setInterval(() => {
-      if (availableModels.length <= 3) fetchModels();
-      if (sessions.length === 0) fetchSessions();
-      if (sessionId && messages.length === 0) loadMessages();
-    }, 4000);
+    const hasModels = availableModels.length > 0;
+    const hasSessions = sessionsLoaded; // Focus on loading state rather than count
+    
+    if (hasModels && hasSessions) return;
 
-    return () => clearInterval(interval);
-  }, [modelsLoaded, sessionsLoaded, messagesLoaded, availableModels.length, sessions.length, messages.length, sessionId, fetchModels, fetchSessions, loadMessages]);
+    const timer = setTimeout(() => {
+      if (availableModels.length === 0) fetchModels();
+      if (!sessionsLoaded || sessions.length === 0) fetchSessions();
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [modelsLoaded, sessionsLoaded, messagesLoaded, availableModels.length, sessions.length, initialBootDone, fetchModels, fetchSessions]);
 
 
   // Latch: once boot completes the first time, never go back to "not complete"

@@ -33,7 +33,7 @@ export const FAQ = () => {
            className="text-center mb-16"
         >
           <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 mb-4 block">FAQ</span>
-          <h2 className="text-4xl font-outfit font-black italic uppercase tracking-tight text-white mb-6">
+          <h2 className="text-4xl font-outfit font-black italic uppercase tracking-wider text-white mb-6">
             Częste Pytania
           </h2>
         </motion.div>

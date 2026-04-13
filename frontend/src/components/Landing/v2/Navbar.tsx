@@ -11,9 +11,9 @@ export const Navbar = ({ onLoginOpen, onPortalClick }: { onLoginOpen: () => void
       <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-gold-primary/30 to-transparent" />
       <div className="flex items-center gap-4">
         <div className="w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center">
-          <img src="/lexminde-logo.png" alt="LexMinde Logo" className="w-full h-full object-cover" />
+          <img src="/logo.png" alt="LexMind Logo" className="w-full h-full object-cover" />
         </div>
-        <span className="text-2xl font-outfit font-black italic uppercase tracking-tighter text-white">LexMind AI</span>
+        <span className="text-2xl font-outfit font-black italic uppercase tracking-wider text-white">LexMind AI</span>
       </div>
 
       <div className="hidden md:flex items-center gap-12">
