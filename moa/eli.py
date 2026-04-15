@@ -113,7 +113,8 @@ Zwróć odpowiedź w formacie Markdown, zaczynając od nagłówka: ### 💡 Uzas
                 {"role": "system", "content": "Jesteś ELI - Explainable Legal Intelligence. Walidujesz i wyjaśniasz decyzje AI."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.1
+            temperature=0.1,
+            max_tokens=1500
         )
         return response.choices[0].message.content or "Nie udało się wygenerować wyjaśnienia ELI."
     except Exception as e:

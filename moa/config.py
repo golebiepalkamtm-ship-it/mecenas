@@ -20,6 +20,8 @@ PROJECT_DIR = str(Path(__file__).parent.parent.absolute())
 # ---------------------------------------------------------------------------
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 SUPABASE_URL: str = os.getenv(
     "SUPABASE_URL", "https://dhyvxspgsktpbjonejek.supabase.co"
@@ -120,7 +122,7 @@ def is_vision_model(model_id: str) -> bool:
 
 def classify_model(model_raw: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Unified classification for OpenRouter models.
+    Unified classification for OpenRouter and Direct models.
     Central Source of Truth for model filtering and vision detection (Deduplication #13).
     """
     mid = model_raw.get("id", "")
@@ -130,12 +132,22 @@ def classify_model(model_raw: Dict[str, Any]) -> Dict[str, Any]:
     if any(kw in lower_id for kw in EXCLUDED_MODELS_KEYWORDS):
         return {}
 
+    provider = "other"
+    if "/" in mid:
+        provider = mid.split("/")[0]
+    elif "gpt" in lower_id:
+        provider = "openai"
+    elif "claude" in lower_id:
+        provider = "anthropic"
+    elif "gemini" in lower_id:
+        provider = "google"
+
     return {
         "id": mid,
         "name": model_raw.get("name", mid),
         "vision": is_vision_model(mid),
         "free": ":free" in lower_id,
-        "provider": mid.split("/")[0] if "/" in mid else "other",
+        "provider": provider,
     }
 
 
@@ -161,12 +173,15 @@ MODELS_CONFIG = load_models_config()
 MODELS_LIST = MODELS_CONFIG.get("models", [])
 PRESETS_LIST = MODELS_CONFIG.get("presets", [])
 
-# Domyślny sędzia i analitycy (używani, gdy użytkownik nie poda własnych)
-DEFAULT_JUDGE_MODEL = "anthropic/claude-3.5-sonnet"
+# ---------------------------------------------------------------------------
+# Dynamic Model Baselines (Zmień w locie w UI lub models_config.json)
+# ---------------------------------------------------------------------------
+DEFAULT_JUDGE_MODEL = "anthropic/claude-4.5-sonnet-20250929"  # Top-tier Judge
 DEFAULT_ANALYST_MODELS = [
-    "anthropic/claude-3.5-sonnet",
-    "openai/gpt-4o",
-    "google/gemini-2.0-flash-001",
+    "anthropic/claude-4.5-sonnet-20250929",  # NextGen Vision & Law
+    "openai/gpt-5-2025-08-07",               # NextGen Reasoning
+    "google/gemini-3.1-pro-preview-20260219", # Massive Context
+    "x-ai/grok-4.1-fast",                    # Hyperfast Logic
 ]
 
 # ---------------------------------------------------------------------------
@@ -174,8 +189,8 @@ DEFAULT_ANALYST_MODELS = [
 # ---------------------------------------------------------------------------
 DEFAULT_MATCH_THRESHOLD = 0.05
 DEFAULT_MATCH_COUNT = 30  # ZWIĘKSZONO: Bardziej agresywny retrieval
-MAX_CONTEXT_CHARS = 100_000 # ZWIĘKSZONO: Optymalny balans między precyzją, a szybkością
-MAX_CONTEXT_TOKENS_ESTIMATE = 18_000
+MAX_CONTEXT_CHARS = 80_000 # OBNIŻONO: Zabezpieczenie przed błędem 402 przy dużej ilości załączników
+MAX_CONTEXT_TOKENS_ESTIMATE = 15_000
 
 # ---------------------------------------------------------------------------
 # Retry / Resilience
@@ -189,8 +204,8 @@ RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 # LLM defaults
 # ---------------------------------------------------------------------------
 LLM_TEMPERATURE = 0.1
-LLM_TIMEOUT = 30.0  # OBNIŻONO: Przyspieszenie pracy ekspertów
-GLOBAL_MOA_TIMEOUT = 50.0 # Twardy limit na CAŁY proces MOA
+LLM_TIMEOUT = 180.0  # ZWIĘKSZONO: Zapobieganie ReadTimeout przy ogromnej ilości danych
+GLOBAL_MOA_TIMEOUT = 240.0 # Twardy limit na CAŁY proces MOA (ZWIĘKSZONO)
 
 # ---------------------------------------------------------------------------
 # Sanity Checks (Bug 22)

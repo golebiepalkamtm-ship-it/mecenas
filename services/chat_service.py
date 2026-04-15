@@ -66,6 +66,8 @@ async def chat_consensus_moa(
         architect_prompt=request.architect_prompt,
         system_role_prompt=request.system_role_prompt,
         judge_system_prompt=request.judge_system_prompt,
+        api_keys=request.api_keys,
+        attachments=extracted_att_content, # Przekazujemy załączniki (obrazy) do ekspertów
     )
 
     result = await run_moa_pipeline(moa_req)
@@ -152,6 +154,7 @@ async def generate_chat_stream(
         temperature=LLM_TEMPERATURE,
         max_tokens=2500,
         stream=True,
+        extra_headers={"Authorization": f"Bearer {request.api_keys.get('openrouter')}"} if request.api_keys and request.api_keys.get('openrouter') else None
     )
 
     full_answer = ""

@@ -35,6 +35,8 @@ class MOARequest:
     expert_roles: Optional[dict[str, str]] = None
     expert_role_prompts: Optional[dict[str, str]] = None
     judge_system_prompt: Optional[str] = None
+    api_keys: Optional[dict[str, str]] = None
+    attachments: list[dict] = field(default_factory=list) # Nowość: wsparcie dla obrazów/plików
 
 
 # ---------------------------------------------------------------------------

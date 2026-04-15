@@ -20,6 +20,7 @@ import {
 import { useKnowledgeBase, useUserLibrary } from '../../../hooks';
 import { cn } from '../../../utils/cn';
 import type { Document, KnowledgeDocument } from '../../../types/library';
+import { API_BASE } from '../../../config';
 
 interface LibrarySelectionModalProps {
   isOpen: boolean;
@@ -41,7 +42,6 @@ interface DocWithContent {
 export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' }: LibrarySelectionModalProps) {
   const rag = useKnowledgeBase();
   const library = useUserLibrary();
-  const API_BASE = "http://localhost:8003";
   
   const documents = useMemo(() => {
     if (mode === 'all') return (rag.documents as KnowledgeDocument[]).map(d => ({ 
@@ -58,7 +58,7 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
       name: d.title, 
       chunks: d.chunks || 0, 
       created_at: d.created_at, 
-      type: d.type === 'uploaded' ? 'Dokument' : (d.type === 'draft' ? 'Pismo AI' : (d.type || 'Pismo')), 
+      type: d.type === 'uploaded' ? 'Dokument' : (d.type === 'draft' ? 'Pismo AI' : (d.type === 'image' ? 'Zdjęcie' : (d.type || 'Pismo'))), 
       content: d.content || '', 
       isRAG: false 
     }));
@@ -120,6 +120,8 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
     }));
     if (selectedList.length > 0) {
        onSelect(selectedList);
+       // Czyścimy wybór po wysłaniu
+       setSelectedDocsMap({});
        onClose();
     }
   };
@@ -204,7 +206,7 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
                       className={cn(
                         "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex items-center gap-2",
                         sortBy === opt.id 
-                          ? "bg-white text-black" 
+                          ? "bg-white text-white" 
                           : "text-white/40 hover:text-white"
                       )}
                     >
@@ -261,7 +263,7 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
                          <div
                             className={cn(
                                "w-8 h-8 rounded-full flex items-center justify-center shadow-lg transition-all",
-                               selectedDocsMap[doc.id] ? "bg-white text-black scale-110" : "bg-white/10 text-white/40 opacity-0 group-hover:opacity-100"
+                               selectedDocsMap[doc.id] ? "bg-white text-white scale-110" : "bg-white/10 text-white/40 opacity-0 group-hover:opacity-100"
                             )}
                          >
                             {selectedDocsMap[doc.id] ? <Plus className="rotate-45" size={14} /> : <Plus size={14} />}
@@ -278,12 +280,12 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
                       </div>
                       
                       <div className="flex flex-col gap-3">
-                         <div className={cn(
-                           "w-10 h-10 rounded-2xl flex items-center justify-center transition-colors",
-                           selectedDocsMap[doc.id] ? "bg-white/20 text-white" : "bg-white/10 text-white/40 group-hover:text-white"
-                         )}>
-                            {doc.type === 'image' ? <ImageIcon size={20} /> : <FileText size={20} />}
-                         </div>
+                          <div className={cn(
+                            "w-10 h-10 rounded-2xl flex items-center justify-center transition-colors",
+                            selectedDocsMap[doc.id] ? "bg-white/20 text-white" : "bg-white/10 text-white/40 group-hover:text-white"
+                          )}>
+                             {doc.type === 'Zdjęcie' || doc.type === 'image' ? <ImageIcon size={20} /> : <FileText size={20} />}
+                          </div>
                          <div className="space-y-1">
                             <h3 className="text-[11px] font-black text-white uppercase tracking-wider truncate leading-none">{doc.name}</h3>
                             <div className="flex items-center gap-2">
@@ -333,9 +335,9 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
                     >
                       <div className={cn(
                         "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                        selectedDocsMap[doc.id] ? "bg-white text-black" : "bg-white/10 text-white/40 group-hover:text-white"
+                        selectedDocsMap[doc.id] ? "bg-white text-white" : "bg-white/10 text-white/40 group-hover:text-white"
                       )}>
-                        {selectedDocsMap[doc.id] ? <Plus className="rotate-45" size={16} /> : <FileText size={20} />}
+                        {selectedDocsMap[doc.id] ? <Plus className="rotate-45" size={16} /> : (doc.type === 'Zdjęcie' || doc.type === 'image' ? <ImageIcon size={20} /> : <FileText size={20} />)}
                       </div>
                       <div className="flex-1 min-w-0">
                          <h3 className="text-xs font-black text-white uppercase tracking-wide truncate">{doc.name}</h3>
@@ -407,7 +409,7 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
                   className={cn(
                      "px-8 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border",
                      Object.keys(selectedDocsMap).length > 0
-                        ? "bg-white text-black border-white shadow-lg shadow-white/10 hover:bg-white/90"
+                        ? "bg-white text-white border-white shadow-lg shadow-white/10 hover:bg-white/90"
                         : "bg-white/5 text-white/20 border-white/5 cursor-not-allowed"
                   )}
                  >
@@ -470,7 +472,7 @@ export function LibrarySelectionModal({ isOpen, onClose, onSelect, mode = 'all' 
                             "w-full py-3 text-[9px] font-black uppercase tracking-[0.2em] rounded-xl transition-all flex items-center justify-center gap-2",
                             selectedDocsMap[previewDoc.id]
                               ? "bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20"
-                              : "bg-white text-black hover:bg-white/90"
+                              : "bg-white text-white hover:bg-white/90"
                           )}
                        >
                           {selectedDocsMap[previewDoc.id] ? <X size={12} /> : <Plus size={12} />}

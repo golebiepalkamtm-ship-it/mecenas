@@ -36,21 +36,20 @@ export function KnowledgeFilters({
       <div className="flex flex-col md:flex-row gap-5 items-start w-full md:w-auto">
         {/* Upload Action */}
         <div className="shrink-0">
-          <NeonButton
+          <button
             onClick={onUploadClick}
             disabled={isUploading}
-            className="h-full px-8 py-4.5 group/btn-upload"
-            size="lg"
+            className="h-full px-8 py-4.5 rounded-2xl glass-liquid-convex text-black font-black uppercase tracking-[0.15em] text-[10px] hover:scale-[1.03] transition-all shadow-xl disabled:opacity-40 disabled:pointer-events-none group/btn-upload"
           >
             {isUploading ? (
               <Loader2 className="animate-spin mr-3" size={16} />
             ) : (
               <Plus className="mr-3 group-hover/btn-upload:rotate-90 transition-transform" size={16} />
             )}
-            <span className="text-[10px] font-bold uppercase tracking-[0.15em] font-outfit">
+            <span className="font-outfit">
               {isUploading ? "Przesyłanie..." : "Importuj Plik PDF"}
             </span>
-          </NeonButton>
+          </button>
         </div>
 
         {/* Search Bar */}
@@ -83,10 +82,10 @@ export function KnowledgeFilters({
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
             className={cn(
-              "flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-bold tracking-wider transition-all shrink-0 relative overflow-hidden group/tab font-outfit",
+              "flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 relative overflow-hidden group/tab font-outfit",
               activeCategory === cat.id
-                ? "glass-prestige-gold text-gold-primary shadow-[0_10px_30px_rgba(212,175,55,0.15)]"
-                : "text-white/30 hover:text-white/60 hover:bg-white/5",
+                ? "glass-liquid-convex text-black shadow-xl scale-105 z-10"
+                : "text-black/30 hover:text-black/60 hover:bg-black/5",
             )}
           >
             <span className={cn(

@@ -95,7 +95,9 @@ export function LiquidMetalIcon({
   // Default Scale SVG if none provided
   const defaultSvg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-        <path d="M50,10 L50,85 M50,15 L20,25 M50,15 L80,25 M20,25 L15,45 M20,25 L25,45 M15,45 Q20,50 25,45 M80,25 L75,45 M80,25 L85,45 M75,45 Q80,50 85,45 M35,85 L65,85" stroke-width="2" fill="none" stroke="currentColor"/>
+        <circle cx="50" cy="50" r="40" stroke-width="4" fill="none" stroke="currentColor"/>
+        <circle cx="50" cy="50" r="20" stroke-width="2" fill="none" stroke="currentColor" opacity="0.5"/>
+        <path d="M50,10 L50,90 M10,50 L90,50" stroke-width="1" stroke="currentColor" opacity="0.3"/>
     </svg>
   `;
 
@@ -276,10 +278,10 @@ export function LiquidMetalIcon({
     const extrudeSettings = {
       depth: 1.5,
       bevelEnabled: true,
-      bevelSegments: 64,
-      steps: 2,
-      bevelSize: 2.0,
-      bevelThickness: 2.0
+      bevelSegments: 12, // Reduced from 64 for GPU performance
+      steps: 1,         // Reduced for performance
+      bevelSize: 1.5,
+      bevelThickness: 1.5
     };
 
     const allShapes: THREE.Shape[] = [];
@@ -310,8 +312,8 @@ export function LiquidMetalIcon({
       const paddedHeight = height + pad * 2;
 
       const canvas = document.createElement('canvas');
-      canvas.width = 1024;
-      canvas.height = 1024;
+      canvas.width = 512; // Reduced from 1024 for VRAM efficiency
+      canvas.height = 512;
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.fillStyle = 'black';
@@ -319,19 +321,19 @@ export function LiquidMetalIcon({
         const scaleX = canvas.width / paddedWidth;
         const scaleY = canvas.height / paddedHeight;
         ctx.save();
-        ctx.filter = 'blur(45px)';
+        ctx.filter = 'blur(25px)'; // Reduced blur radius
         ctx.fillStyle = 'white';
         ctx.scale(scaleX, scaleY);
         ctx.translate(-paddedMinX, -paddedMinY);
         ctx.beginPath();
         allShapes.forEach(shape => {
-          const pts = shape.getPoints(100);
+          const pts = shape.getPoints(40); // Fewer points for mask generation
           if (pts.length) {
             ctx.moveTo(pts[0].x, pts[0].y);
             for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
           }
           shape.holes.forEach(hole => {
-            const hPts = hole.getPoints(100);
+            const hPts = hole.getPoints(40);
             if (hPts.length) {
               ctx.moveTo(hPts[0].x, hPts[0].y);
               for (let i = 1; i < hPts.length; i++) ctx.lineTo(hPts[i].x, hPts[i].y);
@@ -361,11 +363,22 @@ export function LiquidMetalIcon({
     const finalCenter = scaledBox.getCenter(new THREE.Vector3());
     group.position.sub(finalCenter);
 
-    // --- ANIMATION LOOP ---
+    // --- ANIMATION LOOP WITH VISIBILITY CHECK ---
     const startTime = performance.now();
     let frameId: number;
+    let isVisible = true;
+
+    // Use IntersectionObserver only if available
+    const observer = new IntersectionObserver((entries) => {
+      isVisible = entries[0].isIntersecting;
+    }, { threshold: 0.1 });
+    
+    observer.observe(container);
+
     const animate = () => {
       frameId = requestAnimationFrame(animate);
+      if (!isVisible) return; // Skip rendering if not visible (saves GPU)
+
       if (materialRef.current) {
         materialRef.current.userData.uTime.value = (performance.now() - startTime) * 0.001;
       }
@@ -375,14 +388,19 @@ export function LiquidMetalIcon({
 
     return () => {
       cancelAnimationFrame(frameId);
-      if (container && renderer.domElement) {
+      observer.disconnect();
+      if (container && renderer.domElement && container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
       renderer.dispose();
       pmremGenerator.dispose();
       material.dispose();
       dummyTex.dispose();
+      if (material.userData.uShapeMask.value instanceof THREE.Texture) {
+        material.userData.uShapeMask.value.dispose();
+      }
     };
+
   }, [finalSvg, size, color, speed, distortion, scale, roughness, metalness, iridescence, iridescenceThicknessMin, iridescenceThicknessMax]);
 
   return (

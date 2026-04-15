@@ -206,7 +206,7 @@ export function ModelOrchestrator() {
                     <button
                         onClick={handleSaveModels}
                         disabled={isSaving || favoriteModelIds.length === 0}
-                        className="ml-2 px-4 py-2 bg-gold-primary text-black text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-gold-primary/20 flex items-center gap-2 disabled:opacity-50 disabled:scale-100"
+                        className="ml-2 px-4 py-2 bg-gold-primary text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-gold-primary/20 flex items-center gap-2 disabled:opacity-50 disabled:scale-100"
                     >
                         <Save size={12} />
                         {isSaving ? 'ZAPISUJ...' : 'ZAPISZ'}
@@ -285,7 +285,7 @@ export function ModelOrchestrator() {
       </div>
 
       {/* MODEL GRID Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10 bg-black/10">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-10 bg-white/10">
             {/* Favorites Section */}
             {favoriteModels.length > 0 && searchQuery === '' && filterTag === 'all' && filterVendor === 'all' && (
                 <div className="space-y-4">

@@ -1,61 +1,93 @@
 import React, { useEffect, useState } from "react";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
-import { Problem } from "./Problem";
-import { Solution } from "./Solution";
-import { Features } from "./Features";
-import { Stats } from "./Stats";
-import { Pricing } from "./Pricing";
-import { FAQ } from "./FAQ";
-import { FinalCTA, Footer } from "./Footer";
-import { Testimonials } from "./Testimonials";
-import { Security } from "./Security";
-import { LoginModal } from "./LoginModal";
 import { AnimatedSection } from "./AnimatedSection";
 import { gsap } from "gsap";
-import { ScrollSmoother } from "gsap/ScrollSmoother";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import Lenis from "lenis";
+import SplitType from "split-type";
 
-gsap.registerPlugin(ScrollSmoother, ScrollTrigger);
+const Problem = React.lazy(() => import("./Problem").then(m => ({ default: m.Problem })));
+const Solution = React.lazy(() => import("./Solution").then(m => ({ default: m.Solution })));
+const Features = React.lazy(() => import("./Features").then(m => ({ default: m.Features })));
+const Stats = React.lazy(() => import("./Stats").then(m => ({ default: m.Stats })));
+const Pricing = React.lazy(() => import("./Pricing").then(m => ({ default: m.Pricing })));
+const FAQ = React.lazy(() => import("./FAQ").then(m => ({ default: m.FAQ })));
+const Testimonials = React.lazy(() => import("./Testimonials").then(m => ({ default: m.Testimonials })));
+const Security = React.lazy(() => import("./Security").then(m => ({ default: m.Security })));
+const Footer = React.lazy(() => import("./Footer").then(m => ({ default: m.Footer })));
+const FinalCTA = React.lazy(() => import("./Footer").then(m => ({ default: m.FinalCTA })));
 
-const LandingPage = ({ onGoToPortal }: { onGoToPortal?: () => void }) => {
-  const [isLoginOpen, setIsLoginOpen] = useState(false);
+gsap.registerPlugin(ScrollTrigger);
 
+const LandingPage = ({ onGoToPortal, onStartTrial }: { onGoToPortal?: () => void, onStartTrial?: () => void }) => {
   useEffect(() => {
     // Enable scroll for landing page
     document.documentElement.style.overflow = "auto";
     document.body.style.overflow = "auto";
 
-    // Force GSAP to 60 FPS for that "buttery" feel
-    gsap.ticker.fps(60);
-
-    // Bardzo masywny, maślany gładki scroll (premium feel)
-    const smoother = ScrollSmoother.create({
-      wrapper: "#smooth-wrapper",
-      content: "#smooth-content",
-      smooth: 2.2, // Increased for "powolny" feel
-      smoothTouch: 0.1,
-      effects: true, // Enable data-speed and data-lag effects
-      normalizeScroll: true,
-      ignoreMobileResize: true
+    // LENIS SMOOTH SCROLL (Awwwards Standard)
+    const lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      orientation: 'vertical',
+      gestureOrientation: 'vertical',
+      smoothWheel: true,
+      wheelMultiplier: 1.1,
+      touchMultiplier: 2,
     });
 
-    // Optional: add subtle parallax to all images automatically
-    gsap.utils.toArray('img').forEach((img: any) => {
-      gsap.to(img, {
-        y: -40,
-        ease: "none",
-        scrollTrigger: {
-          trigger: img,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true
+    function raf(time: number) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+    
+    gsap.ticker.add((time) => {
+      lenis.raf(time * 1000);
+    });
+    
+    gsap.ticker.lagSmoothing(0);
+    requestAnimationFrame(raf);
+
+    // Grouped initialization to prevent layout thrashing
+    const initAnimations = () => {
+      // 1. Single read phase: SplitType
+      const splitHeaders = new SplitType('.hero-title, h2', { types: 'chars' });
+      
+      // 2. Write phase: GSAP Entrance
+      gsap.utils.toArray('.hero-title, h2').forEach((title: any) => {
+        const chars = title.querySelectorAll('.char');
+        if (chars.length > 0) {
+          gsap.from(chars, {
+            y: 40,
+            opacity: 0,
+            stagger: 0.02,
+            duration: 1,
+            ease: "expo.out",
+            scrollTrigger: {
+              trigger: title,
+              start: "top 85%",
+            }
+          });
         }
       });
-    });
+      
+      return splitHeaders;
+    };
+
+    let splitHeadersInstance: SplitType | null = null;
+
+    // Use a small delay or font detection to avoid geometry recalculation on font load
+    const timer = setTimeout(() => {
+      requestAnimationFrame(() => {
+        splitHeadersInstance = initAnimations();
+      });
+    }, 100);
 
     return () => {
-      if (smoother) smoother.kill();
+      clearTimeout(timer);
+      lenis.destroy();
+      if (splitHeadersInstance) splitHeadersInstance.revert();
       ScrollTrigger.getAll().forEach(st => st.kill());
       document.documentElement.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
@@ -63,66 +95,55 @@ const LandingPage = ({ onGoToPortal }: { onGoToPortal?: () => void }) => {
   }, []);
 
   return (
-    <div className="relative bg-[#050505] text-white selection:bg-white selection:text-black overflow-hidden">
-      <div id="smooth-wrapper">
-        <div id="smooth-content" style={{ willChange: "transform" }}>
-          <Navbar 
-            onLoginOpen={() => setIsLoginOpen(true)} 
-            onPortalClick={onGoToPortal}
-          />
+    <div className="relative bg-[#121212] text-[#9ca3af] selection:bg-white selection:text-[#9ca3af] min-h-screen">
+      <Navbar 
+        onLoginOpen={onGoToPortal} 
+        onPortalClick={onGoToPortal}
+      />
+      
+      <main>
+        <Hero onStartTrial={onStartTrial || (() => {})} />
+        
+        <React.Suspense fallback={<div className="h-96 bg-[#121212]" />}>
+          <AnimatedSection id="problem" delay={0.1}>
+            <Problem />
+          </AnimatedSection>
           
-          <main>
-            <Hero onStartTrial={() => setIsLoginOpen(true)} />
-            
-            <AnimatedSection id="problem" delay={0.1}>
-              <Problem />
-            </AnimatedSection>
-            
-            <AnimatedSection delay={0.2}>
-              <Solution />
-            </AnimatedSection>
-            
-            <AnimatedSection id="funkcje" delay={0.1}>
-              <Features />
-            </AnimatedSection>
-            
-            <AnimatedSection delay={0.2}>
-              <Security />
-            </AnimatedSection>
-            
-            <AnimatedSection delay={0.1}>
-              <Stats />
-            </AnimatedSection>
-            
-            <AnimatedSection delay={0.2}>
-              <Testimonials />
-            </AnimatedSection>
-            
-            <AnimatedSection id="cennik" delay={0.1}>
-              <Pricing onStartTrial={() => setIsLoginOpen(true)} />
-            </AnimatedSection>
-            
-            <AnimatedSection delay={0.1}>
-              <FAQ />
-            </AnimatedSection>
-            
-            <AnimatedSection delay={0.2}>
-              <FinalCTA onStartTrial={() => setIsLoginOpen(true)} />
-            </AnimatedSection>
-          </main>
+          <AnimatedSection delay={0.2}>
+            <Solution />
+          </AnimatedSection>
+          
+          <AnimatedSection id="funkcje" delay={0.1}>
+            <Features />
+          </AnimatedSection>
+          
+          <AnimatedSection delay={0.2}>
+            <Security />
+          </AnimatedSection>
+          
+          <AnimatedSection delay={0.1}>
+            <Stats />
+          </AnimatedSection>
+          
+          <AnimatedSection delay={0.2}>
+            <Testimonials />
+          </AnimatedSection>
+          
+          <AnimatedSection id="cennik" delay={0.2}>
+            <Pricing onStartTrial={onStartTrial || (() => {})} />
+          </AnimatedSection>
+          
+          <AnimatedSection id="faq" delay={0.1}>
+            <FAQ />
+          </AnimatedSection>
+
+          <AnimatedSection delay={0.2}>
+            <FinalCTA onStartTrial={onStartTrial || (() => {})} />
+          </AnimatedSection>
 
           <Footer />
-
-          <div className="fixed inset-0 pointer-events-none z-0">
-            {/* Platinum Global Ambient Lighting - Sharp/Direct */}
-            <div className="absolute top-0 left-0 w-full h-[150vh] bg-[radial-gradient(circle_at_20%_10%,rgba(255,255,255,0.08)_0%,transparent_60%)]" />
-            <div className="absolute top-[20%] right-0 w-full h-[200vh] bg-[radial-gradient(circle_at_80%_40%,rgba(255,255,255,0.04)_0%,transparent_70%)]" />
-            <div className="absolute inset-0 bg-linear-to-b from-transparent via-white/2 to-transparent" />
-          </div>
-        </div>
-      </div>
-
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+        </React.Suspense>
+      </main>
     </div>
   );
 };

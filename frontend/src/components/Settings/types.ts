@@ -7,6 +7,12 @@ export interface Profile {
   role?: string;
   subscription_tier?: string;
   favorite_models?: string[];
+  api_keys?: {
+    openrouter?: string;
+    google?: string;
+    openai?: string;
+    anthropic?: string;
+  };
 }
 
 export interface SettingsViewProps {

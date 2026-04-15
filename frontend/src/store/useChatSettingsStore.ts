@@ -56,12 +56,16 @@ interface ChatSettingsState {
   currentSystemRoleId: string;
   setCurrentSystemRoleId: (id: string) => void;
   unitSystemRoles: Record<string, string>;
+  addSystemRolePrompt: (id: string, prompt: string) => void;
   updateSystemRolePrompt: (id: string, prompt: string) => void;
+  removeSystemRolePrompt: (id: string) => void;
 
   currentTask: string;
   setCurrentTask: (task: string) => void;
   taskPrompts: Record<string, string>;
+  addTaskPrompt: (taskId: string, prompt: string) => void;
   updateTaskPrompt: (taskId: string, prompt: string) => void;
+  removeTaskPrompt: (taskId: string) => void;
 
   // Settings Tab Navigation
   currentSettingsTab: string;
@@ -190,16 +194,62 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       currentSystemRoleId: DEFAULTS.currentSystemRoleId,
       setCurrentSystemRoleId: (currentSystemRoleId) => set({ currentSystemRoleId }),
       unitSystemRoles: { ...DEFAULTS.unitSystemRoles },
+      addSystemRolePrompt: (id, prompt) => set((state) => ({
+        unitSystemRoles: { ...state.unitSystemRoles, [id]: prompt },
+        currentSystemRoleId: id,
+      })),
       updateSystemRolePrompt: (id, prompt) => set((state) => ({
         unitSystemRoles: { ...state.unitSystemRoles, [id]: prompt }
       })),
+      removeSystemRolePrompt: (id) => set((state) => {
+        const roleKeys = Object.keys(state.unitSystemRoles);
+        if (!state.unitSystemRoles[id] || roleKeys.length <= 1) {
+          return {};
+        }
+
+        const nextRoles = { ...state.unitSystemRoles };
+        delete nextRoles[id];
+
+        const nextCurrentRoleId =
+          state.currentSystemRoleId === id
+            ? Object.keys(nextRoles)[0]
+            : state.currentSystemRoleId;
+
+        return {
+          unitSystemRoles: nextRoles,
+          currentSystemRoleId: nextCurrentRoleId,
+        };
+      }),
 
       currentTask: DEFAULTS.currentTask,
       setCurrentTask: (currentTask) => set({ currentTask }),
       taskPrompts: { ...DEFAULTS.taskPrompts },
+      addTaskPrompt: (taskId, prompt) => set((state) => ({
+        taskPrompts: { ...state.taskPrompts, [taskId]: prompt },
+        currentTask: taskId,
+      })),
       updateTaskPrompt: (taskId, prompt) => set((state) => ({
         taskPrompts: { ...state.taskPrompts, [taskId]: prompt }
       })),
+      removeTaskPrompt: (taskId) => set((state) => {
+        const taskKeys = Object.keys(state.taskPrompts);
+        if (!state.taskPrompts[taskId] || taskKeys.length <= 1) {
+          return {};
+        }
+
+        const nextTasks = { ...state.taskPrompts };
+        delete nextTasks[taskId];
+
+        const nextCurrentTask =
+          state.currentTask === taskId
+            ? Object.keys(nextTasks)[0]
+            : state.currentTask;
+
+        return {
+          taskPrompts: nextTasks,
+          currentTask: nextCurrentTask,
+        };
+      }),
 
       showHistory: true, 
       setShowHistory: (showHistory) => set({ showHistory }),

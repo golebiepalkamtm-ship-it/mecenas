@@ -7,8 +7,9 @@ import {
   EyeOff,
   Loader2,
   CheckCircle2,
-  Scale,
+  Gavel,
   ArrowRight,
+  ChevronLeft,
 } from "lucide-react";
 import { supabase } from "../../utils/supabaseClient";
 import NeuralNetwork from "./NeuralNetwork";
@@ -123,7 +124,7 @@ function Ticker() {
 
 /*   MAIN COMPONENT   */
 
-export function PortalView() {
+export function PortalView({ onBack }: { onBack?: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -156,8 +157,11 @@ export function PortalView() {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+    console.log("[AUTH] Starting login/signup process...", { email, isSignUp });
+
     try {
       if (isSignUp) {
+        console.log("[AUTH] Attempting sign up...");
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -174,8 +178,10 @@ export function PortalView() {
           password,
         });
         if (error) throw error;
+        console.log("[AUTH] Sign in successful!");
       }
     } catch (err) {
+      console.error("[AUTH] Error during authentication:", err);
       setMessage({ type: "error", text: (err as Error).message });
     } finally {
       setLoading(false);
@@ -206,7 +212,7 @@ export function PortalView() {
       `}</style>
 
       <Background /> 
-      <div className="absolute inset-0 bg-linear-to-b from-[#0a0800] via-[#050400] to-[#020100] opacity-0" />
+      <div className="absolute inset-0 bg-linear-to-b from-[#0a0800] via-[#050400] to-[#020100] opacity-0 pointer-events-none" />
 
 
 
@@ -288,7 +294,22 @@ export function PortalView() {
         </motion.header>
 
         {/* MAIN BODY: Login Panel shifted further Right */}
-        <div className="relative z-20 flex-1 flex items-center justify-center lg:justify-end px-6 lg:pr-12 xl:pr-20">
+        <div className="relative z-20 flex-1 flex flex-col items-center justify-center lg:items-end lg:justify-center px-6 lg:pr-12 xl:pr-20">
+          
+          {/* Back Button above the panel */}
+          <motion.button
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.8 }}
+            onClick={onBack}
+            className="group flex items-center gap-2 mb-6 px-4 py-2 rounded-full border border-white/5 bg-white/5 hover:bg-white/10 hover:border-gold-primary/30 transition-all pointer-events-auto cursor-pointer"
+          >
+            <ChevronLeft size={14} className="text-gold-primary group-hover:-translate-x-1 transition-transform" />
+            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-white/50 group-hover:text-gold-primary transition-colors">
+              Powrót do strony
+            </span>
+          </motion.button>
+
           <motion.aside
             variants={slideUpShort}
             initial="hidden"
@@ -324,7 +345,7 @@ export function PortalView() {
                 <div className="text-center mb-8">
                   <div className="flex justify-center mb-5">
                     <div className="w-12 h-12 rounded-2xl border border-gold-primary/25 bg-gold-primary/10 flex items-center justify-center">
-                      <Scale size={20} className="text-gold-primary" strokeWidth={1.5} />
+                      <Gavel size={20} className="text-gold-primary" strokeWidth={1.5} />
                     </div>
                   </div>
                   <AnimatePresence mode="wait">
@@ -399,7 +420,7 @@ export function PortalView() {
                     disabled={loading}
                     whileHover={loading ? {} : { scale: 1.01, boxShadow: "0 0 30px rgba(212,175,55,0.3)" }}
                     whileTap={loading ? {} : { scale: 0.98 }}
-                    className="group relative w-full bg-gold-primary text-black font-black uppercase text-[10px] tracking-[0.3em] py-[16px] rounded-2xl flex items-center justify-center gap-2 overflow-hidden shadow-[0_4px_30px_rgba(255,215,128,0.25)] transition-all disabled:opacity-50"
+                    className="group relative w-full bg-gold-primary text-white font-black uppercase text-[10px] tracking-[0.3em] py-[16px] rounded-2xl flex items-center justify-center gap-2 overflow-hidden shadow-[0_4px_30px_rgba(255,215,128,0.25)] glow-amber transition-all disabled:opacity-50"
                   >
                     {loading ? <Loader2 size={18} className="animate-spin" /> : <> {isSignUp ? "UTWÓRZ KONTO" : "ZALOGUJ SIĘ"} <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" /> </>}
                   </motion.button>

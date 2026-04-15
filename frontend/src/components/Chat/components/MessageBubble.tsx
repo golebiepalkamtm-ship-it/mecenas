@@ -1,7 +1,7 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  User, Scale, Sparkles, FileText, Search, 
+  User, Sparkles, FileText, Search, 
   ChevronDown, Check, X, Clock, Network, Gavel, 
   BarChart3, Shield 
 } from "lucide-react";
@@ -21,7 +21,7 @@ function cn(...inputs: ClassValue[]) {
 // ---------------------------------------------------------------------------
 // Expert Analysis Card — shown inside consensus messages
 // ---------------------------------------------------------------------------
-function ExpertCard({ expert, index }: { expert: ExpertAnalysis; index: number }) {
+const ExpertCard = React.memo(({ expert, index }: { expert: ExpertAnalysis; index: number }) => {
   const [expanded, setExpanded] = useState(false);
   const vendor = expert.model.split("/")[0]?.toUpperCase() || "UNKNOWN";
   const modelName = expert.model.split("/")[1] || expert.model;
@@ -129,12 +129,12 @@ function ExpertCard({ expert, index }: { expert: ExpertAnalysis; index: number }
       </AnimatePresence>
     </motion.div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Pipeline Stats Bar — shown for consensus messages
 // ---------------------------------------------------------------------------
-function PipelineStats({ msg }: { msg: Message }) {
+const PipelineStats = React.memo(({ msg }: { msg: Message }) => {
   if (!msg.consensus_used) return null;
 
   const expertCount = msg.expert_analyses?.length || 0;
@@ -175,7 +175,7 @@ function PipelineStats({ msg }: { msg: Message }) {
       )}
     </div>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Main Message Bubble
@@ -188,7 +188,7 @@ interface MessageBubbleProps {
 // ---------------------------------------------------------------------------
 // ELI Explanation — Highlighted verification section
 // ---------------------------------------------------------------------------
-function ELIExplanation({ content }: { content: string }) {
+const ELIExplanation = React.memo(({ content }: { content: string }) => {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -229,9 +229,9 @@ function ELIExplanation({ content }: { content: string }) {
       </AnimatePresence>
     </motion.div>
   );
-}
+});
 
-export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
+export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubbleProps) => {
   const isUser = msg.role === "user";
   const [showExperts, setShowExperts] = useState(false);
   const hasExperts = msg.expert_analyses && msg.expert_analyses.length > 0;
@@ -256,7 +256,7 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
               : "glass-prestige-gold text-gold-primary border border-gold-primary/30",
         )}
       >
-        {isUser ? <User size={15} /> : msg.consensus_used ? <Gavel size={15} /> : <Scale size={15} />}
+        {isUser ? <User size={15} /> : msg.consensus_used ? <Gavel size={15} /> : <Sparkles size={15} />}
         <div
           className={cn(
             "absolute inset-0 opacity-10 group-hover:opacity-30 transition-opacity",
@@ -462,4 +462,4 @@ export function MessageBubble({ msg, onPreviewDoc }: MessageBubbleProps) {
       </div>
     </motion.div>
   );
-}
+});

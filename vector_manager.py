@@ -12,8 +12,18 @@ load_dotenv()
 
 def create_vector_client():
     """Tworzy klienta vecs z polaczeniem do Supabase"""
-    # Konstruuj connection string
-    db_url = f"postgresql://postgres:{SUPABASE_ANON_KEY}@db.dhyvxspgsktpbjonejek.supabase.co:5432/postgres"
+    # Konstruuj connection string bezpiecznie
+    db_password = os.getenv("DB_PASSWORD", SUPABASE_ANON_KEY)
+    db_host = os.getenv("DB_HOST", "db.dhyvxspgsktpbjonejek.supabase.co")
+    db_user = os.getenv("DB_USER", "postgres")
+    db_name = os.getenv("DB_NAME", "postgres")
+    port = os.getenv("DB_PORT", "5432")
+    
+    # URL encoded password compatibility
+    import urllib.parse
+    safe_password = urllib.parse.quote_plus(db_password)
+    
+    db_url = f"postgresql://{db_user}:{safe_password}@{db_host}:{port}/{db_name}"
     
     # Tworz klienta
     client = vecs.create_client(db_url)

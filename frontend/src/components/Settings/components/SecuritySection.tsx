@@ -20,7 +20,7 @@ export function SecuritySection({ user }: Pick<SettingsViewProps, 'user'>) {
           </div>
           <button 
             onClick={() => supabase.auth.resetPasswordForEmail(user?.email || '')}
-            className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-black rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex-shrink-0"
+            className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-white rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex-shrink-0"
           >
             Wyślij Link
           </button>

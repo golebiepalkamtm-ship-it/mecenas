@@ -31,6 +31,7 @@ class ChatRequest(BaseModel):
     use_rag: bool = True
     mode: str = "advocate"
     stream: bool = False
+    api_keys: Optional[Dict[str, str]] = None
     model_config = ConfigDict(extra='allow')
 
     @validator('message')

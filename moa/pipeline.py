@@ -90,6 +90,8 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                 expert_roles=request.expert_roles,
                 expert_role_prompts=request.expert_role_prompts,
                 mode=IdentityMode(request.mode or "advocate"),
+                api_keys=request.api_keys,
+                attachments=request.attachments,
             )
             
             success_count = sum(1 for r in analyst_results if r.success)
@@ -114,6 +116,7 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
                     judge_model=judge_model,
                     judge_system_prompt=request.judge_system_prompt or build_judge_system_prompt(current_mode),
                     mode=current_mode,
+                    api_keys=request.api_keys,
                 )
                 print(f"[OK] Sedzia wygenerowal werdykt ({len(final_answer)} znakow).")
             except Exception as j_err:

@@ -37,7 +37,7 @@ export function DocumentPreview({
 }: DocumentPreviewProps) {
   if (!generatedDocument) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-black/20">
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center select-none bg-black/5 panel-scrollbar-gold">
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -45,20 +45,20 @@ export function DocumentPreview({
           className="flex flex-col items-center gap-8"
         >
           <div className="relative group">
-            <div className="w-24 h-24 rounded-[2.5rem] glass-prestige-gold flex items-center justify-center shadow-2xl transition-transform duration-500 group-hover:scale-110">
-              <BookOpen size={40} className="text-gold-primary/30" />
+            <div className="w-24 h-24 rounded-[2.5rem] glass-liquid-convex flex items-center justify-center shadow-2xl transition-transform duration-500 group-hover:scale-110">
+              <BookOpen size={40} className="text-black/60" />
             </div>
-            <div className="absolute -top-2 -right-2 w-8 h-8 rounded-2xl glass-prestige-gold flex items-center justify-center shadow-lg">
-              <Sparkles size={14} className="text-gold-primary" />
+            <div className="absolute -top-2 -right-2 w-8 h-8 rounded-2xl glass-prestige flex items-center justify-center shadow-lg">
+              <Sparkles size={14} className="text-emerald-600" />
             </div>
           </div>
 
           <div className="space-y-4 max-w-[320px]">
-            <p className="text-[12px] font-black uppercase tracking-[0.4em] text-white/40 font-outfit">
+            <p className="text-[12px] font-black uppercase tracking-[0.4em] text-black/40 font-outfit">
               Podgląd Dokumentu
             </p>
-            <p className="text-[11px] font-medium text-white/10 leading-relaxed uppercase tracking-[0.2em] font-outfit">
-              Skonfiguruj parametry po lewej stronie, aby zainicjować proces generowania prestiżowego dokumentu prawnego.
+            <p className="text-[11px] font-medium text-black/20 leading-relaxed uppercase tracking-[0.2em] font-outfit">
+              Skonfiguruj parametry po lewej stronie, aby zainicjować proces generowania prestiżowego dokumentu prawnego w standardzie Mercury Platinum.
             </p>
           </div>
         </motion.div>
@@ -67,14 +67,14 @@ export function DocumentPreview({
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden glass-prestige-embossed border-l border-white/5">
+    <div className="flex-1 flex flex-col overflow-hidden bg-black/5 border-l border-black/5">
       {/* Controls Header */}
-      <div className="shrink-0 flex items-center justify-between px-8 py-5 border-b border-white/5 glass-prestige shadow-xl z-20">
+      <div className="shrink-0 flex items-center justify-between px-8 py-5 border-b border-black/5 bg-transparent z-20 panel-scrollbar-gold">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-gold-primary/5 border border-gold-primary/20">
-             <span className="w-2 h-2 rounded-full bg-gold-primary shadow-[0_0_12px_rgba(212,175,55,0.8)] animate-pulse" />
-             <span className="text-[10px] font-black uppercase tracking-[0.25em] text-gold-primary font-outfit">
-                Pismo Gotowe
+          <div className="flex items-center gap-2.5 px-4 py-2 rounded-full glass-prestige">
+             <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.8)] animate-pulse" />
+             <span className="text-[10px] font-black uppercase tracking-[0.25em] text-black/60 font-outfit">
+                Pismo Synchroniczne
              </span>
           </div>
         </div>
@@ -85,7 +85,7 @@ export function DocumentPreview({
             active={saveSuccess} 
             disabled={isSaving}
             icon={isGenerating ? <Loader2 size={14} className="animate-spin" /> : saveSuccess ? <Check size={14} /> : <Save size={14} />} 
-            label={saveSuccess ? "ZAPISANO" : "ZAPISZ W BAZIE"} 
+            label={saveSuccess ? "ZAPISANO" : "ZAPISZ"} 
           />
           <ControlButton onClick={onDownload} icon={<Download size={14} />} label="POBIERZ .MD" />
         </div>
@@ -94,38 +94,38 @@ export function DocumentPreview({
       {/* Rendered View */}
       <div
         ref={documentRef}
-        className="flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-16 bg-black/40 selection:bg-gold-primary/30"
+        className="flex-1 overflow-y-auto custom-scrollbar panel-scrollbar-gold p-6 lg:p-12 selection:bg-black/10"
       >
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto panel-scrollbar-gold">
           <motion.div 
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="relative bg-[#0f0f10] rounded-[3rem] p-12 lg:p-24 overflow-hidden glass-prestige shadow-[0_60px_100px_-20px_rgba(0,0,0,0.8)] border border-white/10"
+            className="relative rounded-[1rem] p-12 lg:p-20 overflow-hidden glass-liquid-convex shadow-[0_40px_80px_rgba(0,0,0,0.1)]"
           >
             {/* Elegant Header Accent */}
-            <div className="absolute inset-x-0 top-0 h-1 bg-linear-to-r from-transparent via-gold-primary/40 to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-transparent via-black/10 to-transparent" />
             
             <div
-              className="prose dark:prose-invert max-w-none font-outfit
-              prose-p:text-white/90 prose-p:leading-[2] prose-p:mb-8 prose-p:text-[16px] prose-p:font-medium
-              prose-headings:text-gold-primary prose-headings:font-black prose-headings:tracking-tight prose-headings:font-outfit
-              prose-h1:text-[26px] prose-h1:mb-16 prose-h1:text-center prose-h1:uppercase prose-h1:italic prose-h1:tracking-[0.1em]
-              prose-h2:text-[19px] prose-h2:mb-8 prose-h2:mt-16 prose-h2:border-b prose-h2:border-gold-primary/10 prose-h2:pb-3 prose-h2:uppercase
-              prose-h3:text-[17px] prose-h3:mb-6 prose-h3:mt-12 prose-h3:text-white/90
-              prose-strong:text-gold-primary prose-strong:font-black
-              prose-ul:list-disc prose-li:marker:text-gold-primary prose-li:text-white/90 prose-li:text-[16px]
-              prose-hr:border-white/5 prose-hr:my-16
-              prose-blockquote:border-l-2 prose-blockquote:border-l-gold-primary/50 prose-blockquote:text-white/60 prose-blockquote:italic prose-blockquote:bg-gold-primary/5 prose-blockquote:p-8 prose-blockquote:rounded-2xl"
+              className="prose prose-neutral max-w-none font-outfit
+              prose-p:text-black/80 prose-p:leading-[1.8] prose-p:mb-6 prose-p:text-[15px] prose-p:font-medium
+              prose-headings:text-black prose-headings:font-black prose-headings:tracking-tight prose-headings:font-outfit
+              prose-h1:text-[24px] prose-h1:mb-12 prose-h1:text-center prose-h1:uppercase prose-h1:tracking-[0.1em]
+              prose-h2:text-[18px] prose-h2:mb-6 prose-h2:mt-12 prose-h2:border-b prose-h2:border-black/10 prose-h2:pb-2 prose-h2:uppercase
+              prose-h3:text-[16px] prose-h3:mb-4 prose-h3:mt-10 prose-h3:text-black/90
+              prose-strong:text-black prose-strong:font-black
+              prose-ul:list-disc prose-li:marker:text-black/20 prose-li:text-black/80 prose-li:text-[15px]
+              prose-hr:border-black/5 prose-hr:my-12
+              prose-blockquote:border-l-4 prose-blockquote:border-l-black/20 prose-blockquote:text-black/60 prose-blockquote:italic prose-blockquote:bg-black/5 prose-blockquote:p-6 prose-blockquote:rounded-xl"
             >
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {generatedDocument}
               </ReactMarkdown>
             </div>
             
-            <div className="mt-32 flex flex-col items-center gap-4 text-[10px] font-black uppercase tracking-[0.6em] text-white/5 select-none font-outfit">
-              <div className="w-12 h-px bg-white/10" />
-              LEXMIND PRESTIGE LEGAL DRAFTER
-              <div className="w-12 h-px bg-white/10" />
+            <div className="mt-24 flex flex-col items-center gap-4 text-[9px] font-black uppercase tracking-[0.5em] text-black/10 select-none font-outfit">
+              <div className="w-10 h-px bg-black/5" />
+              LEXMIND MERCURY v2.7 PRO
+              <div className="w-10 h-px bg-black/5" />
             </div>
           </motion.div>
         </div>
@@ -152,10 +152,10 @@ function ControlButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex items-center gap-2 px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300",
+        "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-300 glass-liquid-convex",
         active 
-          ? "glass-prestige-gold text-gold-primary shadow-[0_0_15px_rgba(212,175,55,0.2)]" 
-          : "glass-prestige text-white/40 hover:text-white hover:bg-white/10"
+          ? "scale-105 z-10 shadow-xl text-black" 
+          : "opacity-60 hover:opacity-100 text-black/40 hover:text-black"
       )}
     >
       {icon}

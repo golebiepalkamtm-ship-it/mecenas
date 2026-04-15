@@ -23,19 +23,17 @@ export const AnimatedSection = ({
     const element = sectionRef.current;
     if (!element) return;
 
-    // Professional Entrance: Slide + Blur + Scale
+    // Professional Entrance: Slide + Scale (No Blur for absolute clarity)
     gsap.fromTo(element,
       {
         opacity: 0,
         y: 60,
         scale: 0.98,
-        filter: "blur(10px)"
       },
       {
         opacity: 1,
         y: 0,
         scale: 1,
-        filter: "blur(0px)",
         duration: 1.5,
         delay,
         ease: "expo.out",
@@ -59,7 +57,7 @@ export const AnimatedSection = ({
       ref={sectionRef} 
       id={id} 
       className={className}
-      style={{ willChange: "transform, opacity, filter" }}
+      style={{ willChange: "transform, opacity" }}
     >
       {children}
     </section>

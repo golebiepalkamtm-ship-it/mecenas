@@ -12,16 +12,9 @@ export const Consensus = () => {
             viewport={{ once: true }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
           >
-            <span className="text-[10px] font-black uppercase tracking-[0.8em] text-white/40 mb-6 block">Ekskluzywna Technologia</span>
-            <h2 
-              className="text-5xl md:text-8xl font-outfit font-black italic uppercase tracking-wider mb-10 leading-[0.85]"
-              style={{
-                background: "linear-gradient(to bottom, #ffffff 0%, #808080 100%)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
-              Consensus of 5 Engines
+            <span className="text-[9px] font-bold uppercase tracking-[0.5em] text-[#6b7280] mb-8 block">Infrastruktura</span>
+            <h2 className="text-4xl md:text-7xl font-inter font-semibold tracking-tight text-chameleon drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] mb-10 leading-[1.1]">
+              Consensus <br className="md:hidden" /> <span className="opacity-60">Logic.</span>
             </h2>
           </motion.div>
         </div>
@@ -36,7 +29,6 @@ export const Consensus = () => {
           >
             <NeuralFlow />
           </motion.div>
-          <div className="absolute -inset-20 bg-white/3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-1000 blur-3xl pointer-events-none" />
         </div>
       </div>
     </section>

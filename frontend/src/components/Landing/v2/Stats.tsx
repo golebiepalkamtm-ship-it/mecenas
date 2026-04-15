@@ -22,10 +22,10 @@ export const Stats = () => {
             transition={{ delay: i * 0.1 }}
             className="text-center group"
           >
-            <div className="text-5xl md:text-7xl font-outfit font-black text-white mb-2 group-hover:scale-110 transition-transform duration-500">
+            <div className="text-4xl md:text-5xl font-inter font-semibold text-[#9ca3af] mb-2 group-hover:scale-105 transition-transform duration-500">
               {s.value}
             </div>
-            <div className="text-[10px] font-black uppercase tracking-[0.4em] text-white/30">
+            <div className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#6b7280]">
               {s.label}
             </div>
           </motion.div>

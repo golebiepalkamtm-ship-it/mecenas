@@ -66,7 +66,7 @@ export function ChatSidebar({
               duration: 0.35,
               ease: [0.25, 1, 0.5, 1],
             }}
-            className="fixed lg:relative left-0 top-20 bottom-0 lg:h-[calc(100%-80px)] w-[320px] max-w-full glass-steel-monolith rounded-none z-10000 shadow-none border-t border-white/5 pointer-events-auto flex flex-col overflow-hidden"
+            className="fixed lg:relative left-0 top-[80px] lg:top-0 bottom-0 lg:h-full w-[320px] max-w-full glass-steel-monolith rounded-none z-10000 shadow-none border-t border-white/5 pointer-events-auto flex flex-col overflow-hidden"
           >
             {/* Liquid Metal handles the look via utility classes */}
 
@@ -99,9 +99,9 @@ export function ChatSidebar({
                     newChat();
                     if (window.innerWidth < 1024) setShowHistory(false);
                   }}
-                  className="prestige-panel-action"
+                  className="w-full py-3 rounded-xl glass-liquid-convex text-black font-black uppercase tracking-[0.4em] text-[10px] hover:scale-[1.02] transition-all shadow-xl"
                 >
-                  <span className="-mt-1 block">Nowa Konsultacja</span>
+                  <span className="-mt-0.5 block">Nowa Konsultacja</span>
                 </button>
               </div>
 
@@ -123,7 +123,7 @@ export function ChatSidebar({
                         onClick={() => setSortBy(opt.id as 'newest' | 'oldest' | 'az')}
                         className={cn(
                           "relative z-10 flex items-center justify-center gap-2 py-2 transition-all outline-none",
-                          sortBy === opt.id ? "text-gold-primary font-extrabold" : "text-white/40 font-bold"
+                          sortBy === opt.id ? "text-black font-black" : "text-black/30 font-bold"
                         )}
                     >
                       {opt.icon}
@@ -166,30 +166,38 @@ export function ChatSidebar({
                             if (window.innerWidth < 1024) setShowHistory(false);
                           }}
                           className={cn(
-                            "group relative flex items-center gap-4 p-4 cursor-pointer rounded-2xl transition-all border",
+                            "group relative flex items-center gap-4 p-4 cursor-pointer rounded-xl transition-all glass-liquid-convex",
                             isActive
-                              ? `glass-prestige-gold ${theme.border} ${theme.glow} scale-[1.02] z-10`
-                              : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10 opacity-70 hover:opacity-100",
+                              ? `scale-[1.02] z-10 shadow-2xl`
+                              : "opacity-70 hover:opacity-100",
                           )}
+                          style={isActive ? { 
+                            backgroundColor: theme.bg.replace('bg-', '') === 'white/10' ? 'rgba(255,255,255,0.8)' : theme.bg.replace('bg-', ''),
+                            background: theme.name === 'platinum' ? 'white' : theme.bg.replace('bg-', ''),
+                            boxShadow: `0 10px 30px -5px rgba(var(--${theme.name}-rgb, 0,0,0), 0.5), inset 0 0 10px rgba(255,255,255,0.3)`
+                          } : {}}
                         >
                           {/* Boxed Icon (Themed Selection) */}
                           <div className={cn(
-                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-500",
+                            "w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-all duration-500 relative z-10",
                             isActive 
-                              ? `${theme.bg} text-black shadow-lg` 
-                              : `bg-white/5 text-white/40 group-hover:text-white/60`
+                              ? `bg-black/20 text-white shadow-lg` 
+                              : `bg-black/10 text-black/30 group-hover:text-black/60`
                           )}>
-                            <MessageSquare size={18} strokeWidth={isActive ? 3 : 2} />
+                            <MessageSquare size={18} strokeWidth={isActive ? 4 : 2} />
                           </div>
 
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 min-w-0 relative z-10">
                             <h4 className={cn(
                               "text-[11px] font-black uppercase tracking-wider mb-1 truncate transition-colors",
-                              isActive ? theme.color : "text-white"
+                              "text-black"
                             )}>
                               {s.title || "Nowa Sprawa"}
                             </h4>
-                            <p className="text-[8px] text-white/30 font-bold uppercase tracking-widest leading-none truncate">
+                            <p className={cn(
+                              "text-[8px] font-bold uppercase tracking-widest leading-none truncate",
+                              "text-black/40"
+                            )}>
                               {new Date(s.updated_at || s.created_at || 0).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: '2-digit' })} • {theme.name.toUpperCase()}
                             </p>
                           </div>
@@ -199,7 +207,7 @@ export function ChatSidebar({
                               e.stopPropagation();
                               removeSession(s.id);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500/20 text-white/20 hover:text-red-500 rounded-xl transition-all shrink-0"
+                            className="opacity-0 group-hover:opacity-100 p-2 hover:bg-red-500/20 text-black/20 hover:text-red-600 rounded-xl transition-all shrink-0"
                           >
                             <Trash2 size={14} />
                           </button>

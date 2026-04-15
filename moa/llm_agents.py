@@ -5,7 +5,7 @@
 import asyncio
 import random
 import time
-from typing import Optional, cast
+from typing import Optional, cast, Dict, List
 from openai import AsyncOpenAI, APIStatusError, APIConnectionError, APITimeoutError
 
 from moa.config import (
@@ -28,6 +28,8 @@ from moa.prompt_builder import (
     DEFENSE_UNIVERSE,
     PROSECUTION_UNIVERSE,
 )
+from moa.gemini_client import call_gemini_direct
+from moa.config import GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
 
 ANALYST_SYSTEM_PROMPT = """[ROLE: LEGAL_EXPERT_ANALYST]
 Jesteś najwyższej klasy analitykiem prawnym. Twoim zadaniem jest rygorystyczne oddzielenie stanu faktycznego od podstawy prawnej.
@@ -57,7 +59,11 @@ def _build_analyst_user_prompt(
 
     doc_section = ""
     if document_text and document_text.strip():
-        doc_section = f"<user_document>\n{document_text}\n</user_document>\n\n"
+        # Truncate if too long to save tokens (40k chars is ~10k tokens)
+        display_text = document_text
+        if len(display_text) > 40_000:
+            display_text = display_text[:40_000] + "\n... [TREŚĆ OBCIĘTA ZE WZGLĘDU NA LIMIT KONTEKSTU] ..."
+        doc_section = f"<user_document>\n{display_text}\n</user_document>\n\n"
 
     history_section = ""
     if history_summary:
@@ -86,36 +92,72 @@ async def _call_with_retry(
     user_prompt: str,
     history: list[dict[str, str]] | None = None,
     max_tokens: int = 2500,
+    api_keys: Optional[Dict[str, str]] = None,
+    attachments: list[dict] | None = None,
 ) -> tuple[str, int]:
-    """Retry z obsługą historii i eliminacją podwójnych wiadomości użytkownika."""
-    messages = [{"role": "system", "content": system_prompt}]
+    """Retry z obsługą wielu dostawców i Multi-modality."""
     
-    if history:
-        hist_subset = history[-10:]
-        if hist_subset and hist_subset[-1].get("role") == "user":
-             hist_subset = hist_subset[:-1]
-        messages.extend(hist_subset)
+    # 1. Rozpoznanie dostawcy
+    from moa.config import classify_model
+    model_info = classify_model({"id": model})
+    provider = model_info.get("provider", "other")
     
-    messages.append({"role": "user", "content": user_prompt})
+    # Użyj klucza z api_keys jeśli dostępny
+    effective_api_key = (api_keys or {}).get(provider) or (GOOGLE_API_KEY if provider == "google" else OPENAI_API_KEY)
 
     for attempt in range(MAX_RETRIES + 1):
-        print(f"   [>] Ekspert {model} (próba {attempt+1})...")
+        print(f"   [>] Ekspert {model} ({provider}) (próba {attempt+1})...")
         try:
+            # Przygotowanie contentu (text + images)
+            user_content = [{"type": "text", "text": user_prompt}]
+            if attachments:
+                # Dodaj tylko obrazy, bo teksty są już w user_prompt
+                images = [a for a in attachments if a.get("type") == "image_url"]
+                user_content.extend(images)
+
+            # A. GOOGLE DIRECT
+            if provider == "google" and effective_api_key:
+                # Uwaga: call_gemini_direct musi wspierać listę w user_prompt
+                content = await call_gemini_direct(
+                    model_id=model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content if attachments else user_prompt,
+                    history=history,
+                    temperature=LLM_TEMPERATURE,
+                    max_tokens=max_tokens
+                )
+                print(f"   [OK] Ekspert {model} (Google Direct) ukończył analizę.")
+                return content, attempt
+
+            # C. OPENROUTER / DEFAULT (AsyncOpenAI)
+            messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                hist_subset = history[-10:]
+                if hist_subset and hist_subset[-1].get("role") == "user":
+                     hist_subset = hist_subset[:-1]
+                messages.extend(hist_subset)
+            
+            messages.append({"role": "user", "content": user_content})
+
             response = await client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=LLM_TEMPERATURE,
                 max_tokens=max_tokens,
             )
+            
             if not response or not response.choices:
-                 raise Exception(f"Model {model} zwrócił pustą odpowiedź (brak choices).")
+                 raise Exception(f"Model {model} zwrócił pustą odpowiedź.")
             
             content = response.choices[0].message.content or ""
-            print(f"   [OK] Ekspert {model} ukończył analizę.")
+            print(f"   [OK] Ekspert {model} ({provider}) ukończył analizę.")
             return content, attempt
+
         except Exception as e:
             if attempt < MAX_RETRIES:
-                await asyncio.sleep(RETRY_BASE_DELAY * (2**attempt))
+                wait = RETRY_BASE_DELAY * (2**attempt)
+                print(f"   [!] Błąd {model}: {str(e)[:100]}... Ponawiam za {wait}s")
+                await asyncio.sleep(wait)
                 continue
             raise e
     raise Exception(f"{model}: Wyczerpano próby")
@@ -131,13 +173,17 @@ async def _analyze_single(
     history_summary: str | None = None,
     history: list[dict[str, str]] | None = None,
     expert_memory: str | None = None,
+    api_keys: Optional[Dict[str, str]] = None,
+    attachments: list[dict] | None = None,
 ) -> AnalystResult:
     start = time.perf_counter()
     user_prompt = _build_analyst_user_prompt(
         context, query, has_legal_context, document_text, history_summary, history=None, expert_memory=expert_memory
     )
     try:
-        response, retries = await _call_with_retry(client, model, system_prompt, user_prompt, history=history)
+        response, retries = await _call_with_retry(
+            client, model, system_prompt, user_prompt, history=history, api_keys=api_keys, attachments=attachments
+        )
         return AnalystResult(model_id=model, response=response, success=True, latency_ms=(time.perf_counter()-start)*1000, retries_used=retries)
     except Exception as e:
         return AnalystResult(model_id=model, response="", success=False, error=str(e), latency_ms=(time.perf_counter()-start)*1000)
@@ -150,8 +196,8 @@ async def run_parallel_analysis(
     custom_task_prompt: Optional[str] = None,
     architect_prompt: Optional[str] = None,
     system_role_prompt: Optional[str] = None,
-    expert_roles: dict[str, str] | None = None,
-    expert_role_prompts: dict[str, str] | None = None,
+    expert_roles: Optional[Dict[str, str]] = None,
+    expert_role_prompts: Optional[Dict[str, str]] = None,
     client: Optional[AsyncOpenAI] = None,
     has_legal_context: bool = True,
     document_text: Optional[str] = None,
@@ -159,7 +205,9 @@ async def run_parallel_analysis(
     history: list[dict[str, str]] | None = None,
     expert_memory: str | None = None,
     mode: IdentityMode = IdentityMode.ADVOCATE,
-) -> list[AnalystResult]:
+    api_keys: Optional[Dict[str, str]] = None,
+    attachments: list[dict] | None = None,
+) -> List[AnalystResult]:
     models = models or DEFAULT_ANALYST_MODELS
     pb_config = PromptConfig(mode=mode, task=task or "general", has_legal_context=has_legal_context, has_document=bool(document_text))
     model_prompts = build_moa_prompts(models, pb_config)
@@ -180,7 +228,7 @@ async def run_parallel_analysis(
     
     start = time.perf_counter()
     async def _execute_with_client(shared_client: AsyncOpenAI):
-        tasks = [asyncio.create_task(_analyze_single(shared_client, model, context, query, model_prompts.get(model, ""), has_legal_context, document_text, history_summary, history, expert_memory)) for model in models]
+        tasks = [asyncio.create_task(_analyze_single(shared_client, model, context, query, model_prompts.get(model, ""), has_legal_context, document_text, history_summary, history, expert_memory, api_keys=api_keys, attachments=attachments)) for model in models]
         done, _ = await asyncio.wait(tasks, timeout=GLOBAL_MOA_TIMEOUT)
         return [t.result() if t in done else AnalystResult(model_id=models[i], response="", success=False, error="Timeout") for i, t in enumerate(tasks)]
 

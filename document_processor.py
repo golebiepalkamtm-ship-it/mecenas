@@ -36,16 +36,22 @@ GOOGLE_VISION_AVAILABLE = False
 AI_VISION_OCR_AVAILABLE = True  # Nowy silnik oparty o Gemini/GPT-4o via OpenRouter
 
 # Cache dla wyników OCR (żeby uniknąć podwójnego przetwarzania tego samego dokumentu)
+MAX_OCR_CACHE_SIZE = 50 
 _ocr_cache = {}
+_ocr_cache_order = [] # Prosta implementacja list-based LRU dla uniknięcia nowych zależności
 _ocr_cache_lock = threading.Lock()
 
 
 def get_cached_ocr_result(content: bytes, ocr_func, *args, **kwargs) -> Tuple[str, Optional[str]]:
-    """Pobiera wynik OCR z cache'a lub oblicza go."""
+    """Pobiera wynik OCR z cache'a lub oblicza go (z limitem rozmiaru)."""
     content_hash = hashlib.md5(content).hexdigest()
     with _ocr_cache_lock:
         if content_hash in _ocr_cache:
             print("OCR Cache: Użyto cache'a dla dokumentu")
+            # Przesuń na koniec (najświeższe)
+            if content_hash in _ocr_cache_order:
+                _ocr_cache_order.remove(content_hash)
+            _ocr_cache_order.append(content_hash)
             return _ocr_cache[content_hash]
     
     # Oblicz wynik
@@ -53,7 +59,14 @@ def get_cached_ocr_result(content: bytes, ocr_func, *args, **kwargs) -> Tuple[st
     
     # Zapisz w cache
     with _ocr_cache_lock:
+        if len(_ocr_cache) >= MAX_OCR_CACHE_SIZE:
+            # Usuń najstarszy element (z początku listy)
+            oldest = _ocr_cache_order.pop(0)
+            _ocr_cache.pop(oldest, None)
+            
         _ocr_cache[content_hash] = result
+        if content_hash not in _ocr_cache_order:
+            _ocr_cache_order.append(content_hash)
     
     return result
 

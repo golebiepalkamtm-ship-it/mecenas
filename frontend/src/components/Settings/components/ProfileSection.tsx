@@ -52,7 +52,7 @@ export function ProfileSection({ user, profile, onUpdateProfile, isSaving, succe
         )}
         <div className="flex-1" />
         <button
-          className="px-5 py-2 bg-gold-primary text-black text-[9px] font-black uppercase tracking-widest rounded-lg shadow-[0_8px_20px_rgba(255,215,128,0.3)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+          className="px-5 py-2 bg-gold-primary text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-[0_8px_20px_rgba(255,215,128,0.3)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
           disabled={isSaving}
         >
           {isSaving ? 'Zapisywanie...' : 'Zapisz Profil'}
@@ -81,7 +81,7 @@ export function ProfileSection({ user, profile, onUpdateProfile, isSaving, succe
             <div className="w-1 h-1 rounded-full bg-gold-primary shadow-[0_0_6px_#FFD780]" /> Podstawowa analiza prawna
           </p>
         </div>
-        <button className="mt-4 px-6 py-2.5 bg-white text-black text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-2xl border-t-2 border-white/80">
+        <button className="mt-4 px-6 py-2.5 bg-white text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-2xl border-t-2 border-white/80">
           Uaktualnij do Pro
         </button>
       </div>
@@ -100,7 +100,7 @@ export function ProfileSection({ user, profile, onUpdateProfile, isSaving, succe
             </div>
             <button
               onClick={() => supabase.auth.resetPasswordForEmail(user?.email || '')}
-              className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-black rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex-shrink-0"
+              className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-white rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex-shrink-0"
             >
               Wyślij Link
             </button>

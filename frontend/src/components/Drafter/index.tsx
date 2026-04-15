@@ -5,7 +5,7 @@ import {
   Sparkles,
   AlertTriangle,
   UserCircle,
-  Scale,
+  Building2,
   Calendar,
 } from "lucide-react";
 import { supabase } from "../../utils/supabaseClient";
@@ -152,108 +152,134 @@ export function DrafterView() {
   }, [generatedDocument, selectedType, drafterModel]);
 
   return (
-    <div className="flex flex-col h-full bg-prestige-view overflow-hidden font-outfit relative lg:pt-28">
-      <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
-      {/* Ambient Glows */}
-      <div className="absolute top-0 left-0 w-96 h-96 bg-gold-primary/5 blur-[120px] pointer-events-none" />
-
-      {/* ── TOP BAR ── */}
-
+    <div className="flex flex-col h-full bg-transparent overflow-hidden font-outfit relative pt-2">
+      <div className="absolute inset-0 noise-overlay opacity-5 pointer-events-none" />
 
       {/* ── MAIN BODY ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT PANEL: Configuration */}
         <aside className={cn(
-            "flex flex-col border-r border-white/10 overflow-y-auto custom-scrollbar shrink-0 transition-all duration-500 relative",
-            generatedDocument ? "w-full lg:w-[380px] xl:w-[440px]" : "w-full lg:max-w-lg mx-auto"
+            "flex flex-col border-r border-black/5 overflow-y-auto custom-scrollbar panel-scrollbar-gold shrink-0 transition-all duration-500 relative",
+            generatedDocument ? "w-full lg:w-[380px] xl:w-[440px]" : "w-full lg:max-w-xl mx-auto"
         )}>
-           {/* Decorative Liquid Metal Background for Sidebar */}
-           <div className="absolute top-0 right-0 pointer-events-none opacity-20 -mr-20 -mt-20">
-             <LiquidMetalIcon size={300} color="#00fedc" speed={0.2} distortion={0.8} scale={0.001} />
-           </div>
-           
-           <div className="flex flex-col gap-3 p-3 relative z-10">
+           <div className="flex flex-col gap-4 p-4 relative z-10">
               {currentMessages.length > 0 && (
-                <div className="flex items-center justify-between px-4 py-2 mb-2 rounded-xl glass-prestige border border-emerald-500/20 bg-emerald-500/5">
+                <div className="flex items-center justify-between px-4 py-3 rounded-xl glass-liquid-convex border-emerald-500/10">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">
-                      Aktywny Kontekst Rozmowy
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">
+                      Zasoby Kontekstowe
                     </span>
                   </div>
-                  <span className="text-[10px] font-black text-emerald-400/60">
-                    {currentMessages.length} WIAD.
+                  <span className="text-[10px] font-black text-emerald-600/60 bg-emerald-500/5 px-2 py-0.5 rounded">
+                    {currentMessages.length} PKT.
                   </span>
                 </div>
               )}
-              <TypeSelector selectedType={selectedType} onSelect={setSelectedType} />
-              <ExpertMode selectedPrompt={selectedPrompt} onSelect={setSelectedPrompt} />
+              
+              <div className="glass-liquid-convex rounded-2xl p-1">
+                 <TypeSelector selectedType={selectedType} onSelect={setSelectedType} />
+              </div>
+              
+              <div className="glass-liquid-convex rounded-2xl p-1">
+                 <ExpertMode selectedPrompt={selectedPrompt} onSelect={setSelectedPrompt} />
+              </div>
 
               {/* Structured Toggle */}
-              <section className="glass-prestige rounded-2xl p-3">
-                <div className="flex items-center justify-between mb-3">
-                    <label className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30 pl-1 font-outfit">Dane Formalne</label>
+              <section className="glass-liquid-convex rounded-2xl p-4">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-col">
+                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-black pl-1 font-outfit">Dane Formalne</label>
+                        <span className="text-[7px] text-black/30 font-bold uppercase tracking-widest pl-1 mt-0.5">Automatyczne uzupełnianie nagłówka</span>
+                    </div>
                     <button
                         onClick={() => setIsStructured(!isStructured)}
                         className={cn(
-                            "px-3 py-1.5 rounded-2xl text-[9px] font-black uppercase tracking-widest transition-all",
-                            isStructured ? "glass-prestige-gold text-gold-primary shadow-lg" : "glass-prestige text-white/30"
+                            "px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all glass-liquid-convex",
+                            isStructured ? "text-black scale-105 shadow-xl" : "text-black/30"
                         )}
+                        style={
+                          isStructured
+                            ? {
+                                backgroundColor: "#22d3ee",
+                                backgroundImage:
+                                  "linear-gradient(145deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 52%, rgba(0,0,0,0.12) 100%)",
+                                boxShadow:
+                                  "0 0 26px #22d3eecc, 0 12px 40px -10px #22d3ee99, inset 0 2px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(0,0,0,0.15)",
+                              }
+                            : undefined
+                        }
                     >
-                        {isStructured ? "AKTYWNE" : "OPCJONALNE"}
+                        {isStructured ? "Włączone" : "Wyłączone"}
                     </button>
                 </div>
                 <AnimatePresence>
                     {isStructured && (
-                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden pt-1">
-                          <StructuredField icon={<UserCircle size={12}/>} label="Nadawca (Twoje dane)" value={senderInfo} onChange={setSenderInfo} placeholder="Imię, Nazwisko, Adres, PESEL..." />
-                          <StructuredField icon={<Scale size={12}/>} label="Adresat (Sąd/Urząd)" value={recipientInfo} onChange={setRecipientInfo} placeholder="Pełna nazwa organu, Wydział, Adres..." />
-                          <StructuredField icon={<Calendar size={12}/>} label="Miejscowość i Data" value={placeDate} onChange={setPlaceDate} placeholder="Kraków, dnia 26.03.2025 r." isInput />
+                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-4 overflow-hidden pt-1">
+                          <StructuredField icon={<UserCircle size={14}/>} label="Nadawca (Twoje dane)" value={senderInfo} onChange={setSenderInfo} placeholder="Imię, Nazwisko, Adres, PESEL..." />
+                          <StructuredField icon={<Building2 size={14}/>} label="Adresat (Sąd/Urząd)" value={recipientInfo} onChange={setRecipientInfo} placeholder="Pełna nazwa organu, Wydział, Adres..." />
+                          <StructuredField icon={<Calendar size={14}/>} label="Miejscowość i Data" value={placeDate} onChange={setPlaceDate} placeholder="Kraków, dnia 26.03.2025 r." isInput />
                        </motion.div>
                     )}
                 </AnimatePresence>
               </section>
-              
-              <div className="absolute bottom-40 -left-20 pointer-events-none opacity-10">
-                 <LiquidMetalIcon size={250} color="#ffffff" speed={0.15} distortion={0.5} scale={0.002} />
-              </div>
 
               {/* Instructions */}
-              <section className="glass-prestige rounded-2xl p-3">
-                <label className="block text-[9px] font-black uppercase tracking-[0.3em] text-white/30 mb-3 pl-1 font-outfit">Instrukcje Dokumentu</label>
+              <section className="glass-liquid-convex rounded-2xl p-4">
+                <div className="flex flex-col mb-4">
+                    <label className="text-[10px] font-black uppercase tracking-[0.3em] text-black pl-1 font-outfit">Wytyczne Merytoryczne</label>
+                    <span className="text-[7px] text-black/30 font-bold uppercase tracking-widest pl-1 mt-0.5">Opisz kluczowe aspekty sprawy</span>
+                </div>
+                <div className="mb-3 flex items-center justify-between rounded-xl glass-prestige-input px-3 py-2">
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-black/35">Skrót klawiaturowy</span>
+                    <span className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-black/60">
+                        <kbd className="keycap-neon-cyan">Ctrl</kbd>
+                        <span>+</span>
+                        <kbd className="keycap-neon-gold">Enter</kbd>
+                        <span className="text-black/30 hidden sm:inline">(Mac:</span>
+                        <kbd className="keycap-neon-violet hidden sm:inline-flex">Cmd</kbd>
+                        <span className="text-black/30 hidden sm:inline">+ Enter)</span>
+                    </span>
+                </div>
                 <textarea
                     value={instructions}
                     onChange={(e) => setInstructions(e.target.value)}
-                    placeholder="Opisz czego dotyczy sprawa, wymień kluczowe fakty i żądania..."
-                    rows={4}
-                    className="w-full glass-prestige-input rounded-xl p-4 text-[13px] text-white font-medium leading-relaxed placeholder:text-white/20 focus:outline-none"
+                    placeholder="Wpisz tutaj stan faktyczny lub wklej kluczowe informacje..."
+                    rows={6}
+                    className="w-full glass-prestige-input rounded-xl p-4 text-[13px] text-black font-medium leading-relaxed placeholder:text-black/10 focus:outline-none transition-all"
                     onKeyDown={(e) => { if(e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGenerate(); }}
                 />
               </section>
 
               {error && (
-                <div className="flex items-start gap-3 p-3 rounded-2xl glass-prestige border border-red-500/20 shadow-red-500/10">
-                   <AlertTriangle className="text-red-400 mt-0.5 shrink-0" size={14} />
-                   <p className="text-[11px] font-bold text-red-300 leading-relaxed uppercase tracking-wider">{error}</p>
+                <div className="flex items-start gap-3 p-4 rounded-2xl glass-liquid-convex border-red-500/10">
+                   <AlertTriangle className="text-red-600 mt-0.5 shrink-0" size={16} />
+                   <p className="text-[11px] font-bold text-red-600/80 leading-relaxed uppercase tracking-wider">{error}</p>
                 </div>
               )}
            </div>
 
            {/* Generate Action */}
-           <div className="p-3 pt-0 mt-auto sticky bottom-0 bg-linear-to-t from-(--bg-deep) to-transparent">
-               <motion.button
-                onClick={handleGenerate}
-                disabled={isGenerating}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className={cn(
-                    "w-full h-12 flex items-center justify-center gap-3 rounded-xl text-[11px] font-black uppercase tracking-[0.25em] transition-all relative overflow-hidden",
-                    isGenerating ? "glass-prestige text-white/30" : "bg-gold-primary text-black shadow-gold-primary/30 shadow-[0_15px_40px_rgba(212,175,55,0.3)] hover:shadow-[0_20px_50px_rgba(212,175,55,0.5)] border-t-2 border-white/60"
-                )}
+            <div className="p-4 pt-0 mt-auto sticky bottom-0 bg-gradient-to-t from-[#c7c7cc] to-transparent">
+                <motion.button
+                 onClick={handleGenerate}
+                 disabled={isGenerating}
+                 whileHover={{ scale: 1.02 }}
+                 whileTap={{ scale: 0.98 }}
+                 className={cn(
+                    "w-full h-14 flex items-center justify-center gap-3 rounded-2xl text-[11px] font-black uppercase tracking-[0.25em] transition-all relative glass-liquid-convex text-black shadow-2xl z-20",
+                    isGenerating && "opacity-60 cursor-not-allowed"
+                 )}
+                style={{
+                  backgroundColor: "#f59e0b",
+                  backgroundImage:
+                    "linear-gradient(145deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.18) 48%, rgba(0,0,0,0.14) 100%)",
+                  boxShadow:
+                    "0 0 36px #f59e0be6, 0 0 68px #f59e0b88, 0 18px 52px -12px #f59e0b99, inset 0 2px 5px rgba(255,255,255,0.92), inset 0 -2px 5px rgba(0,0,0,0.18)",
+                }}
                >
-                 {isGenerating ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                 {isGenerating ? "Generowanie..." : "WYGENERUJ DOKUMENT"}
-                 <div className="absolute inset-x-0 h-1/2 bottom-0 bg-white/10 opacity-10 pointer-events-none" />
+                 {isGenerating ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
+                 {isGenerating ? "Syntetyzowanie Dokumentu..." : "WYGENERUJ PISMO PRAWNE"}
                </motion.button>
            </div>
         </aside>
@@ -284,19 +310,19 @@ function StructuredField({ icon, label, value, onChange, placeholder, isInput = 
 }) {
     return (
         <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-widest leading-none">
+            <div className="flex items-center gap-2 text-[9px] font-black text-black/40 uppercase tracking-widest leading-none pl-1">
                 {icon}
                 {label}
             </div>
             {isInput ? (
                 <input
                     type="text" value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-                    className="w-full glass-prestige-input rounded-xl px-4 py-3.5 text-[13px] text-white font-medium focus:outline-none"
+                    className="w-full glass-prestige-input rounded-xl px-4 py-3 text-[13px] text-black font-medium focus:outline-none transition-all"
                 />
             ) : (
                 <textarea
                     value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={2}
-                    className="w-full glass-prestige-input rounded-xl px-4 py-3.5 text-[13px] text-white font-medium focus:outline-none resize-none"
+                    className="w-full glass-prestige-input rounded-xl px-4 py-3 text-[13px] text-black font-medium focus:outline-none resize-none transition-all"
                 />
             )}
         </div>

@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Activity,
   FileText,
+  Scroll,
   type LucideIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -53,7 +54,7 @@ export function QuickIntelligencePanel() {
   const roleList = useMemo(() => {
     const iconMap: Record<string, LucideIcon> = {
       defender: Shield,
-      proceduralist: Scale,
+      proceduralist: Scroll,
       constitutionalist: FileText,
       negotiator: Gavel,
       evidencecracker: Search
@@ -96,6 +97,7 @@ export function QuickIntelligencePanel() {
 
   const [isRolesOpen, setIsRolesOpen] = useState(true);
   const [isModelsOpen, setIsModelsOpen] = useState(true);
+  const [isJudgeOpen, setIsJudgeOpen] = useState(true);
   
   const { data: allModels = [] } = useModels();
   
@@ -113,21 +115,21 @@ export function QuickIntelligencePanel() {
   }, [favoriteModelIds, favoriteModels.length, setFavoriteModels]);
 
   return (
-    <div className="fixed lg:relative right-0 top-20 bottom-0 lg:h-[calc(100%-80px)] w-[320px] max-w-full glass-steel-monolith rounded-none z-10000 shadow-none border-t border-white/5 pointer-events-auto flex flex-col overflow-hidden">
+    <div className="fixed lg:relative right-0 top-[80px] lg:top-0 bottom-0 lg:h-full w-[320px] max-w-full glass-steel-monolith rounded-none z-10000 shadow-none border-t border-white/5 pointer-events-auto flex flex-col overflow-hidden">
       <div className={cn(
         "absolute top-0 left-0 w-full h-32 blur-[80px] pointer-events-none transition-colors duration-1000 opacity-20",
         activeUniverse === 'defense' ? "bg-jade-primary" : "bg-white"
       )} />
 
-      <div className="px-6 py-6 pt-6 lg:pt-6 border-b border-white/10 relative z-10 shrink-0">
+      <div className="px-6 py-6 pt-6 lg:pt-6 border-b border-black/10 relative z-10 shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-xl glass-prestige-gold flex items-center justify-center shadow-lg">
-                <LayoutDashboard size={18} className="text-gold-primary" />
+             <div className="w-10 h-10 rounded-xl glass-prestige group flex items-center justify-center shadow-lg hover:glass-liquid-convex">
+                <LayoutDashboard size={18} className="text-black" />
              </div>
              <div>
-                <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-white italic font-outfit">Strategia AI</h3>
-                <p className="text-[7px] text-white/60 font-bold uppercase tracking-widest">Premium v1.1</p>
+                <h3 className="text-[12px] font-black uppercase tracking-[0.2em] text-black italic font-outfit">Strategia AI</h3>
+                <p className="text-[7px] text-black/60 font-bold uppercase tracking-widest">Mercury Node v1.1</p>
              </div>
           </div>
           <button onClick={() => setIsOpen(false)} className="w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-red-500/5 border border-red-500/20 text-red-500/40 hover:text-red-500 hover:bg-red-500/15 hover:border-red-500/40 group/close">
@@ -135,44 +137,44 @@ export function QuickIntelligencePanel() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl relative shadow-inner mb-4">
+        <div className="grid grid-cols-2 p-1.5 bg-black/5 border border-black/10 rounded-2xl relative shadow-inner mb-4">
           <motion.div 
             layoutId="universe-bg-v2"
             className={cn(
               "absolute inset-1.5 w-[calc(50%-6px)] h-[calc(100%-12px)] rounded-xl shadow-xl z-0",
-              activeUniverse === 'defense' ? "bg-[#d4af37]/30 shadow-[#d4af37]/10" : "bg-white/20 shadow-white/5"
+              activeUniverse === 'defense' ? "bg-emerald-500/30 shadow-emerald-500/10" : "bg-black/10 shadow-black/5"
             )}
             transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
           />
           <button 
             onClick={() => applyPromptPreset('defense', { mode: 'advocate', architectPrompt: DEFENSE_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
-            className={cn("relative z-10 flex items-center justify-center gap-2 py-2 outline-none", activeUniverse === 'defense' ? "text-gold-primary font-extrabold" : "text-white/20 font-bold")}
+            className={cn("relative z-10 flex items-center justify-center gap-2 py-2 outline-none", activeUniverse === 'defense' ? "text-emerald-900 font-extrabold" : "text-black/30 font-bold")}
           >
-            <Shield size={12} className={activeUniverse === 'defense' ? "text-gold-primary" : "text-white/10"} />
+            <Shield size={12} className={activeUniverse === 'defense' ? "text-emerald-700" : "text-black/10"} />
             <span className="text-[9px] uppercase tracking-widest">Obrona</span>
           </button>
           <button 
             onClick={() => applyPromptPreset('prosecution', { mode: 'advocate', architectPrompt: PROSECUTION_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
-            className={cn("relative z-10 flex items-center justify-center gap-2 py-2 outline-none", activeUniverse === 'prosecution' ? "text-white font-extrabold" : "text-white/40 font-bold")}
+            className={cn("relative z-10 flex items-center justify-center gap-2 py-2 outline-none", activeUniverse === 'prosecution' ? "text-black font-extrabold" : "text-black/30 font-bold")}
           >
-            <Gavel size={12} className={activeUniverse === 'prosecution' ? "text-white" : "text-white/10"} />
+            <Gavel size={12} className={activeUniverse === 'prosecution' ? "text-black" : "text-black/10"} />
             <span className="text-[9px] uppercase tracking-widest">Oskarżenie</span>
           </button>
         </div>
 
-        <button onClick={() => { setMode(activeModels.length > 1 ? 'moa' : 'single'); setIsOpen(false); }} className="prestige-panel-action w-full bg-gold-primary/10 border border-gold-primary/20 py-3 rounded-xl text-gold-primary text-[10px] font-black uppercase tracking-widest hover:bg-gold-primary/20 transition-all">
+        <button onClick={() => { setMode(activeModels.length > 1 ? 'moa' : 'single'); setIsOpen(false); }} className="prestige-panel-action w-full bg-black/10 border border-black/10 py-3 rounded-xl text-black text-[10px] font-black uppercase tracking-widest hover:bg-black/20 transition-all">
           <span className="-mt-1 block">Aktywuj Strategię</span>
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-6 space-y-8 relative z-10 custom-scrollbar pb-40 text-white">
+      <div className="flex-1 min-h-0 overflow-y-auto px-6 space-y-8 relative z-10 custom-scrollbar pb-40 text-black">
         
         <section className="space-y-4 pt-6">
            <button onClick={() => setIsRolesOpen(!isRolesOpen)} className="flex items-center justify-between w-full px-1 group">
-              <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-white/50 flex items-center gap-2 group-hover:text-white transition-colors">
-                 <Activity size={10} className="text-gold-primary" /> Aktywne Role Ekspertów
+              <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-black/50 flex items-center gap-2 group-hover:text-black transition-colors">
+                 <Activity size={10} className="text-black" /> Aktywne Role Ekspertów
               </h4>
-              <ChevronDown size={14} className={cn("text-white/40 transition-transform", isRolesOpen && "rotate-180")} />
+              <ChevronDown size={14} className={cn("text-black/40 transition-transform", isRolesOpen && "rotate-180")} />
            </button>
            
            <AnimatePresence>
@@ -183,19 +185,31 @@ export function QuickIntelligencePanel() {
                      const isRoleActiveInState = Object.entries(expertRoleByModel || {}).some(([mid, rid]) => 
                         activeModels.includes(mid) && rid === role.id
                      );
+                     const roleColor = role.id === 'defender' ? '#10b981' : role.id === 'proceduralist' ? '#3b82f6' : role.id === 'constitutionalist' ? '#f59e0b' : role.id === 'negotiator' ? '#8b5cf6' : '#f43f5e';
 
                      return (
-                       <div key={role.id} className={cn("flex items-center gap-4 p-4 rounded-2xl border transition-all duration-500 relative overflow-hidden group shadow-xl", isRoleActiveInState ? `${role.glow} ${role.border} scale-[1.01]` : "bg-white/2 border-white/5 opacity-20 grayscale group-hover:opacity-60")}>
-                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border relative z-10 transition-all", isRoleActiveInState ? `bg-white/40 ${role.border} ${role.color}` : "bg-white/10 border-white/5 text-white/20")}>
-                             <role.icon size={18} strokeWidth={isRoleActiveInState ? 3 : 2} />
+                       <div 
+                         key={role.id} 
+                         className={cn(
+                           "flex items-center gap-4 p-4 rounded-2xl transition-all duration-500 relative overflow-hidden group shadow-xl glass-liquid-convex", 
+                           isRoleActiveInState ? "scale-[1.02]" : "opacity-40 grayscale group-hover:opacity-80"
+                         )}
+                         style={isRoleActiveInState ? { 
+                            backgroundColor: roleColor,
+                            backgroundImage: `linear-gradient(145deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.15) 100%)`,
+                            boxShadow: `0 20px 40px -10px ${roleColor}88, inset 0 2px 4px rgba(255,255,255,0.8), inset 0 -2px 4px rgba(0,0,0,0.1)`
+                         } : {}}
+                       >
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border relative z-10 transition-all", isRoleActiveInState ? "bg-black/10 border-black/10 text-black" : "bg-black/5 border-black/5 text-black/20")}>
+                             <role.icon size={18} strokeWidth={isRoleActiveInState ? 4 : 2} />
                           </div>
                           <div className="flex flex-col relative z-10">
-                             <span className={cn("text-[10px] font-black uppercase tracking-widest transition-colors", isRoleActiveInState ? "text-white" : "text-white/40")}>{role.label}</span>
-                             <span className={cn("text-[6.5px] font-black tracking-widest transition-colors", isRoleActiveInState ? role.color : "text-white/5")}>{isRoleActiveInState ? "SYSTEM_ACTIVE_EXEC" : "IDLE_STANDBY"}</span>
+                             <span className="text-[11px] font-black uppercase tracking-widest text-black">{role.label}</span>
+                             <span className={cn("text-[7px] font-black tracking-widest text-black/40")}>{isRoleActiveInState ? "SYST_EXEC_ON" : "STANDBY"}</span>
                           </div>
                           {isRoleActiveInState && (
                              <motion.div initial={{ scale: 0, x: 20 }} animate={{ scale: 1, x: 0 }} className="ml-auto relative z-10">
-                                <div className={cn("w-6 h-6 rounded-full border flex items-center justify-center", role.border, role.color)}>
+                                <div className="w-6 h-6 rounded-full bg-black/10 border border-black/20 flex items-center justify-center text-black shadow-lg">
                                    <Check size={10} strokeWidth={4} />
                                 </div>
                              </motion.div>
@@ -209,12 +223,12 @@ export function QuickIntelligencePanel() {
            </AnimatePresence>
         </section>
 
-        <section className="space-y-4 pt-4 border-t border-white/10">
+        <section className="space-y-4 pt-4 border-t border-black/10">
            <button onClick={() => setIsModelsOpen(!isModelsOpen)} className="flex items-center justify-between w-full px-1 group">
-             <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-white/50 flex items-center gap-2 group-hover:text-white transition-colors">
-               <Zap size={10} className="text-gold-primary" /> Twój Zespół (Modele)
+             <h4 className="text-[8px] font-black uppercase tracking-[0.3em] text-black/50 flex items-center gap-2 group-hover:text-black transition-colors">
+               <Zap size={10} className="text-black" /> Twój Zespół (Modele)
              </h4>
-             <ChevronDown size={14} className={cn("text-white/40 transition-transform", isModelsOpen && "rotate-180")} />
+             <ChevronDown size={14} className={cn("text-black/40 transition-transform", isModelsOpen && "rotate-180")} />
            </button>
 
            <AnimatePresence>
@@ -225,6 +239,7 @@ export function QuickIntelligencePanel() {
                       const assignedRole = expertRoleByModel?.[m.id] || "";
                       const currentRoleObj = roleList.find(r => r.id === assignedRole);
                       const brand = getBrand(m.provider || "unknown");
+                      const activeColor = "#ced4da"; // Platinum-ish for models
 
                       return (
                        <div key={m.id} className="space-y-2">
@@ -232,31 +247,30 @@ export function QuickIntelligencePanel() {
                              onClick={() => {
                                const newState = !isSelected;
                                toggleActiveModel(m.id);
-                               
-                               // If activating and no role assigned yet, find first free role
                                if (newState && (!expertRoleByModel?.[m.id])) {
-                                 const assignedRoles = Object.entries(expertRoleByModel || {})
-                                   .filter(([mid]) => activeModels.includes(mid))
-                                   .map(([, rid]) => rid);
-                                 
+                                 const assignedRoles = Object.entries(expertRoleByModel || {}).filter(([mid]) => activeModels.includes(mid)).map(([, rid]) => rid);
                                  const nextRole = roleList.find(r => !assignedRoles.includes(r.id)) || roleList[0];
                                  if (nextRole) setExpertRoleForModel(m.id, nextRole.id);
                                }
                              }} 
-                             className={cn("flex items-center gap-3 p-3 rounded-2xl border transition-all w-full relative overflow-hidden", isSelected ? "bg-white/5 border-white/10 shadow-2xl" : "bg-white/2 border-white/5 opacity-40 hover:opacity-100")}
+                             className={cn("flex items-center gap-3 p-3 rounded-2xl transition-all w-full relative overflow-hidden glass-liquid-convex", isSelected ? "scale-[1.01]" : "opacity-40 hover:opacity-100")}
+                             style={isSelected ? { 
+                               backgroundColor: activeColor,
+                               backgroundImage: `linear-gradient(145deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.15) 100%)`,
+                             } : {}}
                            >
-                               <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border relative z-10", isSelected ? "bg-white/10 border-white/20 text-white shadow-lg" : "text-white/10 border-white/5")}>
+                               <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border relative z-10", isSelected ? "bg-black/5 border-black/10 text-black shadow-lg" : "text-black/10 border-black/5")}>
                                   <brand.icon size={13} />
                                </div>
-                               <span className={cn("text-[10px] font-black uppercase flex-1 truncate text-left relative z-10 tracking-widest", isSelected ? "text-white" : "text-white/20")}>{m.name}</span>
-                               <div className={cn("w-2 h-2 rounded-full relative z-10 shadow-lg", isSelected ? (currentRoleObj ? currentRoleObj.color.replace('text-', 'bg-') : "bg-gold-primary") : "bg-white/5")} />
+                               <span className={cn("text-[10px] font-black uppercase flex-1 truncate text-left relative z-10 tracking-widest text-black")}>{m.name}</span>
+                               <div className={cn("w-2 h-2 rounded-full relative z-10 shadow-lg", isSelected ? (currentRoleObj ? currentRoleObj.color.replace('text-', 'bg-') : "bg-black") : "bg-black/5")} />
                            </button>
                            {isSelected && (
                                <motion.div initial={{ y: -6, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="px-1">
-                                   <div className={cn("p-3 bg-white/5 border rounded-2xl flex items-center gap-3 shadow-inner transition-all", currentRoleObj ? currentRoleObj.border : "border-white/10")}>
-                                       <select value={assignedRole} onChange={(e) => setExpertRoleForModel(m.id, e.target.value)} className={cn("bg-transparent text-[9px] font-black uppercase outline-none cursor-pointer flex-1 transition-colors", currentRoleObj ? currentRoleObj.color : "text-white/30")}>
-                                           <option value="" className="bg-[#111] text-white/30 italic uppercase">Pasywny Obserwator</option>
-                                           {roleList.map(r => <option key={r.id} value={r.id} className="bg-[#111] text-white uppercase">{r.label.toUpperCase()}</option>)}
+                                   <div className="p-2.5 glass-liquid-convex bg-black/5 rounded-2xl flex items-center gap-3 shadow-inner transition-all no-shimmer">
+                                       <select value={assignedRole} onChange={(e) => setExpertRoleForModel(m.id, e.target.value)} className="bg-transparent text-[9px] font-black uppercase outline-none cursor-pointer flex-1 transition-colors text-black">
+                                           <option value="" className="bg-white text-black/30 italic uppercase">Pasywny Obserwator</option>
+                                           {roleList.map(r => <option key={r.id} value={r.id} className="bg-white text-black uppercase">{r.label.toUpperCase()}</option>)}
                                        </select>
                                    </div>
                                </motion.div>
@@ -269,28 +283,48 @@ export function QuickIntelligencePanel() {
            </AnimatePresence>
         </section>
 
-        <section className="space-y-4 pt-10 border-t border-white/10 pb-10">
-           <div className="flex items-center gap-3 px-1 mb-6">
-              <div className="w-8 h-8 rounded-xl bg-gold-primary/15 border border-gold-primary/35 flex items-center justify-center shadow-lg"><Scale size={16} className="text-gold-primary" /></div>
-              <div>
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80 font-outfit">Sędzia-Syntetyzator</h4>
+        <section className="space-y-4 pt-10 border-t border-black/10 pb-10">
+           <button onClick={() => setIsJudgeOpen(!isJudgeOpen)} className="flex items-center justify-between w-full px-1 group mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-black/10 border border-black/20 flex items-center justify-center shadow-lg"><Gavel size={16} className="text-black" /></div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80 font-outfit">Sędzia-Syntetyzator</h4>
               </div>
-           </div>
-           <div className="grid grid-cols-1 gap-2.5">
-              {availableModels.map(m => {
-                const isFinalJudge = selectedJudge === m.id;
-                const brand = getBrand(m.provider || "unknown");
-                return (
-                  <button key={m.id} onClick={() => setSelectedJudge(m.id)} className={cn("p-4 rounded-2xl border transition-all flex items-center justify-between relative overflow-hidden group", isFinalJudge ? "bg-gold-primary/10 border-gold-primary/50 shadow-2xl scale-[1.02]" : "bg-white/2 border-white/5 opacity-50 hover:opacity-100")}>
-                      <div className="flex items-center gap-3 relative z-10">
-                         <div className={cn("w-7 h-7 rounded-lg shrink-0 border flex items-center justify-center", isFinalJudge ? "bg-gold-primary/20 border-gold-primary/40 text-gold-primary shadow-lg" : "bg-black/40 border-white/5 text-white/20")}><brand.icon size={13} /></div>
-                         <span className={cn("text-[10px] font-black uppercase tracking-widest", isFinalJudge ? "text-white" : "text-white/40")}>{m.name}</span>
-                      </div>
-                      {isFinalJudge && <div className="w-5 h-5 rounded-full bg-gold-primary/20 border border-gold-primary/30 flex items-center justify-center relative z-10"><UserCheck size={12} className="text-gold-primary" strokeWidth={3} /></div>}
-                  </button>
-                );
-              })}
-           </div>
+              <ChevronDown size={14} className={cn("text-black/40 transition-transform", isJudgeOpen && "rotate-180")} />
+           </button>
+
+           <AnimatePresence>
+             {isJudgeOpen && (
+               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                 <div className="grid grid-cols-1 gap-2.5">
+                    {availableModels.map(m => {
+                      const isFinalJudge = selectedJudge === m.id;
+                      const brand = getBrand(m.provider || "unknown");
+                      return (
+                        <button 
+                          key={m.id} 
+                          onClick={() => setSelectedJudge(m.id)} 
+                          className={cn("p-4 rounded-2xl transition-all flex items-center justify-between relative overflow-hidden group glass-liquid-convex", isFinalJudge ? "scale-[1.02]" : "opacity-50 hover:opacity-100")}
+                          style={isFinalJudge ? { 
+                            backgroundColor: '#ced4da',
+                            backgroundImage: `linear-gradient(145deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 50%, rgba(0,0,0,0.15) 100%)`,
+                          } : {}}
+                        >
+                            <div className="flex items-center gap-3 relative z-10">
+                               <div className={cn("w-7 h-7 rounded-lg shrink-0 border flex items-center justify-center", isFinalJudge ? "bg-black/10 border-black/10 text-black shadow-lg" : "bg-black/10 border-black/5 text-black/20")}><brand.icon size={13} /></div>
+                               <span className="text-[10px] font-black uppercase tracking-widest text-black">{m.name}</span>
+                            </div>
+                            {isFinalJudge && (
+                              <div className="w-5 h-5 rounded-full bg-black/10 border border-black/20 flex items-center justify-center relative z-10 shadow-lg">
+                                <UserCheck size={12} className="text-black" strokeWidth={3} />
+                              </div>
+                            )}
+                        </button>
+                      );
+                    })}
+                 </div>
+               </motion.div>
+             )}
+           </AnimatePresence>
         </section>
       </div>
     </div>

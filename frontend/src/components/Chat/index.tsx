@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { History, Cpu, Network, Shield, Target, Zap, FileSearch, X } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const MAX_ATTACHMENTS = 20;
 
@@ -26,20 +27,26 @@ import { API_BASE } from "../../config";
 
 import { cn } from "../../utils/cn";
 
-export interface ChatViewProps {
-  onNavigate?: (tab: Tab) => void;
-}
+import React from "react";
 
-export function ChatView({ onNavigate }: ChatViewProps = {}) {
+export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewProps = {}) {
   // Navigation helper
   const goToTab = useCallback((tab: Tab) => {
     onNavigate?.(tab);
   }, [onNavigate]);
 
+  // Zustand Store
+  const { mode, isOpen, setIsOpen, showHistory, setShowHistory } = useChatSettingsStore();
+  const isConsensusMode = mode === 'consensus' || mode === 'moa';
+
+  // Core Hooks
+  const chatMutation = useChatMutation();
+  const { isPending: isLoading } = chatMutation;
+  const queryClient = useQueryClient();
+
   const {
     messages,
     setMessages,
-    stopGeneration,
     sessions,
     sessionId,
     setSessionId,
@@ -50,14 +57,7 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
     messagesLoaded
   } = useSharedChat();
 
-  // Zustand Store
-  const { mode, isOpen, setIsOpen, showHistory, setShowHistory } = useChatSettingsStore();
-  const isConsensusMode = mode === 'consensus' || mode === 'moa';
-
-  const chatMutation = useChatMutation();
-
   // Component State
-  const [input, setInput] = useState("");
   const [attachments, setAttachments] = useState<QueuedAttachment[]>([]);
   const [attachmentWarning, setAttachmentWarning] = useState<string | null>(null);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -66,18 +66,28 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
   const [useRag, setUseRag] = useState(true);
   const [dismissedExpertPanelMsgId, setDismissedExpertPanelMsgId] = useState<string | null>(null);
   
+  // Refs
   const processingQueue = useRef<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null); // Używany przez przycisk 📎 - akceptuje WSZYSTKIE typy
-
-  const { isPending: isLoading } = chatMutation;
-
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const isFirstLoadAfterSwitch = useRef(true);
+  const activeOCRCount = useRef(0);
+  const ocrQueue = useRef<Array<{id: string, file: File}>>([]);
+  const ocrAbortControllers = useRef<Map<string, AbortController>>(new Map());
 
+  // Effects
   useEffect(() => {
     isFirstLoadAfterSwitch.current = true;
   }, [sessionId]);
+  
+  // Cleanup OCR controllers on unmount
+  useEffect(() => {
+    return () => {
+      ocrAbortControllers.current.forEach(controller => controller.abort());
+      ocrAbortControllers.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!messagesLoaded) return;
@@ -91,10 +101,15 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
       isFirstLoadAfterSwitch.current = false;
     }
   }, [messages, isLoading, messagesLoaded]);
-
+  
   const startOCRProcessing = async (id: string, file: File) => {
     if (processingQueue.current.has(id)) return;
     processingQueue.current.add(id);
+    
+    // Create abort controller for this OCR task
+    const abortController = new AbortController();
+    ocrAbortControllers.current.set(id, abortController);
+    const signal = abortController.signal;
 
     try {
       // Phase 1: Uploading
@@ -125,6 +140,9 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
           progress: 100, 
           extractedText: data.extracted_text 
         } : a));
+        
+        // NOWOŚĆ: Inwalidacja biblioteki użytkownika, aby nowy plik pojawił się w wynikach
+        queryClient.invalidateQueries({ queryKey: ["user_library"] });
       } else {
         throw new Error(data.error || 'Błąd przetwarzania dokumentu (pusty wynik)');
       }
@@ -143,11 +161,13 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
   };
 
   // Actions
-  const handleSend = async () => {
+  const handleSend = async (message?: string) => {
     if (chatMutation.isPending) {
-      stopGeneration();
+      chatMutation.stopGeneration();
       return;
     }
+
+    const messageContent = message?.trim() || "";
 
     const isAnyProcessing = attachments.some(a => ['waiting', 'uploading', 'processing'].includes(a.status));
     if (isAnyProcessing) {
@@ -155,7 +175,7 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
       return;
     }
 
-    if (!input.trim() && attachments.length === 0) return;
+    if (!messageContent && attachments.length === 0) return;
 
     // Aggregate extracted texts for the backend
     const combinedDocText = attachments
@@ -187,18 +207,16 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
     const userMsg: Message = {
       id: "user-" + Date.now(),
       role: "user",
-      content: input,
+      content: messageContent,
       attachments: attachmentData,
       created_at: new Date().toISOString(),
     };
     setMessages((prev: ChatMessage[]) => [...prev, userMsg as ChatMessage]);
     
-    const currentInput = input;
-    setInput("");
     setAttachments([]);
 
     chatMutation.mutate({
-      message: currentInput,
+      message: messageContent,
       history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
       sessionId: sessionId || undefined,
       attachments: attachmentData,
@@ -236,9 +254,6 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
     });
   };
 
-  const activeOCRCount = useRef(0);
-  const ocrQueue = useRef<Array<{id: string, file: File}>>([]);
-
   const processNextInQueue = useCallback(async () => {
     if (activeOCRCount.current >= 1 || ocrQueue.current.length === 0) return;
 
@@ -247,10 +262,22 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
 
     activeOCRCount.current++;
     try {
-      await startOCRProcessing(next.id, next.file);
+      // Add timeout for OCR processing to prevent hanging
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('OCR Processing timed out after 60 seconds')), 60000);
+      });
+      
+      await Promise.race([startOCRProcessing(next.id, next.file), timeoutPromise]);
+    } catch (err) {
+      console.error('OCR Queue processing error:', err);
+      // Mark attachment as error even if not handled in startOCRProcessing
+      setAttachments(prev => prev.map(a => 
+        a.id === next.id ? { ...a, status: 'error', error: err instanceof Error ? err.message : 'Processing failed' } : a
+      ));
     } finally {
       activeOCRCount.current--;
-      processNextInQueue(); // Pick up next
+      // Schedule next with small delay to prevent stack overflow
+      setTimeout(() => processNextInQueue(), 0);
     }
   }, []);
 
@@ -336,7 +363,7 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             onClick={() => setShowHistory(true)}
-            className="absolute left-1 lg:left-2 top-1/2 -translate-y-1/2 z-30 p-3 lg:p-4 glass-prestige-platinum rounded-full text-black/40 hover:text-black hover:scale-110 transition-all shadow-xl group/hist"
+            className="absolute left-1 lg:left-2 top-1/2 -translate-y-1/2 z-30 p-3 lg:p-4 glass-prestige-platinum rounded-full text-white/40 hover:text-white hover:scale-110 transition-all shadow-xl group/hist"
             title="Pokaż Historię"
           >
             <History className="w-5 h-5 group-hover/hist:rotate-12 transition-transform" />
@@ -351,8 +378,8 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
             className={cn(
                "absolute right-1 lg:right-2 top-1/2 -translate-y-1/2 z-30 p-3 lg:p-4 rounded-full transition-all shadow-xl border flex items-center justify-center group/config",
                isConsensusMode 
-                 ? "bg-white text-black border-black hover:bg-black/5 hover:text-black shadow-lg"
-                 : "glass-prestige-platinum border-black/5 text-black/40 hover:text-black hover:scale-110"
+                 ? "bg-white text-white border-black hover:bg-white/5 hover:text-white shadow-lg"
+                 : "glass-prestige-platinum border-black/5 text-white/40 hover:text-white hover:scale-110"
             )}
             title={isConsensusMode ? "Skonfiguruj Konsylium" : "Wybierz Model"}
           >
@@ -517,18 +544,16 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
              <div className="flex flex-row items-center justify-center gap-2 sm:gap-3 px-2 mb-1 overflow-x-auto no-scrollbar">
                 <FeatureCard icon={<Shield size={14} className="text-white/60" />} title="Prywatność" bgColor="glass-prestige" />
                 <FeatureCard icon={<Target size={14} className="text-white/60" />} title="Precyzja" bgColor="glass-prestige" />
-                <FeatureCard icon={<Zap size={14} className="text-black" />} title="Szybkość" bgColor="glass-prestige-platinum" />
+                <FeatureCard icon={<Zap size={14} className="text-white" />} title="Szybkość" bgColor="glass-prestige-platinum" />
              </div>
 
              <ChatInput 
-                  input={input}
-                  setInput={setInput}
                   isLoading={chatMutation.isPending}
                   attachments={attachments}
                   addAttachment={addAttachment}
                   removeAttachment={removeAttachment}
-                  handleSend={handleSend}
-                  stopGeneration={stopGeneration}
+                  onSend={handleSend}
+                  stopGeneration={chatMutation.stopGeneration}
                   newChat={newChat}
                   imageInputRef={imageInputRef}
                   attachmentWarning={attachmentWarning}
@@ -559,36 +584,45 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
             isOpen={isLibraryOpen}
             mode={libraryMode}
             onClose={() => setIsLibraryOpen(false)}
-            onSelect={(docs: { id: string; name: string; chunks: number; created_at: string }[]) => {
-              docs.forEach(async (doc) => {
-                 const id = `lib-${doc.id}-${Date.now()}`;
-                 const newAttachment: QueuedAttachment = {
-                   id,
-                   file: new File([], doc.name),
-                   status: 'processing',
-                   progress: 50,
-                   previewUrl: undefined,
-                   extractedText: ''
-                 };
-                 setAttachments(prev => [...prev, newAttachment]);
-                 
-                 try {
-                   const res = await fetch(`${API_BASE}/documents/content/${encodeURIComponent(doc.name)}`);
-                   const data = await res.json();
-                   if (data.success) {
-                     setAttachments(prev => prev.map(a => a.id === id ? { 
-                       ...a, 
-                       status: 'ready', 
-                       progress: 100, 
-                       extractedText: data.content 
-                     } : a));
-                   } else {
-                     setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'error', error: data.error } : a));
-                   }
-                 } catch {
-                   setAttachments(prev => prev.map(a => a.id === id ? { ...a, status: 'error', error: 'Błąd pobierania' } : a));
-                 }
+            onSelect={(docs) => {
+              // 1. Przygotuj wszystkie nowe załączniki naraz
+              const now = Date.now();
+              const newItems: QueuedAttachment[] = docs.map((doc, idx) => {
+                const id = `lib-${doc.id}-${now}-${idx}`;
+                return {
+                  id,
+                  file: new File([], doc.name),
+                  status: 'processing',
+                  progress: 50,
+                  previewUrl: undefined,
+                  extractedText: ''
+                };
               });
+
+              // 2. Dodaj wszystkie do stanu jednym wywołaniem
+              setAttachments(prev => [...prev, ...newItems]);
+
+              // 3. Rozpocznij pobieranie treści dla każdego (równolegle)
+              newItems.forEach(async (item, idx) => {
+                const doc = docs[idx];
+                try {
+                  const res = await fetch(`${API_BASE}/documents/content/${encodeURIComponent(doc.name)}`);
+                  const data = await res.json();
+                  if (data.success) {
+                    setAttachments(prev => prev.map(a => a.id === item.id ? { 
+                      ...a, 
+                      status: 'ready', 
+                      progress: 100, 
+                      extractedText: data.content 
+                    } : a));
+                  } else {
+                    setAttachments(prev => prev.map(a => a.id === item.id ? { ...a, status: 'error', error: data.error } : a));
+                  }
+                } catch {
+                  setAttachments(prev => prev.map(a => a.id === item.id ? { ...a, status: 'error', error: 'Błąd pobierania' } : a));
+                }
+              });
+
               setIsLibraryOpen(false);
               setUseRag(true);
             }}
@@ -602,7 +636,7 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: '100%', opacity: 0 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed top-0 right-0 w-[450px] max-w-full h-full glass-steel-monolith z-999999 flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
+                className="fixed top-[80px] bottom-0 right-0 w-[450px] max-w-full glass-steel-monolith z-999999 flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
               >
                 <div className="p-6 border-b border-white/10 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-4">
@@ -669,4 +703,4 @@ export function ChatView({ onNavigate }: ChatViewProps = {}) {
         </AnimatePresence>
     </div>
   );
-}
+});

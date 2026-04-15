@@ -139,13 +139,11 @@ function FilePreview({ attachment, onRemove, onPreview }: { attachment: QueuedAt
 }
 
 interface ChatInputProps {
-  input: string;
-  setInput: React.Dispatch<React.SetStateAction<string>> | ((val: string | ((prev: string) => string)) => void);
   isLoading: boolean;
   attachments: QueuedAttachment[];
-  addAttachment?: (e: React.ChangeEvent<HTMLInputElement>) => void; // Optional if handled via refs
+  addAttachment?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   removeAttachment: (idx: number) => void;
-  handleSend: () => void;
+  onSend: (message: string) => void;
   stopGeneration: () => void;
   newChat: () => void;
   imageInputRef: React.RefObject<HTMLInputElement | null>;
@@ -177,12 +175,10 @@ interface SpeechRecognition extends EventTarget {
 }
 
 export function ChatInput({
-  input,
-  setInput,
   isLoading,
   attachments,
   removeAttachment,
-  handleSend,
+  onSend,
   stopGeneration,
   imageInputRef,
   attachmentWarning,
@@ -192,6 +188,7 @@ export function ChatInput({
   newChat,
   onPreviewDoc,
 }: ChatInputProps) {
+  const [value, setValue] = useState("");
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
@@ -213,8 +210,7 @@ export function ChatInput({
             }
           }
           if (finalTranscript) {
-             const setter = setInput as (val: string | ((prev: string) => string)) => void;
-             setter((prev: string) => (prev ? prev + ' ' : '') + finalTranscript);
+             setValue((prev: string) => (prev ? prev + ' ' : '') + finalTranscript);
           }
         };
 
@@ -230,7 +226,7 @@ export function ChatInput({
         recognitionRef.current = reco;
       }
     }
-  }, [setInput]);
+  }, []);
 
   const toggleListen = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -241,6 +237,17 @@ export function ChatInput({
       setIsListening(true);
     }
   }, [isListening]);
+
+  const handleInternalSend = useCallback(() => {
+    if (!value.trim() && attachments.length === 0) return;
+    onSend(value);
+    setValue("");
+  }, [value, attachments.length, onSend]);
+
+  const handleNewChat = useCallback(() => {
+    setValue("");
+    newChat();
+  }, [newChat]);
 
   return (
     <div className="w-full flex flex-col gap-3 px-2">
@@ -296,7 +303,7 @@ export function ChatInput({
             {/* 0. NOWA KONSULTACJA (Plus) */}
             <button 
               title="Nowa Konsultacja" 
-              onClick={newChat} 
+              onClick={handleNewChat} 
               className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-new"
             >
                <Plus size={18} className="group-hover/btn-new:scale-110 transition-transform" />
@@ -359,34 +366,34 @@ export function ChatInput({
          </div>
 
          {/* Center Auto-resizing Textarea */}
-         <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSend();
+                handleInternalSend();
               }
             }}
             placeholder={isListening ? "Słucham..." : "Opisz swój problem prawny..."}
             className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 resize-none px-3 pt-2.5 pb-3.5 text-sm text-white placeholder-white/40 min-h-[46px] max-h-[200px] overflow-y-auto"
             rows={1}
             style={{ caretColor: "#d4af37" }}
-         />
+          />
 
          {/* Right Send Button inside input */}
          <div className="shrink-0 pb-1 pr-1 pl-1">
             <motion.button
                whileHover={{ scale: 1.05 }}
                whileTap={{ scale: 0.95 }}
-               disabled={isLoading || (!input.trim() && attachments.length === 0)}
-               onClick={isLoading ? stopGeneration : handleSend}
+               disabled={isLoading || (!value.trim() && attachments.length === 0)}
+               onClick={isLoading ? stopGeneration : handleInternalSend}
                className={cn(
                   "h-10 w-10 flex items-center justify-center rounded-2xl transition-all",
                   isLoading 
                     ? "bg-red-500/10 text-red-500 border border-red-500/20"
-                    : (!input.trim() && attachments.length === 0)
-                      ? "bg-black/10 text-black/30 cursor-not-allowed"
+                    : (!value.trim() && attachments.length === 0)
+                      ? "bg-white/10 text-white/30 cursor-not-allowed"
                        : "glass-prestige-button-gold"
                )}
             >

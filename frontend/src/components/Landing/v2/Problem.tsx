@@ -32,12 +32,13 @@ export const Problem = () => {
           viewport={{ once: true }}
           className="text-center mb-20"
         >
-          <span className="text-[10px] font-black uppercase tracking-[0.5em] text-white/30 mb-4 block">Problem</span>
-          <h2 className="text-4xl md:text-5xl font-outfit font-black italic uppercase tracking-wider text-[#808080]">
+          <span className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#6b7280] mb-6 block">Problem</span>
+          <h2 className="text-3xl md:text-5xl font-inter font-semibold tracking-tight text-chameleon  mb-6">
             Masz pytanie prawne i...
           </h2>
+          <div className="w-12 h-px bg-white/20 mx-auto" />
         </motion.div>
-
+ 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
           {PROBLEMS.map((p, i) => (
             <motion.div
@@ -48,13 +49,13 @@ export const Problem = () => {
               transition={{ delay: i * 0.2 }}
               className="group p-8 rounded-3xl bg-white/2 border border-white/5 hover:bg-white/5 hover:border-white/10 transition-all duration-500"
             >
-              <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-white/40 group-hover:text-white transition-colors duration-500 mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center text-[#6b7280] group-hover:text-[#9ca3af] transition-colors duration-500 mb-6">
                 {p.icon}
               </div>
-              <h3 className="text-xl font-outfit font-black uppercase tracking-wider text-[#a8a8a8] mb-4">
+              <h3 className="text-xl font-outfit font-black uppercase tracking-wider text-[#9ca3af] mb-4">
                 {p.title}
               </h3>
-              <p className="text-white/50 leading-relaxed font-medium">
+              <p className="text-[#9ca3af] leading-relaxed font-medium">
                 {p.text}
               </p>
             </motion.div>
@@ -64,3 +65,4 @@ export const Problem = () => {
     </section>
   );
 };
+

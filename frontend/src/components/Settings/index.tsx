@@ -7,6 +7,7 @@ import type { Profile } from './types';
 import { useChatSettingsStore } from '../../store/useChatSettingsStore';
 
 import { SettingsInput } from './components/SettingsInput';
+import { APIKeysSection } from './components/APIKeysSection';
 import { ModelOrchestrator } from '../ModelOrchestrator';
 
 export function SettingsView() {
@@ -120,7 +121,7 @@ export function SettingsView() {
                     transition={{ duration: 0.15 }}
                 >
                     {currentSettingsTab === 'Profil' && (
-                        <div className="w-full mx-auto px-10 pt-28 pb-10">
+                        <div className="w-full mx-auto px-10 pt-10 pb-10">
                             <motion.section
                                 key="profile-4col"
                                 initial={{ opacity: 0 }}
@@ -170,7 +171,7 @@ export function SettingsView() {
                                             )}
                                             <div className="flex-1" />
                                             <button
-                                                className="px-5 py-2 bg-gold-primary text-black text-[9px] font-black uppercase tracking-widest rounded-lg shadow-[0_8px_20px_rgba(255,215,128,0.3)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+                                                className="px-5 py-2 bg-gold-primary text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-[0_8px_20px_rgba(255,215,128,0.3)] hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
                                                 disabled={isSaving}
                                             >
                                                 {isSaving ? 'Zapisywanie...' : 'Zapisz Profil'}
@@ -201,37 +202,34 @@ export function SettingsView() {
                                                     <div className="w-1 h-1 rounded-full bg-gold-primary shadow-[0_0_6px_#FFD780]" /> Podstawowa analiza prawna
                                                 </div>
                                             </div>
-                                            <button className="mt-4 px-6 py-2.5 bg-white text-black text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-2xl border-t-2 border-white/80">
+                                            <button className="mt-4 px-6 py-2.5 bg-white text-white text-[9px] font-black uppercase tracking-[0.2em] rounded-xl hover:scale-105 active:scale-95 transition-all shadow-2xl border-t-2 border-white/80">
                                                 Uaktualnij do Pro
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Column 3: Bezpieczeństwo */}
-                                    <div className="space-y-4 flex flex-col h-full">
-                                        <h3 className="text-[10px] font-black text-white italic tracking-tight uppercase text-gold-gradient flex items-center gap-2">
-                                            <Shield size={12} className="text-gold-primary" />
-                                            Bezpieczeństwo
-                                        </h3>
-                                        <div className="space-y-1.5 grow">
+                                    {/* Column 3: Bezpieczeństwo i API */}
+                                    <div className="space-y-8 flex flex-col h-full">
+                                        {/* Sekcja Kluczy API */}
+                                        <APIKeysSection profile={profile} onUpdateProfile={handleUpdateProfile} />
+
+                                        {/* Bezpieczeństwo */}
+                                        <div className="space-y-3">
+                                            <h3 className="text-[10px] font-black text-white italic tracking-tight uppercase text-gold-gradient flex items-center gap-2">
+                                                <Shield size={12} className="text-gold-primary" />
+                                                Dostęp
+                                            </h3>
                                             <div className="p-4 rounded-xl glass-prestige flex items-center justify-between gap-3">
                                                 <div className="min-w-0">
                                                     <p className="text-[10px] font-black text-white uppercase tracking-widest">Zmiana Hasła</p>
-                                                    <p className="text-[8px] text-white/30 font-bold uppercase mt-0.5 truncate">Link do resetowania na e-mail</p>
+                                                    <p className="text-[8px] text-white/30 font-bold uppercase mt-0.5 truncate">Link na e-mail</p>
                                                 </div>
                                                 <button
                                                     onClick={() => supabase.auth.resetPasswordForEmail(user?.email || '')}
-                                                    className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-black rounded-lg text-[8px] font-black uppercase tracking-widest transition-all shrink-0"
+                                                    className="px-3 py-1.5 bg-white/10 hover:bg-gold-primary hover:text-white rounded-lg text-[8px] font-black uppercase tracking-widest transition-all shrink-0"
                                                 >
-                                                    Wyślij Link
+                                                    Wyślij
                                                 </button>
-                                            </div>
-                                            <div className="p-3 rounded-xl glass-prestige flex items-center justify-between opacity-50 gap-3">
-                                                <div className="min-w-0">
-                                                    <p className="text-[10px] font-black text-white uppercase tracking-widest">Dwuetapowa Weryfikacja</p>
-                                                    <p className="text-[8px] text-white/30 font-bold uppercase mt-0.5 truncate">Zwiększ bezpieczeństwo konta</p>
-                                                </div>
-                                                <span className="text-[7px] font-black uppercase text-gold-primary shrink-0">Wkrótce</span>
                                             </div>
                                         </div>
                                     </div>
@@ -282,7 +280,7 @@ export function SettingsView() {
                     )}
 
                     {currentSettingsTab === 'Modele AI' && (
-                        <div className="px-4 pt-24 pb-8 h-[calc(100vh-100px)]">
+                        <div className="px-4 pt-10 pb-8 h-[calc(100vh-100px)]">
                             <div className="glass-prestige no-shimmer rounded-[2.5rem] shadow-3xl overflow-hidden h-[calc(100vh-200px)] border border-white/5">
                                 <ModelOrchestrator />
                             </div>

@@ -321,18 +321,30 @@ const NodeItem = React.memo(({
 
 export default function NeuralNetwork() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
   const [vp, setVp] = useState({
     w: typeof window !== "undefined" ? window.innerWidth : 1440,
     h: typeof window !== "undefined" ? window.innerHeight : 900,
   });
 
-
   useEffect(() => {
     const handleResize = () =>
       setVp({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    
+    // Intersection Observer to pause animation
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+    if (containerRef.current) observer.observe(containerRef.current);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      observer.disconnect();
+    };
   }, []);
 
   const connections = useMemo(() => {
@@ -340,7 +352,6 @@ export default function NeuralNetwork() {
     const used = new Set<string>();
 
     NODE_DATA.forEach((n1, i) => {
-      // Find 5 nearest neighbors based on percentage coordinates
       const neighbors = NODE_DATA.map((n2, j) => ({
         index: j,
         dist: Math.pow(n1.x - n2.x, 2) + Math.pow(n1.y - n2.y, 2),
@@ -348,7 +359,7 @@ export default function NeuralNetwork() {
         .filter((n) => n.index !== i)
         .sort((a, b) => a.dist - b.dist);
 
-      neighbors.slice(0, 5).forEach((n2) => {
+      neighbors.slice(0, 3).forEach((n2) => { // Reduced from 5 to 3 nearest
         const key = [i, n2.index].sort().join("-");
         if (!used.has(key)) {
           list.push([i, n2.index]);
@@ -361,8 +372,8 @@ export default function NeuralNetwork() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    if (!canvas || !isVisible) return;
+    const ctx = canvas.getContext("2d", { alpha: true });
     if (!ctx) return;
 
     let animationFrameId: number;
@@ -383,124 +394,40 @@ export default function NeuralNetwork() {
         const x2 = (n2.x / 100) * w;
         let y2 = (n2.y / 100) * h;
 
-        // Apply lift offset if node is hovered (sync with DOM transform)
         if (hoveredId === n1.id) y1 -= 25;
         if (hoveredId === n2.id) y2 -= 25;
 
-
-        // Staggered flash pulse - each connection fires independently
-        // Use golden ratio offset so pulses never sync up
-        const phaseOffset = connIdx * 2.39996; // golden angle in radians
-        const cycleDuration = 15.0 + (connIdx % 8) * 2.5; // each connection has cycle length (15-35.0s)
+        const phaseOffset = connIdx * 2.39996;
+        const cycleDuration = 20.0 + (connIdx % 8) * 3.5; // Slower cycles
         const cycleTime = ((time + phaseOffset) % cycleDuration) / cycleDuration;
-        
-        // Pulse is only active for a short window = fast flash, then long pause
-        const pulseWindow = 1.5 / cycleDuration; // Fixed window of 1.5s regardless of cycle duration
+        const pulseWindow = 1.2 / cycleDuration;
         const isActive = cycleTime < pulseWindow;
-        
-        // Line highlight based on pulse progress
-        // pulseIntensity will be 1 at start, fading to 0 at end of the pulseWindow
         const pulseIntensity = isActive ? Math.pow(1 - (cycleTime / pulseWindow), 0.5) : 0;
 
-        // Breathing opacity + Pulse highlight
-        const basePulse = 0.35 + Math.sin(time + (i + j)) * 0.07;
-        const lineOpacity = Math.min(0.9, basePulse + (pulseIntensity * 0.55));
-        const lineWidth = 0.5 + (pulseIntensity * 0.2); // Redukcja pogrubienia (z 0.6 na 0.2)
-
-        // Subtle glow background - brighter when pulse is active
-        ctx.save();
-        ctx.shadowColor = `rgba(212,175,55,${0.3 + pulseIntensity * 0.65})`;
-        ctx.shadowBlur = 15 + (pulseIntensity * 25);
-        ctx.beginPath();
-        ctx.strokeStyle = `rgba(212,175,55,${lineOpacity * 0.6})`;
-        ctx.lineWidth = lineWidth * 4; // Szersza poświata, ale cieńsza linia rdzenia
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        ctx.restore();
- 
-        // Thin main line
+        const lineOpacity = 0.2 + Math.sin(time + (i + j)) * 0.05 + (pulseIntensity * 0.4);
+        
+        // Static connections (cheaper)
         ctx.beginPath();
         ctx.strokeStyle = `rgba(212,175,55,${lineOpacity})`;
-        ctx.lineWidth = lineWidth;
+        ctx.lineWidth = 0.5;
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
         ctx.stroke();
  
         if (isActive) {
-          const pulsePos = cycleTime / pulseWindow; // 0 to 1 during the flash
+          const pulsePos = cycleTime / pulseWindow;
           const px = x1 + (x2 - x1) * pulsePos;
           const py = y1 + (y2 - y1) * pulsePos;
 
-          // Subtle ambient glow following the pulse
-          const ambientGlow = ctx.createRadialGradient(px, py, 0, px, py, 45);
-          ambientGlow.addColorStop(0, "rgba(212,175,55,0.2)");
-          ambientGlow.addColorStop(0.5, "rgba(212,175,55,0.04)");
-          ambientGlow.addColorStop(1, "rgba(212,175,55,0)");
-          
-          ctx.beginPath();
-          ctx.arc(px, py, 45, 0, Math.PI * 2);
-          ctx.fillStyle = ambientGlow;
-          ctx.fill();
-
-          // Bright flash core
+          // Reduced complexity for pulses
           ctx.save();
-          ctx.shadowColor = "rgba(255,240,180,0.8)";
-          ctx.shadowBlur = 40;
-
-          // Comet head - bright white-gold
-          ctx.beginPath();
-          ctx.arc(px, py, 4.5, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(255,255,255,0.95)";
-          ctx.fill();
-
-          // Inner gold core
-          ctx.beginPath();
-          ctx.arc(px, py, 2.8, 0, Math.PI * 2);
-          ctx.fillStyle = "rgba(249,226,157,1)";
-          ctx.fill();
-
-          // Comet tail - fading trail behind the pulse
-          const tailLen = 0.22;
-          const tailStart = Math.max(0, pulsePos - tailLen);
-          const tailGrad = ctx.createLinearGradient(
-            x1 + (x2 - x1) * tailStart,
-            y1 + (y2 - y1) * tailStart,
-            px, py
-          );
-          tailGrad.addColorStop(0, "rgba(212,175,55,0)");
-          tailGrad.addColorStop(0.4, "rgba(249,226,157,0.3)");
-          tailGrad.addColorStop(1, "rgba(255,255,255,0.7)");
+          ctx.shadowColor = "rgba(212,175,55,0.6)";
+          ctx.shadowBlur = 0;
           
           ctx.beginPath();
-          ctx.moveTo(x1 + (x2 - x1) * tailStart, y1 + (y2 - y1) * tailStart);
-          ctx.lineTo(px, py);
-          ctx.strokeStyle = tailGrad;
-          ctx.lineWidth = 3.5;
-          ctx.stroke();
-
-          // Spark burst at head
-          const sparkCount = 6;
-          for (let s = 0; s < sparkCount; s++) {
-            const sparkAngle = (Math.PI * 2 * s) / sparkCount + time * 6;
-            const sparkLen = 8 + Math.sin(time * 10 + s * 1.8) * 4;
-            ctx.beginPath();
-            ctx.moveTo(px, py);
-            ctx.lineTo(
-              px + Math.cos(sparkAngle) * sparkLen,
-              py + Math.sin(sparkAngle) * sparkLen
-            );
-            ctx.strokeStyle = `rgba(249,226,157,${0.8 - s * 0.12})`;
-            ctx.lineWidth = 1.2;
-            ctx.stroke();
-          }
-
-          // Outer flash ring
-          ctx.beginPath();
-          ctx.arc(px, py, 10, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(212,175,55,0.4)";
-          ctx.lineWidth = 1;
-          ctx.stroke();
+          ctx.arc(px, py, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "#fff";
+          ctx.fill();
 
           ctx.restore();
         }
@@ -511,10 +438,11 @@ export default function NeuralNetwork() {
 
     animate();
     return () => cancelAnimationFrame(animationFrameId);
-  }, [connections, hoveredId]);
+  }, [connections, hoveredId, isVisible]);
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: "absolute",
         inset: 0,
@@ -525,7 +453,7 @@ export default function NeuralNetwork() {
     >
       <canvas
         ref={canvasRef}
-        style={{ position: "absolute", inset: 0, opacity: 0.6 }}
+        style={{ position: "absolute", inset: 0, opacity: 0.4 }}
       />
       {NODE_DATA.map((node, index) => (
         <NodeItem 

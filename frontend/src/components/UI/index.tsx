@@ -45,7 +45,7 @@ export function NeonButton({ className, variant = 'primary', size = 'md', ...pro
                 size === 'md' && "px-8 py-3.5 rounded-full text-[10px]",
                 size === 'lg' && "px-10 py-4 rounded-2xl text-[11px]",
                 variant === 'primary' && [
-                    "bg-gold-primary text-black",
+                    "bg-gold-primary text-white",
                     "shadow-[0_12px_40px_-5px_rgba(212,175,55,0.45)]",
                     "hover:shadow-[0_20px_60px_-5px_rgba(212,175,55,0.65)]",
                     "hover:scale-[1.03]",

@@ -25,7 +25,13 @@ timeout /t 2 /nobreak >nul
 :: ─── Uruchomienie backendu (FastAPI) ───
 echo [2/4] Uruchamianie backendu FastAPI (port 8003)...
 start "RADCA-AI-Backend" cmd /k ".venv\Scripts\uvicorn api:app --host 127.0.0.1 --port 8003 --reload"
-timeout /t 3 /nobreak >nul
+
+echo        Czekanie na gotowość backendu...
+:wait_backend
+timeout /t 1 /nobreak >nul
+netstat -ano | findstr :8003 | findstr LISTENING >nul
+if errorlevel 1 goto wait_backend
+echo        ✓ Backend gotowy.
 
 :: ─── Instalacja zależności frontendu (jeśli potrzeba) ───
 echo [3/4] Sprawdzanie zaleznosci frontendu...

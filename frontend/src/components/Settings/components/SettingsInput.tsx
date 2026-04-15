@@ -5,6 +5,7 @@ interface SettingsInputProps {
   defaultValue: string;
   placeholder?: string;
   disabled?: boolean;
+  type?: string;
   onBlur?: (val: string) => void;
 }
 
@@ -13,6 +14,7 @@ export function SettingsInput({
   defaultValue, 
   placeholder = "", 
   disabled = false, 
+  type = "text",
   onBlur 
 }: SettingsInputProps) {
   return (
@@ -20,7 +22,7 @@ export function SettingsInput({
       <label className="text-[7px] font-black uppercase tracking-[0.3em] text-white/30 px-1">{label}</label>
       <div className="relative group">
         <input 
-          type="text"
+          type={type}
           defaultValue={defaultValue}
           placeholder={placeholder}
           disabled={disabled}

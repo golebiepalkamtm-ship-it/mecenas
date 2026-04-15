@@ -109,7 +109,7 @@ function GlassInput({
 }
 
 /* ── Main LoginPortal ── */
-const LoginPortal = () => {
+const LoginPortal = ({ onSuccess }: { onSuccess?: () => void }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -146,6 +146,7 @@ const LoginPortal = () => {
     setLoading(true);
     setMessage(null);
     try {
+      console.log("[AUTH] Initiating auth for:", email, isSignUp ? "(Sign Up)" : "(Sign In)");
       if (isSignUp) {
         const { error: signUpError } = await supabase.auth.signUp({
           email,
@@ -160,8 +161,11 @@ const LoginPortal = () => {
           password,
         });
         if (signInError) throw signInError;
+        console.log("[AUTH] Sign in successful!");
+        setLoading(false);
       }
     } catch (err) {
+      console.error("[AUTH] Error:", err);
       setMessage({ type: 'error', text: err instanceof Error ? err.message : "Błąd autoryzacji" });
       setLoading(false);
     }
@@ -265,7 +269,7 @@ const LoginPortal = () => {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.85, duration: 0.5, ease: E }}
-                className="text-[18px] font-black uppercase italic tracking-tight text-white/90 leading-none"
+                className="text-lg font-inter font-semibold tracking-tight text-white/90 leading-none"
               >
                 Panel Autoryzacji
               </motion.h2>

@@ -9,12 +9,12 @@ export const BrandLogo = ({ size = 20, showTagline = false, className = "" }: Br
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <svg
-        width={size * 6.5}
-        height={size * 1.5}
+        style={{ width: '100%', maxWidth: size * 6.5, height: 'auto' }}
         viewBox="0 0 1000 200"
-        preserveAspectRatio="xMinYMid meet"
+        preserveAspectRatio="xMidYMid meet"
         className="italic font-black overflow-visible"
       >
+
         <defs>
           <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#ffffff" />

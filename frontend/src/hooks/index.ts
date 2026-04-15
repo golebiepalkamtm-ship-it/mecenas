@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../utils/supabaseClient";
 import { API_BASE } from "../config";
 
@@ -32,61 +33,47 @@ interface ChatModel {
 
 /**
  * Hook do zarządzania bazą wiedzy (RAG) przez Supabase.
+ * Zastosowano React Query dla wydajnego cachowania i eliminacji duplikatów zapytań.
  */
 export function useKnowledgeBase() {
-  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchDocuments = useCallback(async () => {
-    console.log("[KB] Fetching documents...");
-    setIsLoading(true);
-    // Absolute maximum fetch time for KB to prevent startup hang
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-    try {
+  const { data: documents = [], isLoading, refetch } = useQuery<KnowledgeDocument[]>({
+    queryKey: ["knowledge_base_global"],
+    queryFn: async ({ signal }) => {
+      console.log(`[KB] ${new Date().toISOString()} Fetching global documents via React Query...`);
+      const startTime = Date.now();
       const { data, error } = await supabase
         .from("unique_legal_documents")
         .select("*")
-        .order('name', { ascending: true });
+        .order('name', { ascending: true })
+        .abortSignal(signal);
+
+      const duration = Date.now() - startTime;
+      console.log(`[KB] ${new Date().toISOString()} Query completed in ${duration}ms`);
 
       if (error) {
-        console.error("[KB] Knowledge fetch error:", error);
-        setDocuments([]);
-        return;
+        // Skip logging for aborted requests (normal behavior in React StrictMode/HMR)
+        if (error.message?.includes("AbortError") || error.code === "ABORTED") {
+          return [];
+        }
+        console.error(`[KB] ${new Date().toISOString()} Knowledge fetch error (${duration}ms):`, error);
+        return [];
       }
 
-      if (data && data.length > 0) {
-        setDocuments(
-          data.map((d: KnowledgeDocument) => ({
-            id: d.id,
-            name: d.name,
-            chunks: d.chunks,
-            status: "ready",
-            created_at: d.created_at,
-            type: d.type
-          })),
-        );
-        console.log(`[KB] Loaded ${data.length} documents.`);
-      } else {
-        setDocuments([]);
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.warn("[KB] Knowledge fetch timed out (6s). Continuing without fresh data.");
-      } else {
-        console.error("[KB] Error in fetchDocuments:", err);
-      }
-    } finally {
-      clearTimeout(timeoutId);
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
+      console.log(`[KB] ${new Date().toISOString()} Fetched ${data?.length || 0} documents (${duration}ms)`);
+      return (data || []).map((d: KnowledgeDocument) => ({
+        id: d.id,
+        name: d.name,
+        chunks: d.chunks,
+        status: "ready",
+        created_at: d.created_at,
+        type: d.type
+      }));
+    },
+    staleTime: 1000 * 60 * 2, // 2 minuty świeżości
+  });
 
   const uploadPDF = useCallback(
     async (file: File) => {
@@ -96,41 +83,38 @@ export function useKnowledgeBase() {
         formData.append("file", file);
         formData.append("category", "rag_legal");
 
-        // Use unified upload endpoint
         const res = await fetch(`${API_BASE}/documents/upload`, {
           method: "POST",
           body: formData,
         });
 
         if (!res.ok) throw new Error("Upload failed on server");
-
-        // Refresh after a small delay to allow background task to start/finish
-        setTimeout(fetchDocuments, 2000);
+        
+        // Refresh cache
+        setTimeout(() => queryClient.invalidateQueries({ queryKey: ["knowledge_base_global"] }), 2000);
       } catch (error) {
         console.error("PDF Upload failed:", error);
-        alert("Błąd wgrywania pliku PDF. Sprawdź czy serwer API działa.");
+        alert("Błąd wgrywania pliku PDF.");
       } finally {
         setIsUploading(false);
       }
     },
-    [fetchDocuments],
+    [queryClient],
   );
 
   const removeFile = useCallback(
     async (filename: string) => {
       try {
-        // Use local API to clean up both local storage and Supabase cloud
         const res = await fetch(`${API_BASE}/documents/${filename}`, {
           method: "DELETE",
         });
         if (!res.ok) throw new Error("Delete failed");
-
-        await fetchDocuments();
+        queryClient.invalidateQueries({ queryKey: ["knowledge_base_global"] });
       } catch (error) {
         console.error("Failed to remove file:", error);
       }
     },
-    [fetchDocuments],
+    [queryClient],
   );
 
   return {
@@ -139,100 +123,93 @@ export function useKnowledgeBase() {
     removeFile,
     isUploading,
     isLoading,
-    refresh: fetchDocuments,
+    refresh: refetch,
   };
 }
 
 
 /**
  * Hook do zarządzania dokumentami użytkownika (pełna biblioteka: uploady + pisma AI).
- * TO JEST SEKCJA "DOKUMENTY".
  */
 export function useUserLibrary() {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchDocuments = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      // Pobieramy wszystkie fragmenty z bazy użytkownika
+  const { data: documents = [], isLoading, refetch } = useQuery<Document[]>({
+    queryKey: ["user_library"],
+    queryFn: async ({ signal }) => {
+      console.log("[KB] Fetching user library via React Query...");
       const { data, error } = await supabase
         .from("knowledge_base_user")
         .select("id, metadata, created_at, content")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .abortSignal(signal);
 
-      if (error) throw error;
-      
-      if (!data) {
-        setDocuments([]);
-        return;
+      if (error) {
+        if (error.message?.includes("AbortError") || error.code === "ABORTED") {
+          return [];
+        }
+        throw error;
       }
+      if (!data) return [];
 
-      // Grupujemy fragmenty w unikalne dokumenty na podstawie nazwy pliku w metadanych
       const docMap = new Map<string, Document>();
-      
       data.forEach(item => {
         let metadata = item.metadata;
         if (typeof metadata === 'string') {
-          try { 
-            metadata = JSON.parse(metadata); 
-          } catch { 
-            try {
-              // Handle potentially double-stringified or poorly formatted JSON
-              metadata = JSON.parse(JSON.parse(metadata));
-            } catch {
-              metadata = {}; 
-            }
-          }
+          try { metadata = JSON.parse(metadata); } catch { metadata = {}; }
         }
         
         const filename = metadata?.filename || "Dokument bez nazwy";
         
+        // Detekcja typu na podstawie rozszerzenia
+        const lowerName = filename.toLowerCase();
+        const isImage = lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || 
+                        lowerName.endsWith('.png') || lowerName.endsWith('.webp') ||
+                        lowerName.endsWith('.bmp') || lowerName.endsWith('.tiff');
+        
+        // Finalny typ wyświetlania
+        const displayType = isImage ? 'image' : (metadata?.type || 'document');
+
         if (!docMap.has(filename)) {
           docMap.set(filename, {
-            id: filename, // Używamy nazwy jako ID dla unikalności w tej bazie
+            id: filename,
             title: filename,
-            content: item.content, // Pierwszy fragment jako podgląd
-            type: metadata?.type || "uploaded",
+            content: item.content,
+            type: displayType,
             created_at: item.created_at,
             chunks: 1
           });
         } else {
           const existing = docMap.get(filename);
-          if (existing) (existing.chunks as number) += 1;
+          if (existing) {
+             (existing.chunks as number) += 1;
+             // Jeśli to kolejny fragment, możemy appendować tekst (opcjonalnie)
+             // existing.content += "\n\n" + item.content; 
+          }
         }
       });
 
-      setDocuments(Array.from(docMap.values()));
-    } catch (err) {
-      console.error("Error fetching user library:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchDocuments();
-  }, [fetchDocuments]);
+      return Array.from(docMap.values());
+    },
+    staleTime: 1000 * 30, // 30 sekund
+  });
 
   const removeDocument = useCallback(async (id: string, filename?: string) => {
     try {
       const targetFilename = filename || id;
-      // Usuwamy wszystkie fragmenty powiązane z danym plikiem (id to nazwa pliku)
       const { error } = await supabase
         .from("knowledge_base_user")
         .delete()
         .filter("metadata->>filename", "eq", targetFilename);
       
       if (error) throw error;
-      await fetchDocuments();
+      queryClient.invalidateQueries({ queryKey: ["user_library"] });
     } catch (err) {
       console.error("Failed to remove document:", err);
     }
-  }, [fetchDocuments]);
+  }, [queryClient]);
 
   const uploadUserDocument = useCallback(async (file: File) => {
-    setIsLoading(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -244,20 +221,16 @@ export function useUserLibrary() {
       });
 
       if (!res.ok) throw new Error("Upload failed");
-      
-      // Delay to allow indexing to complete
-      setTimeout(fetchDocuments, 2000);
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ["user_library"] }), 2000);
     } catch (error) {
       console.error("User document upload failed:", error);
-    } finally {
-      setIsLoading(false);
     }
-  }, [fetchDocuments]);
+  }, [queryClient]);
 
   return { 
     documents, 
     isLoading, 
-    refresh: fetchDocuments, 
+    refresh: refetch, 
     removeDocument,
     uploadUserDocument 
   };
@@ -299,30 +272,42 @@ export function useSystemPrompt() {
 
   useEffect(() => {
     const fetchPrompt = async () => {
+      console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} Fetching system prompt...`);
+      const startTime = Date.now();
       try {
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("Timeout")), 5000)
         );
         const userPromise = supabase.auth.getUser();
         const authResponse = await Promise.race([userPromise, timeoutPromise]) as { data: { user: any } };
         const { data: { user } } = authResponse;
-        
-        if (!user) return;
+        const authDuration = Date.now() - startTime;
+        console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} Auth completed in ${authDuration}ms`);
+
+        if (!user) {
+          console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} No user`);
+          return;
+        }
 
         const profilePromise = supabase
           .from("profiles")
           .select("system_prompt")
           .eq("id", user.id)
           .single();
-        
+
         const profileResponse = await Promise.race([profilePromise, timeoutPromise]) as { data: { system_prompt: string | null } | null; error: any };
         const { data, error } = profileResponse;
+        const totalDuration = Date.now() - startTime;
 
         if (!error && data) {
+          console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} Prompt fetched (${totalDuration}ms)`);
           setPrompt(data.system_prompt || "");
+        } else {
+          console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} Profile error (${totalDuration}ms):`, error);
         }
       } catch (err) {
-        console.warn("[SystemPrompt] Fetch failed or timed out", err);
+        const totalDuration = Date.now() - startTime;
+        console.warn(`[SYSTEM_PROMPT] ${new Date().toISOString()} Fetch failed (${totalDuration}ms):`, err);
       }
     };
     fetchPrompt();
@@ -351,6 +336,57 @@ export function useSystemPrompt() {
   }, []);
 
   return { prompt, savePrompt, isLoading };
+}
+
+/**
+ * Hook do zarządzania profilem użytkownika i kluczami API.
+ */
+export function useProfile() {
+    const { data: profile, isLoading, refetch } = useQuery({
+        queryKey: ["user_profile"],
+        queryFn: async () => {
+            console.log(`[PROFILE] ${new Date().toISOString()} Fetching user profile...`);
+            const startTime = Date.now();
+            const { data: { user } } = await supabase.auth.getUser();
+            const authDuration = Date.now() - startTime;
+            console.log(`[PROFILE] ${new Date().toISOString()} Auth check completed in ${authDuration}ms`);
+
+            if (!user) {
+                console.log(`[PROFILE] ${new Date().toISOString()} No user logged in`);
+                return null;
+            }
+
+            const { data, error } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", user.id)
+                .single();
+
+            const totalDuration = Date.now() - startTime;
+            if (error) {
+                console.error(`[PROFILE] ${new Date().toISOString()} Profile fetch error (${totalDuration}ms):`, error);
+                return null;
+            }
+            console.log(`[PROFILE] ${new Date().toISOString()} Profile fetched (${totalDuration}ms)`);
+            return data;
+        },
+        staleTime: 1000 * 60 * 5, // 5 minut
+    });
+
+    const updateProfile = async (updates: any) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { error } = await supabase
+            .from("profiles")
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq("id", user.id);
+
+        if (error) throw error;
+        refetch();
+    };
+
+    return { profile, updateProfile, isLoading, refetch };
 }
 
 /**
@@ -406,11 +442,32 @@ export function useChat() {
     [selectedModel],
   );
 
+  // ── KOŁO RATUNKOWE #1: Fetch z automatycznym retry + backoff ──
+  const fetchWithRetry = useCallback(async (url: string, maxRetries = 3): Promise<Response> => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        return res;
+      } catch (err) {
+        clearTimeout(timeout);
+        if (attempt < maxRetries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 4000); // 1s, 2s, 4s
+          console.log(`[RETRY] ${url} attempt ${attempt + 1}/${maxRetries}, next in ${delay}ms`);
+          await new Promise(r => setTimeout(r, delay));
+        } else {
+          throw err;
+        }
+      }
+    }
+    throw new Error("Unreachable");
+  }, []);
+
   const fetchModels = useCallback(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const res = await fetch(`${API_BASE}/models/all`, { signal: controller.signal });
+      const res = await fetchWithRetry(`${API_BASE}/models/all`);
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const formatted = data.map((m: ChatModel) => ({
@@ -420,7 +477,6 @@ export function useChat() {
           provider: "openrouter",
           vision: m.vision || false,
         }));
-
         setAvailableModels(formatted);
         setSelectedModel((prev) => {
           if (!prev) return "";
@@ -429,39 +485,31 @@ export function useChat() {
         });
       }
     } catch {
-      // Don't log full error for connection refused during boot
+      // All retries exhausted — app works without models list, user can refresh later
     } finally {
-      clearTimeout(timeout);
       setModelsLoaded(true);
     }
-  }, []);
+  }, [fetchWithRetry]);
 
   useEffect(() => {
     fetchModels();
-    // Add event listener for settings updates
     window.addEventListener("prawnik_models_updated", fetchModels);
-    return () =>
-      window.removeEventListener("prawnik_models_updated", fetchModels);
+    return () => window.removeEventListener("prawnik_models_updated", fetchModels);
   }, [fetchModels]);
 
   const fetchSessions = useCallback(async () => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
     try {
-      const res = await fetch(`${API_BASE}/sessions`, { signal: controller.signal });
+      const res = await fetchWithRetry(`${API_BASE}/sessions`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ChatSession[] = await res.json();
       setSessions(data || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[BOOT] Sessions fetch failed: ${message}`);
+    } catch {
+      // All retries exhausted — start with empty sessions, user can still chat
       setSessions([]);
     } finally {
-      clearTimeout(timeoutId);
       setSessionsLoaded(true);
     }
-  }, []);
+  }, [fetchWithRetry]);
 
   useEffect(() => {
     fetchSessions();
@@ -475,48 +523,23 @@ export function useChat() {
       setMessagesLoaded(true);
       return;
     }
-
     setMessagesLoaded(false);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/messages`, { signal: controller.signal });
+      const res = await fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ChatMessage[] = await res.json();
       setMessages(data || []);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.warn(`[BOOT] Messages fetch failed: ${message}`);
+    } catch {
+      // KOŁO RATUNKOWE: jeśli historia nie załaduje się, zaczynamy czysty czat
       setMessages([]);
     } finally {
-      clearTimeout(timeoutId);
       setMessagesLoaded(true);
     }
-  }, [sessionId]);
+  }, [sessionId, fetchWithRetry]);
 
-  // Fetch message history for current session from Backend
   useEffect(() => {
     loadMessages();
   }, [loadMessages]);
-
-  // Background retry: if initial fetch failed (backend was starting), retry once after a delay
-  useEffect(() => {
-    if (!modelsLoaded || !sessionsLoaded || !messagesLoaded) return;
-    if (initialBootDone) return;
-
-    const hasModels = availableModels.length > 0;
-    const hasSessions = sessionsLoaded; // Focus on loading state rather than count
-    
-    if (hasModels && hasSessions) return;
-
-    const timer = setTimeout(() => {
-      if (availableModels.length === 0) fetchModels();
-      if (!sessionsLoaded || sessions.length === 0) fetchSessions();
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [modelsLoaded, sessionsLoaded, messagesLoaded, availableModels.length, sessions.length, initialBootDone, fetchModels, fetchSessions]);
 
 
   // Latch: once boot completes the first time, never go back to "not complete"
@@ -613,7 +636,7 @@ export function useChat() {
     messagesLoaded,
     sessionsLoaded,
     modelsLoaded,
-    isInitialLoadComplete: initialBootDone || (modelsLoaded && sessionsLoaded && messagesLoaded),
+    isInitialLoadComplete: initialBootDone || (sessionsLoaded && messagesLoaded),
   };
 
 }

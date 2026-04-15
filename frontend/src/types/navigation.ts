@@ -5,8 +5,10 @@ export type Tab =
   | "prompts"
   | "drafter"
   | "documents"
+  | "judgments"
   | "admin"
   | "settings";
+
 
 export interface NavItem {
   id: Tab;

@@ -1,6 +1,5 @@
 import { 
-  Gavel, 
-  Scale, 
+  FileSignature, 
   AlertTriangle, 
   Stamp, 
   ArrowRight, 
@@ -11,8 +10,8 @@ import {
 } from "lucide-react";
 
 export const DOCUMENT_TYPES = [
-  { id: "pozew", label: "Pozew Sądowy", icon: Gavel, color: "text-gold-primary", bg: "bg-amber-500/15", ring: "ring-amber-500/30", iconBg: "bg-amber-500/20" },
-  { id: "apelacja", label: "Apelacja / Zażalenie", icon: Scale, color: "text-emerald-400", bg: "bg-emerald-500/15", ring: "ring-emerald-500/30", iconBg: "bg-emerald-500/20" },
+  { id: "pozew", label: "Pozew Sądowy", icon: FileSignature, color: "text-gold-primary", bg: "bg-amber-500/15", ring: "ring-amber-500/30", iconBg: "bg-amber-500/20" },
+  { id: "apelacja", label: "Apelacja / Zażalenie", icon: FileText, color: "text-emerald-400", bg: "bg-emerald-500/15", ring: "ring-emerald-500/30", iconBg: "bg-emerald-500/20" },
   { id: "skarga", label: "Skarga Urzędowa", icon: AlertTriangle, color: "text-rose-400", bg: "bg-rose-500/15", ring: "ring-rose-500/30", iconBg: "bg-rose-500/20" },
   { id: "wezwanie", label: "Wezwanie Przedsądowe", icon: Stamp, color: "text-violet-400", bg: "bg-violet-500/15", ring: "ring-violet-500/30", iconBg: "bg-violet-500/20" },
   { id: "odwolanie", label: "Odwołanie / Replik", icon: ArrowRight, color: "text-cyan-400", bg: "bg-cyan-500/15", ring: "ring-cyan-500/30", iconBg: "bg-cyan-500/20" },
@@ -56,7 +55,7 @@ Twój dokument musi łączyć bezlitosną analizę prawną z gotowym, profesjona
   apex_pl: {
     label: "APEX COUNSEL",
     description: "Mistrz procedury sądowej",
-    icon: Scale,
+    icon: Scroll,
     accent: "gold",
     prompt: `Jesteś The Apex Counsel – najwybitniejszym w Europie polskim Adwokatem, strategiem procesowym o bezwzględnej skuteczności w sprawach karnych (KK, KPK, KKS) oraz administracyjnych (KPA). Twoim celem jest bezwzględne zabezpieczenie interesu klienta i znajdowanie luk proceduralnych.
 Pismo musi być technicznie perfekcyjne, z precyzyjnym powołaniem się na jednostki redakcyjne ustaw i orzecznictwo najkorzystniejsze dla klienta.`,

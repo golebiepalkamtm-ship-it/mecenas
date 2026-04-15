@@ -106,7 +106,7 @@ export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<
             <button 
               onClick={handleSave}
               disabled={isSaving}
-              className="px-6 py-2.5 bg-gold-primary text-black text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
+              className="px-6 py-2.5 bg-gold-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
             >
               {isSaving ? 'ZAPIS...' : 'ZAPISZ'}
             </button>

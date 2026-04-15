@@ -12,7 +12,7 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () =
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+            className="absolute inset-0 bg-black/90"
           />
           
           <motion.div
@@ -23,11 +23,11 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () =
           >
             <button
               onClick={onClose}
-              className="absolute -top-10 right-0 p-2 text-white/40 hover:text-white transition-colors"
+              className="absolute -top-10 right-0 p-2 text-[#6b7280] hover:text-[#9ca3af] transition-colors"
             >
               <X size={24} />
             </button>
-            <LoginPortal />
+            <LoginPortal onSuccess={onClose} />
           </motion.div>
         </div>
       )}

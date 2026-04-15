@@ -1,0 +1,1 @@
+export { JudgmentsView } from './JudgmentsView';
