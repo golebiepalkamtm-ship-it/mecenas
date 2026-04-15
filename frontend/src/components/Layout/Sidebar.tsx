@@ -20,51 +20,32 @@ interface SidebarProps {
   onLogout: () => void;
 }
 
-export function Sidebar({ navItems, activeTab, onTabChange, onLogout }: SidebarProps) {
-
-  const logoStyle = React.useMemo(() => ({
-    background: "linear-gradient(145deg, rgba(212,175,55,0.3) 0%, rgba(20,20,20,0.95) 100%)",
-    borderTop:    "1.5px solid rgba(240,204,90,0.95)",
-    borderLeft:   "1px solid rgba(212,175,55,0.4)",
-    borderRight:  "0.5px solid rgba(212,175,55,0.1)",
-    borderBottom: "2px solid rgba(0,0,0,0.95)",
-    boxShadow: `
-      0 15px 35px rgba(0,0,0,0.7), 
-      inset 0 1.5px 0 rgba(240,204,90,0.6), 
-      0 0 25px rgba(212,175,55,0.15)
-    `,
-  }), []);
-
+export function Sidebar({
+  navItems,
+  activeTab,
+  onTabChange,
+  onLogout,
+}: SidebarProps) {
   return (
-    <nav
-      className="hidden lg:flex flex-col w-[90px] h-full relative z-500 pointer-events-auto overflow-hidden bg-transparent"
-    >
+    <nav className="hidden lg:flex flex-col w-[130px] h-full relative z-[500] pointer-events-auto overflow-hidden bg-transparent">
       {/* Logo zone */}
-      <div className="h-24 flex flex-col items-center justify-center shrink-0 relative z-20">
-        <div
-          className="w-13 h-13 rounded-2xl flex items-center justify-center cursor-pointer relative overflow-hidden group/logo"
-          style={logoStyle}
-        >
-          {/* Inner glow ring */}
-          <div
-            className="absolute inset-0 rounded-2xl opacity-0 group-hover/logo:opacity-100 transition-opacity duration-300 bg-[radial-gradient(circle_at_50%_30%,rgba(212,175,55,0.25),transparent_70%)]"
+      <div className="h-32 flex flex-col items-center justify-center shrink-0 relative z-20">
+        <div className="mt-7 w-[4.25rem] h-[4.25rem] rounded-[1.5rem] glass-liquid-convex flex items-center justify-center cursor-pointer relative group/logo border border-gold-primary/30 shadow-[0_0_25px_rgba(212,175,55,0.25)] hover:shadow-[0_0_40px_rgba(212,175,55,0.4)] transition-all duration-700">
+          <div className="absolute inset-0 rounded-inherit bg-gold-primary/5 animate-pulse" />
+          <Scale
+            size={35}
+            className="relative z-10 text-gold-bright drop-shadow-[0_0_8px_rgba(240,204,90,0.5)]"
+            strokeWidth={1.2}
           />
-          <Scale size={20} style={{ color: "#f0cc5a" }} strokeWidth={1.5} className="relative z-10 drop-shadow-[0_0_12px_rgba(212,175,55,0.9)]" />
         </div>
 
-        <span
-          className="text-[8px] font-black uppercase tracking-[0.45em] font-outfit relative mt-2.5"
-          style={{
-            color: "rgba(240,204,90,0.6)",
-            filter: "drop-shadow(0 0 4px rgba(212,175,55,0.2))"
-          }}
-        >
+        <span className="text-[10px] font-black uppercase tracking-[0.5em] font-outfit mt-3 text-gold-primary/60 group-hover/logo:text-gold-bright transition-all duration-500">
           LexMind
         </span>
       </div>
 
-      {/* Nav items - Static layout, centered vertically */}
-      <div className="flex-1 overflow-hidden px-2 py-4 space-y-4 flex flex-col items-center justify-center">
+      {/* Nav items */}
+      <div className="flex-1 overflow-visible px-2 py-6 gap-1.5 flex flex-col items-center justify-between">
         {navItems.map((item) => (
           <NavItem
             key={item.id}
@@ -76,82 +57,69 @@ export function Sidebar({ navItems, activeTab, onTabChange, onLogout }: SidebarP
       </div>
 
       {/* User footer */}
-      <div
-        className="p-3 pb-6 shrink-0 space-y-2.5"
-      >
-
-
-        {/* Logout */}
-        <div className="flex justify-center">
-          <button
-            onClick={onLogout}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white/20 hover:text-red-400 transition-all border border-transparent hover:border-red-500/25 hover:bg-red-500/08 hover:shadow-[0_0_20px_rgba(239,68,68,0.2)]"
-          >
-            <LogOut size={15} strokeWidth={2.5} />
-          </button>
-        </div>
+      <div className="p-4 pb-8 shrink-0 flex justify-center">
+        <button
+          onClick={onLogout}
+          className="w-28 h-[72px] flex flex-col items-center justify-center gap-0.5 rounded-[1.25rem] transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 group"
+          title="Wyloguj się"
+        >
+          <LogOut
+            size={28}
+            strokeWidth={1.5}
+            className="relative z-10 text-black/60 group-hover:text-red-600 transition-colors duration-500"
+          />
+          <span className="text-[9px] font-black uppercase tracking-[0.2em] font-outfit relative z-10 text-black/40 group-hover:text-black transition-all duration-500 whitespace-nowrap">
+            Wyloguj
+          </span>
+        </button>
       </div>
     </nav>
   );
 }
 
-/* ══════════════════════════════════════════════════════════ */
-
-interface NavItemProps {
-  item: NavItem;
-  active: boolean;
-  onClick: () => void;
-}
-
 const NavItem = React.memo(({ item, active, onClick }: NavItemProps) => {
   const Icon = item.icon;
-  const rgb = item.colorRgb;
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        "w-full flex flex-col items-center gap-1 px-2 pt-2.5 pb-4 rounded-xl transition-all duration-300 relative overflow-hidden group/nav",
-        active ? "bg-white/5 border-t border-white/20 shadow-lg" : "hover:bg-white/[0.03] border border-transparent"
+        "w-28 h-[72px] flex flex-col items-center justify-center gap-0.5 rounded-[1.25rem] transition-all duration-500 relative group/nav outline-none glass-liquid-convex",
+        active ? "scale-105 z-10" : "opacity-80 hover:opacity-100",
       )}
+      style={
+        active
+          ? {
+              backgroundColor: item.color,
+              backgroundImage: `linear-gradient(145deg, rgba(255,255,255,0.45) 0%, rgba(255,255,255,0.15) 50%, rgba(0,0,0,0.1) 100%)`,
+              boxShadow: `0 0 25px ${item.color}bb, 0 10px 50px -10px ${item.color}88, inset 0 2.5px 4px rgba(255,255,255,0.9), inset 0 -2px 4px rgba(0,0,0,0.1)`,
+            }
+          : {}
+      }
     >
-      {/* Background Backlight */}
-      {active && (
-        <div
-          className="absolute inset-0 blur-2xl pointer-events-none -z-10"
-          style={{ background: `radial-gradient(circle, rgba(${rgb},0.2) 0%, transparent 70%)` }}
-        />
-      )}
-
-      {/* Active Indicator Bar */}
-      {active && (
-        <div 
-          className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-6 rounded-r-sm shadow-[0_0_8px_currentColor]"
-          style={{ backgroundColor: item.color, color: item.color }} 
-        />
-      )}
-
-      {/* Icon */}
+      {/* Icon Capsule */}
       <div
         className={cn(
-          "w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-300",
-          active 
-            ? "bg-white/10 text-white shadow-inner border border-white/10" 
-            : "text-white/40 group-hover/nav:text-white/70"
+          "w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-500 relative z-10 text-black",
+          !active && "opacity-40",
         )}
       >
-        <Icon size={16} strokeWidth={active ? 2.5 : 1.8} />
+        <Icon size={28} strokeWidth={active ? 3.5 : 1.5} />
       </div>
 
-      {/* Label */}
       <span
         className={cn(
-          "text-[7px] font-bold uppercase tracking-widest transition-opacity duration-300",
-          active ? "opacity-100 text-white" : "opacity-40 group-hover/nav:opacity-70"
+          "text-[9px] font-black uppercase tracking-[0.2em] transition-all duration-500 font-outfit relative z-10 text-black text-center px-1 leading-tight whitespace-nowrap",
+          !active ? "opacity-30" : "opacity-100",
         )}
       >
         {item.label}
       </span>
+
+      {/* Side Indicator */}
+      {active && (
+        <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-r-full bg-black shadow-lg z-20" />
+      )}
     </button>
   );
 });
