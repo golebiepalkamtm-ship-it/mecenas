@@ -408,7 +408,14 @@ export function useChat() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string>(() => {
     try {
+      performance.mark("chat-init-start");
+      const startTime = performance.now();
       const saved = localStorage.getItem("prawnik_session_id");
+      const duration = performance.now() - startTime;
+      if (duration > 50) {
+        console.warn(`[PERF] localStorage.getItem(prawnik_session_id) took ${duration.toFixed(2)}ms`);
+      }
+      
       const uuidRegex =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (saved && !uuidRegex.test(saved)) {
@@ -468,7 +475,19 @@ export function useChat() {
   const fetchModels = useCallback(async () => {
     try {
       const res = await fetchWithRetry(`${API_BASE}/models/all`);
-      const data = await res.json();
+      const startTime = performance.now();
+      const text = await res.text();
+      const parseStart = performance.now();
+      const data = JSON.parse(text);
+      const parseDuration = performance.now() - parseStart;
+      const totalProcessDuration = performance.now() - startTime;
+      
+      console.log(`[CHAT] Models data size: ${(text.length / 1024).toFixed(2)}KB, parse took ${parseDuration.toFixed(2)}ms`);
+      
+      if (parseDuration > 100) {
+        console.warn(`[PERF] JSON.parse(models) took ${parseDuration.toFixed(2)}ms`);
+      }
+
       if (Array.isArray(data) && data.length > 0) {
         const formatted = data.map((m: ChatModel) => ({
           id: m.id,
@@ -501,7 +520,19 @@ export function useChat() {
     try {
       const res = await fetchWithRetry(`${API_BASE}/sessions`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: ChatSession[] = await res.json();
+      
+      const startTime = performance.now();
+      const text = await res.text();
+      const parseStart = performance.now();
+      const data: ChatSession[] = JSON.parse(text);
+      const parseDuration = performance.now() - parseStart;
+      
+      console.log(`[CHAT] Sessions data size: ${(text.length / 1024).toFixed(2)}KB, parse took ${parseDuration.toFixed(2)}ms`);
+      
+      if (parseDuration > 100) {
+        console.warn(`[PERF] JSON.parse(sessions) took ${parseDuration.toFixed(2)}ms`);
+      }
+      
       setSessions(data || []);
     } catch {
       // All retries exhausted — start with empty sessions, user can still chat
