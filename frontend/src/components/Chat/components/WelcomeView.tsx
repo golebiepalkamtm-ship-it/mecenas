@@ -19,14 +19,14 @@ export function WelcomeView({ onNavigate }: { onNavigate?: (tab: Tab) => void })
           
           <div className="flex flex-col items-center gap-6">
              <div className="flex items-center justify-center gap-4 lg:gap-8">
-              <div className="h-px w-10 lg:w-20 bg-black opacity-10" />
-              <span className="text-[10px] lg:text-sm font-black tracking-[0.6em] text-white uppercase italic">
+              <div className="h-px w-10 lg:w-20 bg-black" />
+              <span className="text-[10px] lg:text-sm font-black tracking-[0.6em] text-[#D4AF37] uppercase italic">
                 System analizy przepisów
               </span>
-              <div className="h-px w-10 lg:w-20 bg-black opacity-10" />
+              <div className="h-px w-10 lg:w-20 bg-black" />
             </div>
             
-            <p className="max-w-[300px] lg:max-w-2xl mx-auto text-[8px] lg:text-[11px] font-bold text-white/40 tracking-[0.25em] leading-relaxed uppercase">
+            <p className="max-w-[300px] lg:max-w-2xl mx-auto text-[8px] lg:text-[11px] font-bold text-green-700 tracking-[0.25em] leading-relaxed uppercase">
               Serwis ma charakter wyłącznie informacyjny. Wygenerowane treści nie stanowią porady prawnej.
             </p>
 

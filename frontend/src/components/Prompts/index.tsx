@@ -21,6 +21,49 @@ const categorySeed: Record<PromptCategory, number> = {
   architect: 73,
 };
 
+const PROMPT_TRANSLATIONS: Record<string, string> = {
+  // Roles
+  'defender': 'Obrońca',
+  'proceduralist': 'Specjalista Proceduralny',
+  'constitutionalist': 'Konstytucjonalista',
+  'negotiator': 'Negocjator/Mediator',
+  'evidencecracker': 'Analityk Dowodowy',
+  'inquisitor': 'Inkwizytor (Analityk)',
+  'oracle': 'Wyrocznia Prawna',
+  'draftsman': 'Redaktor Pism',
+  'grandmaster': 'Strateg/Arcymistrz',
+  'prosecutor': 'Prokurator',
+  'investigator': 'Śledczy',
+  'forensic_expert': 'Biegły Sądowy',
+  'hard_judge': 'Sędzia Orzekający',
+  'sentencing_expert': 'Ekspert ds. Wyroków',
+  'navigator': 'Nawigator',
+  
+  // Tasks
+  'general': 'Diagnoza Ogólna',
+  'analysis': 'Analiza Dokumentów',
+  'drafting': 'Redagowanie Pism',
+  'research': 'Badania i Orzecznictwo',
+  'strategy': 'Plan Strategiczny',
+  'criminal_defense': 'Obrona Karna',
+  'rights_defense': 'Ochrona Praw',
+  'document_attack': 'Atak na Dokument',
+  'emergency_relief': 'Tryb Ratunkowy',
+  'charge_building': 'Budowanie Zarzutów',
+  'indictment_review': 'Rewizja Aktu Oskarżenia',
+  'sentencing_argument': 'Argumentacja ds. Kary',
+  'warrant_application': 'Wniosek o Areszt',
+  
+  // Presets
+  'defense': 'OBRONA',
+  'prosecution': 'OSKARŻENIE'
+};
+
+function translatePromptKey(key: string): string {
+  const lowerKey = key.toLowerCase();
+  return PROMPT_TRANSLATIONS[lowerKey] || key.toUpperCase();
+}
+
 function getPromptNeonColor(key: string, category: PromptCategory): string {
   let hash = categorySeed[category];
   for (let i = 0; i < key.length; i += 1) {
@@ -30,12 +73,24 @@ function getPromptNeonColor(key: string, category: PromptCategory): string {
 }
 
 export function PromptsView() {
-  const { 
-    unitSystemRoles, addSystemRolePrompt, updateSystemRolePrompt, removeSystemRolePrompt, currentSystemRoleId, setCurrentSystemRoleId,
-    taskPrompts, addTaskPrompt, updateTaskPrompt, removeTaskPrompt, currentTask, setCurrentTask,
-    architectPrompt, setArchitectPrompt,
-    activePromptPresetId, applyPromptPreset
-  } = useChatSettingsStore();
+  console.log('[PromptsView] Rendering...');
+
+  const unitSystemRoles = useChatSettingsStore(s => s.unitSystemRoles);
+  const addSystemRolePrompt = useChatSettingsStore(s => s.addSystemRolePrompt);
+  const updateSystemRolePrompt = useChatSettingsStore(s => s.updateSystemRolePrompt);
+  const removeSystemRolePrompt = useChatSettingsStore(s => s.removeSystemRolePrompt);
+  const currentSystemRoleId = useChatSettingsStore(s => s.currentSystemRoleId);
+  const setCurrentSystemRoleId = useChatSettingsStore(s => s.setCurrentSystemRoleId);
+  const taskPrompts = useChatSettingsStore(s => s.taskPrompts);
+  const addTaskPrompt = useChatSettingsStore(s => s.addTaskPrompt);
+  const updateTaskPrompt = useChatSettingsStore(s => s.updateTaskPrompt);
+  const removeTaskPrompt = useChatSettingsStore(s => s.removeTaskPrompt);
+  const currentTask = useChatSettingsStore(s => s.currentTask);
+  const setCurrentTask = useChatSettingsStore(s => s.setCurrentTask);
+  const architectPrompt = useChatSettingsStore(s => s.architectPrompt);
+  const setArchitectPrompt = useChatSettingsStore(s => s.setArchitectPrompt);
+  const activePromptPresetId = useChatSettingsStore(s => s.activePromptPresetId);
+  const applyPromptPreset = useChatSettingsStore(s => s.applyPromptPreset);
 
   const [activeCategory, setActiveCategory] = useState<PromptCategory>('roles');
   
@@ -85,7 +140,7 @@ export function PromptsView() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const preset = data?.[presetId];
-      if (!preset) throw new Error(`Preset '${presetId}' not found`);
+      if (!preset) throw new Error(`Zestaw '${presetId}' nie został znaleziony`);
 
       // Use centralized applyPromptPreset action
       applyPromptPreset(presetId, preset);
@@ -180,7 +235,7 @@ export function PromptsView() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col p-4 lg:p-10 pt-[100px] lg:pt-[120px] bg-prestige-view relative overflow-hidden text-black">
+    <div className="w-full h-full flex flex-col p-4 lg:p-10 pt-[100px] lg:pt-[120px] bg-transparent relative overflow-hidden text-black">
       <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
       {/* Header */}
       {/* Preset Controls */}
@@ -210,16 +265,16 @@ export function PromptsView() {
           >
             Oskarżenie
           </button>
-          <div className={cn(
+                  <div className={cn(
             "px-3 py-2 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all",
             activePromptPresetId 
               ? cn(
-                  "bg-black/[0.04] text-black",
+                  "bg-black/4 text-black",
                   activePromptPresetId === 'defense' ? "border-[#064e3b]/35" : "border-red-500/35"
                 )
-              : "border-black/10 bg-black/[0.03] text-black/50"
+              : "border-black/10 bg-black/3 text-black/50"
           )}>
-            {activePromptPresetId ? activePromptPresetId.toUpperCase() : "BRAK PRESETU"}
+            {activePromptPresetId ? translatePromptKey(activePromptPresetId) : "BRAK PRESETU"}
           </div>
         </div>
 
@@ -264,10 +319,6 @@ export function PromptsView() {
 
         {/* Right Content */}
         <div className="flex-1 flex flex-col min-h-0 bg-white/20 rounded-lg border border-black/10 p-2 lg:p-4 overflow-hidden relative">
-          <div className="absolute inset-0 pointer-events-none" style={{
-            background: "radial-gradient(ellipse at top right, rgba(212,175,55,0.03) 0%, transparent 70%)"
-          }} />
-
           <div className="relative z-10 mb-3 p-3 rounded-xl border border-black/10 bg-white/35 backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-black/70">
@@ -337,7 +388,7 @@ export function PromptsView() {
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-4">
               {activeCategory === 'roles' && Object.entries(unitSystemRoles).map(([key, prompt]) => (
                   <PromptCard 
-                    key={key} title={key.toUpperCase()} content={prompt} 
+                    key={key} title={translatePromptKey(key)} content={prompt} 
                     promptKey={key}
                     isActive={currentSystemRoleId === key}
                     accentColor={getPromptNeonColor(key, 'roles')}
@@ -355,7 +406,7 @@ export function PromptsView() {
 
               {activeCategory === 'tasks' && Object.entries(taskPrompts).map(([key, prompt]) => (
                   <PromptCard 
-                    key={key} title={key.toUpperCase()} content={prompt} 
+                    key={key} title={translatePromptKey(key)} content={prompt} 
                     promptKey={key}
                     isActive={currentTask === key}
                     accentColor={getPromptNeonColor(key, 'tasks')}
@@ -439,7 +490,7 @@ function PromptCard({
       "relative flex flex-col rounded-lg border transition-all duration-300",
       isActive 
         ? "border-gold-primary/30 bg-gold-primary/5" 
-        : "border-black/10 bg-black/[0.04] hover:bg-black/[0.06]"
+        : "border-black/10 bg-black/4 hover:bg-black/6"
     )} style={activeContainerStyle}>
        <div className="flex items-center justify-between p-4 border-b border-black/10">
           <div className="flex items-center gap-3">
@@ -471,7 +522,7 @@ function PromptCard({
                     {canDelete && onDelete && (
                       <button
                         onClick={onDelete}
-                        className="p-2 rounded-lg bg-black/[0.03] hover:bg-red-500/10 text-black/45 hover:text-red-600 transition-all"
+                        className="p-2 rounded-lg bg-black/3 hover:bg-red-500/10 text-black/45 hover:text-red-600 transition-all"
                         title={`Usuń prompt ${promptKey}`}
                       >
                         <Trash2 size={14} />
@@ -479,7 +530,7 @@ function PromptCard({
                     )}
                     <button 
                       onClick={onEdit} 
-                      className="p-2 rounded-lg bg-black/[0.03] hover:bg-gold-primary/15 text-black/50 hover:text-black transition-all"
+                      className="p-2 rounded-lg bg-black/3 hover:bg-gold-primary/15 text-black/50 hover:text-black transition-all"
                       title="Edytuj prompt"
                     >
                        <Edit3 size={14} />

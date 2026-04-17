@@ -4,16 +4,17 @@ import hashlib
 import json
 import os
 from typing import List, Dict, Any, Optional
-import google.generativeai as genai
-from google.generativeai import caching
+from google import genai
+from google.genai import types
 
 from moa.config import GOOGLE_API_KEY
 
 logger = logging.getLogger("GeminiCacheManager")
 
-# Inicjalizacja SDK
+# Inicjalizacja klienta SDK (nowy google-genai)
+_gemini_client = None
 if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
+    _gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
 
 class GeminiCacheManager:
     """
@@ -33,7 +34,7 @@ class GeminiCacheManager:
         system_instruction: str,
         contents: List[str],
         ttl_minutes: int = 60
-    ) -> Optional[caching.CachedContent]:
+    ) -> Optional[Any]:
         """
         Pobiera istniejący cache lub tworzy nowy jeśli treść jest wystarczająco duża.
         Minimalny rozmiar dla cache to zazwyczaj ok. 32k tokenów.
@@ -50,20 +51,34 @@ class GeminiCacheManager:
         display_name = f"lexmind_cache_{cache_key[:10]}"
 
         try:
-            # 1. Sprawdź czy cache o tej nazwie już istnieje (uproszczone: szukamy w istniejących)
-            for c in caching.CachedContent.list():
+            if not _gemini_client:
+                return None
+                
+            # 1. Sprawdź czy cache o tej nazwie już istnieje
+            for c in _gemini_client.caching.list():
                 if c.display_name == display_name:
                     logger.info(f"   [CACHE] Znaleziono istniejący Gemini Context Cache: {display_name}")
                     return c
 
             # 2. Jeśli nie ma, stwórz nowy
             logger.info(f"   [CACHE] Tworzenie NOWEGO Gemini Context Cache ({total_chars} znaków)...")
-            cache = caching.CachedContent.create(
+            
+            # Przygotuj zawartość do cache
+            content_parts = []
+            for c in contents:
+                content_parts.append(types.Content(
+                    role="user",
+                    parts=[types.Part(text=c)]
+                ))
+            
+            cache = _gemini_client.caching.create(
                 model=model_name,
-                display_name=display_name,
-                system_instruction=system_instruction,
-                contents=contents,
-                ttl=datetime.timedelta(minutes=ttl_minutes),
+                config=types.CachedContentConfig(
+                    display_name=display_name,
+                    system_instruction=system_instruction,
+                    contents=content_parts,
+                    ttl=f"{ttl_minutes}m",
+                )
             )
             return cache
         except Exception as e:
@@ -74,7 +89,7 @@ async def call_gemini_direct(
     model_id: str,
     system_prompt: str,
     user_prompt: str,
-    history: List[Dict[str, str]] = None,
+    history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.1,
     max_tokens: int = 4000,
 ) -> str:
@@ -103,42 +118,53 @@ async def call_gemini_direct(
     )
 
     try:
+        if not _gemini_client:
+            raise ValueError("Klient Gemini nie jest zainicjalizowany.")
+            
         if cache:
-            model = genai.GenerativeModel.from_cached_content(cached_content=cache)
-            # Przy użyciu cache, system_instruction i duża część user_prompt są już w cache.
-            # Musimy wysłać tylko to, co się zmienia (zapytanie).
-            # Jeśli cały user_prompt został wrzucony do cache, tutaj wysyłamy pusty/minimalny prompt?
-            # Zwykle do cache wrzuca się statyczną część, a dynamiczną (pytanie) wysyła się teraz.
-            response = await model.generate_content_async(
-                "Proszę o odpowiedź na podstawie załadowanego kontekstu.",
-                generation_config=genai.GenerationConfig(
+            # Użycie cache - wysyłamy tylko krótkie zapytanie
+            response = await _gemini_client.models.generate_content_async(
+                model=clean_model_id,
+                contents="Proszę o odpowiedź na podstawie załadowanego kontekstu.",
+                config=types.GenerateContentConfig(
+                    cached_content=cache.name,
                     temperature=temperature,
                     max_output_tokens=max_tokens,
                 )
             )
         else:
-            model = genai.GenerativeModel(
-                model_name=clean_model_id,
-                system_instruction=system_prompt
-            )
-            
+            # Normalne wywołanie bez cache
             # Konwersja historii na format Gemini
-            gemini_history = []
+            gemini_contents = []
+            
+            # Dodaj system prompt jako pierwszy message
+            if system_prompt:
+                gemini_contents.append(
+                    types.Content(role="model", parts=[types.Part(text=f"System: {system_prompt}")])
+                )
+            
             if history:
                 for msg in history:
                     role = "user" if msg["role"] == "user" else "model"
-                    gemini_history.append({"role": role, "parts": [msg["content"]]})
+                    gemini_contents.append(
+                        types.Content(role=role, parts=[types.Part(text=msg["content"])])
+                    )
             
-            chat = model.start_chat(history=gemini_history)
-            response = await chat.send_message_async(
-                user_prompt,
-                generation_config=genai.GenerationConfig(
+            # Dodaj aktualne zapytanie
+            gemini_contents.append(
+                types.Content(role="user", parts=[types.Part(text=user_prompt)])
+            )
+            
+            response = await _gemini_client.models.generate_content_async(
+                model=clean_model_id,
+                contents=gemini_contents,
+                config=types.GenerateContentConfig(
                     temperature=temperature,
                     max_output_tokens=max_tokens,
                 )
             )
         
-        return response.text
+        return response.text if response.text else ""
     except Exception as e:
         logger.error(f"   [GEMINI ERR] Błąd podczas wywołania direct: {e}")
         raise e

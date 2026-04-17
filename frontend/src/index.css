@@ -10,18 +10,18 @@
   --bg-liquid-gray-rgb: 218, 218, 224;
   --glass-border: rgba(0, 0, 0, 0.1);
   --glass-highlight: rgba(255, 255, 255, 0.5);
-  --bg-void: #e8e8ea;
-  --bg-obsidian: #dddde0;
-  --bg-deep: #d2d2d6;
-  --bg-surface: #c7c7cc;
-  --bg-elevated: #bdbdbf;
-  --bg-overlay: rgba(230, 230, 232, 0.95);
+  --bg-void: #c8c8cc;
+  --bg-obsidian: #c4c4c8;
+  --bg-deep: #b8b8bc;
+  --bg-surface: #a8a8ac;
+  --bg-elevated: #9c9ca0;
+  --bg-overlay: rgba(200, 200, 204, 0.95);
   --platinum-primary: #ffffff;
   --platinum-rgb: 255, 255, 255;
   --text-primary: #4b5563;
   --text-secondary: #6b7280;
   --text-muted: #9ca3af;
-  --app-bg: linear-gradient(180deg, #d1d1d6 0%, #e5e5ea 100%);
+  --app-bg: linear-gradient(180deg, #b8b8bc 0%, #c8c8cc 100%);
 }
 
 @theme {
@@ -84,7 +84,6 @@ body {
   background: linear-gradient(180deg, #f0cc5a 0%, #d4af37 100%) !important;
   border-radius: 10px;
   border: 2px solid rgba(0, 0, 0, 0.9) !important;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -118,7 +117,6 @@ body {
   background: linear-gradient(180deg, #f0cc5a 0%, #d4af37 100%) !important;
   border-radius: 10px;
   border: 2px solid rgba(0, 0, 0, 0.9) !important;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
 }
 
 .panel-scrollbar-gold::-webkit-scrollbar-thumb:hover {
@@ -264,23 +262,30 @@ body {
   }
 }
 
-.text-chameleon,
-.text-chameleon .char {
+.text-chameleon {
   background: linear-gradient(
     90deg,
     #ffffff 0%,
-    #d1d5db 20%,
-    #ffffff 40%,
-    #9ca3af 60%,
-    #ffffff 80%,
-    #d1d5db 100%
+    #d1d5db 25%,
+    #ffffff 50%,
+    #9ca3af 75%,
+    #ffffff 100%
   ) !important;
   background-size: 200% auto !important;
   -webkit-background-clip: text !important;
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   color: transparent !important;
-  animation: liquid-metal-flow 15s linear infinite !important;
+  animation: liquid-metal-flow 60s linear infinite !important; /* Slowed down from 15s to 60s */
+  display: inline-block;
+}
+
+.text-chameleon .char {
+  background: inherit !important;
+  -webkit-background-clip: inherit !important;
+  background-clip: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+  color: inherit !important;
   display: inline-block;
 }
 
@@ -555,10 +560,10 @@ body {
     rgba(100, 100, 105, 0.9) 100%
   );
 
-  /* Windows 98 Plus / Awwwards Thick Bevels */
-  border-left: 2px solid rgba(255, 255, 255, 0.9);
-  border-top: 2px solid rgba(255, 255, 255, 1);
-  border-right: 2px solid rgba(0, 0, 0, 0.15);
+  /* Windows 98 Plus / Awwwards Thick Bevels - unified for seamless corner */
+  border-left: none;
+  border-top: none;
+  border-right: none;
   border-bottom: 2px solid rgba(0, 0, 0, 0.2);
 
   box-shadow:
@@ -576,9 +581,9 @@ body {
   /* Beautiful single unbroken gradient from top-left outwards */
   background: radial-gradient(
     ellipse at 0% 0%,
-    rgba(60, 60, 65, 0.98) 0%,
-    rgba(20, 20, 24, 0.95) 30%,
-    rgba(5, 5, 5, 0.98) 100%
+    rgba(80, 80, 80, 0.95) 0%,
+    rgba(60, 60, 60, 0.92) 30%,
+    rgba(40, 40, 40, 0.95) 100%
   );
   clip-path: polygon(0 0, 100% 0, 100% 80px, 130px 80px, 130px 100%, 0 100%);
   z-index: 0;
@@ -609,9 +614,21 @@ body {
   bottom: 0;
   width: 130px;
   background: transparent;
-  border-right: 2px solid rgba(0, 0, 0, 0.15);
+  border-right: none;
   box-shadow: inset 1px 0 1px rgba(255, 255, 255, 0.4);
   z-index: 0;
+  pointer-events: none;
+}
+
+/* Prawe obramowanie tylko poniżej headera */
+.mercury-left-beam::after {
+  content: '';
+  position: absolute;
+  top: 80px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-right: 2px solid rgba(0, 0, 0, 0.15);
   pointer-events: none;
 }
 
@@ -649,8 +666,7 @@ body {
     rgba(0, 0, 0, 0.03) 0%,
     transparent 60%
   );
-  filter: blur(80px);
-  animation: liquid-drift 20s ease-in-out infinite alternate;
+  filter: blur(40px);
   pointer-events: none;
   z-index: 2;
 }
@@ -746,21 +762,7 @@ body {
   }
 }
 
-@utility text-chameleon {
-  background: linear-gradient(
-    90deg,
-    #404040 0%,
-    #808080 25%,
-    #ffffff 50%,
-    #a1a1aa 75%,
-    #404040 100%
-  );
-  background-size: 300% auto;
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  animation: liquid-metal-flow 15s linear infinite;
-}
+/* Specialized utility removed, consolidated into .text-chameleon above */
 
 @keyframes holographic-shimmer {
   0% {
@@ -1110,8 +1112,8 @@ body {
   text-shadow:
     0 1px 0 rgba(255, 255, 255, 0.62),
     0 10px 18px rgba(9, 14, 22, 0.28);
-  animation: app-topbar-spectrum-shift 10s cubic-bezier(0.4, 0, 0.2, 1)
-    infinite;
+  /* Animation slowed down from 10s back to 45s to avoid constant GPU repaint */
+  animation: app-topbar-spectrum-shift 45s linear infinite;
 }
 
 .app-topbar-subtitle {
@@ -1689,7 +1691,7 @@ body {
 .floating-orb {
   position: absolute;
   border-radius: 50%;
-  mix-blend-mode: plus-lighter;
+  /* Removed mix-blend-mode: plus-lighter; - massive GPU saver when combined with blurred orbs */
   pointer-events: none;
   z-index: 0;
 }
@@ -1712,9 +1714,8 @@ body {
   height: 6px;
   border-radius: 50%;
   background: var(--gold-primary);
-  box-shadow:
-    0 0 8px var(--gold-primary),
-    0 0 20px rgba(var(--gold-rgb), 0.4);
+  /* Simplified shadow */
+  box-shadow: 0 0 10px var(--gold-primary);
 }
 
 /* ─── Holographic card shimmer ─── */
@@ -1725,20 +1726,17 @@ body {
     content: "";
     position: absolute;
     inset: 0;
+    /* Static gradient instead of animated for holo effect */
     background: linear-gradient(
       135deg,
-      rgba(180, 220, 255, 0.06) 0%,
-      rgba(var(--gold-rgb), 0.06) 25%,
-      rgba(220, 180, 255, 0.04) 50%,
-      rgba(var(--gold-rgb), 0.06) 75%,
-      rgba(180, 255, 220, 0.04) 100%
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(var(--gold-rgb), 0.03) 50%,
+      rgba(255, 255, 255, 0.02) 100%
     );
-    background-size: 400% 400%;
-
     pointer-events: none;
     z-index: 1;
     border-radius: inherit;
-    mix-blend-mode: overlay;
+    /* Removed mix-blend-mode: overlay; */
   }
 }
 

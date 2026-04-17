@@ -23,6 +23,7 @@ OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
 OPENROUTER_BASE_URL: str = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OCR_SPACE_API_KEY: str = os.getenv("OCR_SPACE_API_KEY", "K88317266188957")
 SUPABASE_URL: str = os.getenv(
     "SUPABASE_URL", "https://dhyvxspgsktpbjonejek.supabase.co"
 )
@@ -189,7 +190,7 @@ DEFAULT_ANALYST_MODELS = [
 # ---------------------------------------------------------------------------
 DEFAULT_MATCH_THRESHOLD = 0.05
 DEFAULT_MATCH_COUNT = 30  # ZWIĘKSZONO: Bardziej agresywny retrieval
-MAX_CONTEXT_CHARS = 80_000 # OBNIŻONO: Zabezpieczenie przed błędem 402 przy dużej ilości załączników
+MAX_CONTEXT_CHARS = 60_000 # PROFESJONALNY POZIOM: Zoptymalizowany pod RAG i sędziego
 MAX_CONTEXT_TOKENS_ESTIMATE = 15_000
 
 # ---------------------------------------------------------------------------
@@ -198,14 +199,14 @@ MAX_CONTEXT_TOKENS_ESTIMATE = 15_000
 MAX_RETRIES = 3
 RETRY_BASE_DELAY = 1.0  # sekundy (1 → 2 → 4 z jitter)
 RETRY_MAX_DELAY = 15.0
-RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+RETRYABLE_STATUS_CODES = {402, 429, 500, 502, 503, 504} # Dodano 402 do retry
 
 # ---------------------------------------------------------------------------
 # LLM defaults
 # ---------------------------------------------------------------------------
 LLM_TEMPERATURE = 0.1
-LLM_TIMEOUT = 180.0  # ZWIĘKSZONO: Zapobieganie ReadTimeout przy ogromnej ilości danych
-GLOBAL_MOA_TIMEOUT = 240.0 # Twardy limit na CAŁY proces MOA (ZWIĘKSZONO)
+LLM_TIMEOUT = 120.0  # 2 min - optymalny czas dla modeli produkcyjnych
+GLOBAL_MOA_TIMEOUT = 300.0 # 5 min - twardy limit na CAŁY proces MOA
 
 # ---------------------------------------------------------------------------
 # Sanity Checks (Bug 22)

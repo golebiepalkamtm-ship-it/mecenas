@@ -279,8 +279,8 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
         >
           <div
             className={cn(
-              "absolute top-0 w-48 h-[1px]",
-              isUser ? "right-0 bg-gradient-to-l from-gold to-transparent" : "left-0 bg-gradient-to-r from-gold/50 to-transparent",
+              "absolute top-0 w-48 h-px",
+              isUser ? "right-0 bg-linear-to-l from-gold to-transparent" : "left-0 bg-linear-to-r from-gold/50 to-transparent",
             )}
           />
 
@@ -338,7 +338,7 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
             <div className="mt-6 flex flex-wrap gap-4">
               {msg.attachments.map((att, i) => (
                 <motion.div
-                  key={i}
+                  key={`${msg.id}-att-${i}`}
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   className="relative group/att overflow-hidden rounded-2xl border-gold-gradient shadow-xl w-full max-w-[260px] xs:max-w-[300px] sm:max-w-[400px]"
@@ -389,7 +389,7 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
                   
                   return (
                     <button
-                      key={i}
+                      key={`${msg.id}-source-${i}`}
                       onClick={() => onPreviewDoc?.(srcStr)}
                       className={`flex items-center gap-1.5 glass-prestige px-2.5 py-1.5 rounded-lg text-[9px] font-bold text-white ${hoverBg} transition-all active:scale-95 border ${borderColor}`}
                     >
@@ -437,7 +437,7 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
                   >
                     <div className="space-y-2 mt-3">
                       {msg.expert_analyses!.map((expert, i) => (
-                        <ExpertCard key={expert.model} expert={expert} index={i} />
+                        <ExpertCard key={`${msg.id}-expert-${expert.model}-${i}`} expert={expert} index={i} />
                       ))}
                     </div>
                   </motion.div>

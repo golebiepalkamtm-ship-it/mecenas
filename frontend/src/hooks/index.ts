@@ -556,7 +556,7 @@ export function useChat() {
     }
     setMessagesLoaded(false);
     try {
-      const res = await fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages`);
+      const res = await fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages?limit=100`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: ChatMessage[] = await res.json();
       setMessages(data || []);

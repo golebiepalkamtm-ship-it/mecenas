@@ -98,7 +98,7 @@ const NODE_DATA: NodeDef[] = [
     y: 60,
     size: 48,
     icon: Lock,
-    label: "Bezpieczeństwo",
+    label: "Bezpiecze┼ästwo",
     sublabel: "AES-256",
   },
   {
@@ -147,7 +147,7 @@ const NODE_DATA: NodeDef[] = [
     y: 50,
     size: 44,
     icon: HardDrive,
-    label: "Pamięć",
+    label: "Pami─Ö─ç",
     sublabel: "Vector Store",
   },
   {
@@ -156,7 +156,7 @@ const NODE_DATA: NodeDef[] = [
     y: 65,
     size: 48,
     icon: Fingerprint,
-    label: "Tożsamość",
+    label: "To┼╝samo┼Ť─ç",
     sublabel: "Biometric Auth",
   },
   {
@@ -165,7 +165,7 @@ const NODE_DATA: NodeDef[] = [
     y: 78,
     size: 48,
     icon: Globe,
-    label: "Dostępność",
+    label: "Dost─Öpno┼Ť─ç",
     sublabel: "Global Reach",
   },
 
@@ -220,25 +220,28 @@ const NodeItem = React.memo(({
         transform: `translate(-50%, ${isHovered ? "-85%" : "-50%"}) scale(${isHovered ? 1.85 : 1}) rotate(${isHovered ? "-10deg" : "0deg"})`,
         animation: isHovered ? "none" : `nodeFloat ${floatDuration}s ease-in-out ${floatDelay}s infinite`,
         transition: "transform 0.45s cubic-bezier(0.2, 1.25, 0.45, 1), z-index 0.3s",
+        willChange: "transform, opacity", // GPU Priority
       }}
     >
       {/* Background Aura */}
       <div
         style={{
           position: "absolute",
-          width: size + 100,
-          height: size + 100,
+          width: size + (isCenter ? 120 : 80),
+          height: size + (isCenter ? 120 : 80),
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background: isHovered
-            ? "radial-gradient(circle, rgba(212,175,55,0.45) 0%, transparent 70%)"
+            ? "radial-gradient(circle, rgba(212,175,55,0.4) 0%, transparent 75%)"
             : (isCenter
-              ? "radial-gradient(circle, rgba(212,175,55,0.25) 0%, transparent 70%)"
-              : "radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%)"),
-          filter: (isHovered || isCenter) ? "blur(18px)" : "blur(8px)",
-          transition: "background 0.35s, filter 0.35s",
+              ? "radial-gradient(circle, rgba(212,175,55,0.15) 0%, transparent 80%)" // Slightly softer gradient instead of blur
+              : "radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 80%)"),
+          // Blur filter removed for performance. Center and Hover now rely on radial-gradient softness.
+          filter: "none",
+          transition: "background 0.35s",
+          opacity: (isHovered || isCenter) ? 1 : 0.6,
         }}
       />
 
@@ -258,9 +261,10 @@ const NodeItem = React.memo(({
             ? `2px solid ${GOLD}`
             : "1px solid rgba(255,255,255,0.25)",
           boxShadow: (isHovered || isCenter)
-            ? `0 0 50px rgba(212,175,55,0.6), inset 0 1px 0 0 rgba(220,180,60,0.4), inset 0 -1px 0 0 rgba(212,175,55,0.2)`
-            : "0 4px 25px rgba(0,0,0,0.5), inset 0 1px 0 0 rgba(255,255,255,0.15), inset 0 -1px 0 0 rgba(255,255,255,0.08)",
+            ? `0 0 40px rgba(212,175,55,0.5), inset 0 1px 0 0 rgba(220,180,60,0.3)`
+            : "0 4px 15px rgba(0,0,0,0.4), inset 0 1px 0 0 rgba(255,255,255,0.1)",
           transition: "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          willChange: "transform, opacity",
         }}
       >
         <Icon
@@ -321,30 +325,20 @@ const NodeItem = React.memo(({
 
 export default function NeuralNetwork() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [isVisible, setIsVisible] = useState(true);
   const [vp, setVp] = useState({
     w: typeof window !== "undefined" ? window.innerWidth : 1440,
     h: typeof window !== "undefined" ? window.innerHeight : 900,
   });
+  const animationFrameRef = useRef<number>(0);
+  const timeRef = useRef<number>(0);
+
 
   useEffect(() => {
     const handleResize = () =>
       setVp({ w: window.innerWidth, h: window.innerHeight });
     window.addEventListener("resize", handleResize);
-    
-    // Intersection Observer to pause animation
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsVisible(entry.isIntersecting),
-      { threshold: 0.1 }
-    );
-    if (containerRef.current) observer.observe(containerRef.current);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      observer.disconnect();
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const connections = useMemo(() => {
@@ -352,6 +346,7 @@ export default function NeuralNetwork() {
     const used = new Set<string>();
 
     NODE_DATA.forEach((n1, i) => {
+      // Find 5 nearest neighbors based on percentage coordinates
       const neighbors = NODE_DATA.map((n2, j) => ({
         index: j,
         dist: Math.pow(n1.x - n2.x, 2) + Math.pow(n1.y - n2.y, 2),
@@ -359,7 +354,7 @@ export default function NeuralNetwork() {
         .filter((n) => n.index !== i)
         .sort((a, b) => a.dist - b.dist);
 
-      neighbors.slice(0, 3).forEach((n2) => { // Reduced from 5 to 3 nearest
+      neighbors.slice(0, 5).forEach((n2) => {
         const key = [i, n2.index].sort().join("-");
         if (!used.has(key)) {
           list.push([i, n2.index]);
@@ -371,78 +366,117 @@ export default function NeuralNetwork() {
   }, []);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !isVisible) return;
-    const ctx = canvas.getContext("2d", { alpha: true });
-    if (!ctx) return;
+    // Defer animation initialization to prevent blocking during initial render
+    const initAnimation = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d", { alpha: true });
+      if (!ctx) return;
 
-    let animationFrameId: number;
-    let time = 0;
+      // Optimization: Resize once, not every frame
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
 
-    const animate = () => {
-      time += 0.02;
-      const w = (canvas.width = window.innerWidth);
-      const h = (canvas.height = window.innerHeight);
-      ctx.clearRect(0, 0, w, h);
+      const fps = 30; // Cap to 30 FPS to save GPU
+      const interval = 1000 / fps;
+      let lastTime = 0;
 
-      connections.forEach(([i, j], connIdx) => {
-        const n1 = NODE_DATA[i];
-        const n2 = NODE_DATA[j];
-        
-        const x1 = (n1.x / 100) * w;
-        let y1 = (n1.y / 100) * h;
-        const x2 = (n2.x / 100) * w;
-        let y2 = (n2.y / 100) * h;
+      const animate = (now: number) => {
+        const delta = now - lastTime;
 
-        if (hoveredId === n1.id) y1 -= 25;
-        if (hoveredId === n2.id) y2 -= 25;
-
-        const phaseOffset = connIdx * 2.39996;
-        const cycleDuration = 20.0 + (connIdx % 8) * 3.5; // Slower cycles
-        const cycleTime = ((time + phaseOffset) % cycleDuration) / cycleDuration;
-        const pulseWindow = 1.2 / cycleDuration;
-        const isActive = cycleTime < pulseWindow;
-        const pulseIntensity = isActive ? Math.pow(1 - (cycleTime / pulseWindow), 0.5) : 0;
-
-        const lineOpacity = 0.2 + Math.sin(time + (i + j)) * 0.05 + (pulseIntensity * 0.4);
-        
-        // Static connections (cheaper)
-        ctx.beginPath();
-        ctx.strokeStyle = `rgba(212,175,55,${lineOpacity})`;
-        ctx.lineWidth = 0.5;
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
- 
-        if (isActive) {
-          const pulsePos = cycleTime / pulseWindow;
-          const px = x1 + (x2 - x1) * pulsePos;
-          const py = y1 + (y2 - y1) * pulsePos;
-
-          // Reduced complexity for pulses
-          ctx.save();
-          ctx.shadowColor = "rgba(212,175,55,0.6)";
-          ctx.shadowBlur = 0;
-          
-          ctx.beginPath();
-          ctx.arc(px, py, 3, 0, Math.PI * 2);
-          ctx.fillStyle = "#fff";
-          ctx.fill();
-
-          ctx.restore();
+        if (delta < interval) {
+          animationFrameRef.current = requestAnimationFrame(animate);
+          return;
         }
-      });
 
-      animationFrameId = requestAnimationFrame(animate);
+        lastTime = now - (delta % interval);
+        timeRef.current += 0.02 * (delta / 16.67);
+
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        connections.forEach(([i, j], connIdx) => {
+          const n1 = NODE_DATA[i];
+          const n2 = NODE_DATA[j];
+
+          const x1 = (n1.x / 100) * w;
+          let y1 = (n1.y / 100) * h;
+          const x2 = (n2.x / 100) * w;
+          let y2 = (n2.y / 100) * h;
+
+          if (hoveredId === n1.id) y1 -= 25;
+          if (hoveredId === n2.id) y2 -= 25;
+
+          // Optimized time/phase calculations
+          const phaseOffset = connIdx * 2.39996;
+          const cycleDuration = 15.0 + (connIdx % 8) * 2.5;
+          const cycleTime = ((timeRef.current + phaseOffset) % cycleDuration) / cycleDuration;
+          const pulseWindow = 1.5 / cycleDuration;
+          const isActive = cycleTime < pulseWindow;
+          const pulseIntensity = isActive ? Math.pow(1 - (cycleTime / pulseWindow), 0.5) : 0;
+
+          const basePulse = 0.35 + Math.sin(timeRef.current + (i + j)) * 0.07;
+          const lineOpacity = Math.min(0.9, basePulse + (pulseIntensity * 0.55));
+          const lineWidth = 0.5 + (pulseIntensity * 0.2);
+
+          // Optimized Drawing: Avoid save/restore and slow shadows
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(212,175,55,${(0.3 + pulseIntensity * 0.65) * 0.2})`;
+          ctx.lineWidth = lineWidth * 10;
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(212,175,55,${lineOpacity})`;
+          ctx.lineWidth = lineWidth;
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+
+          if (isActive) {
+            const pulsePos = cycleTime / pulseWindow;
+            const px = x1 + (x2 - x1) * pulsePos;
+            const py = y1 + (y2 - y1) * pulsePos;
+
+            ctx.beginPath();
+            ctx.arc(px, py, 4, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255,255,255,0.95)";
+            ctx.fill();
+
+            const sparkCount = 2; // Reduced from 3
+            for (let s = 0; s < sparkCount; s++) {
+              const sparkAngle = (Math.PI * 2 * s) / sparkCount + timeRef.current * 6;
+              const sparkLen = 5 + Math.sin(timeRef.current * 10 + s * 1.8) * 2;
+              ctx.beginPath();
+              ctx.moveTo(px, py);
+              ctx.lineTo(
+                px + Math.cos(sparkAngle) * sparkLen,
+                py + Math.sin(sparkAngle) * sparkLen
+              );
+              ctx.strokeStyle = `rgba(249,226,157,${0.5 - s * 0.15})`;
+              ctx.stroke();
+            }
+          }
+        });
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [connections, hoveredId, isVisible]);
+    const timeoutId = setTimeout(initAnimation, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      cancelAnimationFrame(animationFrameRef.current);
+    };
+  }, [connections, hoveredId, vp]);
 
   return (
     <div
-      ref={containerRef}
       style={{
         position: "absolute",
         inset: 0,
@@ -453,7 +487,7 @@ export default function NeuralNetwork() {
     >
       <canvas
         ref={canvasRef}
-        style={{ position: "absolute", inset: 0, opacity: 0.4 }}
+        style={{ position: "absolute", inset: 0, opacity: 0.6 }}
       />
       {NODE_DATA.map((node, index) => (
         <NodeItem 

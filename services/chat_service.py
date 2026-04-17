@@ -23,6 +23,7 @@ async def perform_rag_if_needed(
     history: List[Any],
     document_text: str = "",
     model_override: str = None,
+    include_user_db: bool = False,
 ) -> Tuple[List[Any], str]:
     """Wykonuje RAG jeśli zapytanie jest prawne i RAG jest włączony."""
     is_legal = intent == Intent.LEGAL_QUERY
@@ -30,9 +31,9 @@ async def perform_rag_if_needed(
 
     if rag_enabled:
         try:
-            logger.info(f"   [RAG SERVICE] Pobieranie kontekstu dla: {message[:50]}...")
+            logger.info(f"   [RAG SERVICE] Pobieranie kontekstu dla: {message[:50]}... (include_user_db={include_user_db})")
             chunks, context_text = await retrieve_legal_context(
-                message, document_text=document_text, model_override=model_override
+                message, document_text=document_text, model_override=model_override, include_user_db=include_user_db
             )
             return chunks, context_text
         except Exception as e:
@@ -42,14 +43,15 @@ async def perform_rag_if_needed(
 
 
 async def chat_consensus_moa(
-    request: Any, sid: str, combined_doc_text: str, context_text: str
+    request: Any, sid: str, combined_doc_text: str, context_text: str, extracted_att_content: List[Any] = [],
+    include_user_db: bool = False
 ):
     """Logika MOA / Konsylium prawne."""
-    print(f"\n   [MOA START] Uruchamianie konsylium dla sesji: {sid}")
-    if context_text:
-        combined_doc_text = (
-            f"### KONTEKST PRAWNY (RAG):\n{context_text}\n\n{combined_doc_text}"
-        )
+    print(f"\n   [MOA START] Uruchamianie konsylium dla sesji: {sid} (include_user_db={include_user_db})")
+    
+    # NIE prepandujemy już context_text do combined_doc_text, 
+    # ponieważ MOA pipeline i tak sam wykonuje retrieval i przekazuje to jako oddzielną sekcję.
+    # Zapobiega to duplikacji kontekstu i dezorientacji modeli.
 
     moa_req = MOARequest(
         query=request.message,
@@ -67,7 +69,9 @@ async def chat_consensus_moa(
         system_role_prompt=request.system_role_prompt,
         judge_system_prompt=request.judge_system_prompt,
         api_keys=request.api_keys,
-        attachments=extracted_att_content, # Przekazujemy załączniki (obrazy) do ekspertów
+        attachments=extracted_att_content or [], # Przekazujemy załączniki (obrazy) do ekspertów
+        include_user_db=include_user_db,
+        context_text=context_text
     )
 
     result = await run_moa_pipeline(moa_req)
@@ -75,7 +79,8 @@ async def chat_consensus_moa(
 
 
 async def generate_moa_stream(
-    request: Any, sid: str, combined_doc_text: str, context_text: str
+    request: Any, sid: str, combined_doc_text: str, context_text: str, extracted_att_content: List[Any] = [],
+    include_user_db: bool = False
 ):
     """Strumieniowanie statusów i finalnej odpowiedzi MOA."""
     f_id = str(uuid.uuid4())
@@ -94,7 +99,7 @@ async def generate_moa_stream(
         yield f"data: {json.dumps({'type': 'chunk', 'text': '🔍 *Przeszukiwanie bazy prawnej i dokumentów użytkownika...*\n'})}\n\n"
         
         # Przekazujemy callback do pipeline (jeśli go zaraz dodamy) lub symulujemy postęp
-        result = await chat_consensus_moa(request, sid, combined_doc_text, context_text)
+        result = await chat_consensus_moa(request, sid, combined_doc_text, context_text, extracted_att_content, include_user_db=include_user_db)
         
         if not result.success:
             err_msg = f"❌ Błąd MOA: {result.error}"

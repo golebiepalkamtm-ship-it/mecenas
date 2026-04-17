@@ -11,12 +11,20 @@ import { APIKeysSection } from './components/APIKeysSection';
 import { ModelOrchestrator } from '../ModelOrchestrator';
 
 export function SettingsView() {
+    console.log('[SettingsView] Rendering...');
+
     const [user, setUser] = useState<AuthUser | null>(null);
     const [profile, setProfile] = useState<Profile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
-    const { currentSettingsTab } = useChatSettingsStore();
+    const currentSettingsTab = useChatSettingsStore(s => s.currentSettingsTab);
+    const [notifications, setNotifications] = useState({
+        newCases: true,
+        kbUpdates: true,
+        systemMessages: false,
+        promos: false
+    });
 
     useEffect(() => {
         async function loadProfile() {
@@ -32,7 +40,7 @@ export function SettingsView() {
                     setProfile(data[0]);
                 } else {
                     // Create profile if missing
-                    const newProfile: Profile = { id: user.id, role: 'user' };
+                    const newProfile: Profile = { id: user.id, full_name: user.email?.split('@')[0] || 'User', role: 'user' };
                     await supabase.from('profiles').insert(newProfile);
                     setProfile(newProfile);
                 }
@@ -60,10 +68,9 @@ export function SettingsView() {
         );
     }
 
-    function NotificationToggle({ label, active = false }: { label: string; active?: boolean }) {
-        const [isOn, setIsOn] = useState(active);
+    function NotificationToggle({ label, isOn, onToggle }: { label: string; isOn: boolean; onToggle: () => void }) {
         return (
-            <div className="px-4 py-3 rounded-xl glass-prestige flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer" onClick={() => setIsOn(!isOn)}>
+            <div className="px-4 py-3 rounded-xl glass-prestige flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer" onClick={onToggle}>
                 <span className="text-[8px] font-black uppercase tracking-widest text-white/80 truncate mr-2">{label}</span>
                 <div className={`w-7 h-3.5 rounded-full transition-all flex items-center px-0.5 shrink-0 ${isOn ? 'bg-gold-primary' : 'bg-white/20'}`}>
                     <motion.div animate={{ x: isOn ? 13 : 0 }} className={`w-2.5 h-2.5 rounded-full ${isOn ? 'bg-black' : 'bg-white/40'}`} />
@@ -96,7 +103,7 @@ export function SettingsView() {
 
     if (isLoading) {
         return (
-            <div className="h-full w-full flex flex-col items-center justify-center space-y-6 bg-prestige-view">
+            <div className="h-full w-full flex flex-col items-center justify-center space-y-6 bg-transparent">
                 <div className="w-16 h-16 rounded-3xl glass-prestige flex items-center justify-center relative overflow-hidden">
                     <div className="absolute inset-0 neural-orb opacity-40" />
                     <Loader2 size={32} className="animate-spin text-gold-primary relative z-10" />
@@ -110,7 +117,7 @@ export function SettingsView() {
     }
 
     return (
-        <div className="h-full bg-prestige-view relative overflow-hidden">
+        <div className="h-full bg-transparent relative overflow-hidden">
             <div className="absolute inset-0 noise-overlay opacity-20 pointer-events-none" />
             <AnimatePresence mode="wait">
                 <motion.div
@@ -254,10 +261,26 @@ export function SettingsView() {
                                                 Powiadomienia
                                             </h3>
                                             <div className="space-y-1">
-                                                <NotificationToggle label="Nowe sprawy AI" active />
-                                                <NotificationToggle label="Aktualizacje bazy wiedzy" active />
-                                                <NotificationToggle label="Wiadomości systemowe" />
-                                                <NotificationToggle label="Promocje i nowości" />
+                                                <NotificationToggle 
+                                                    label="Nowe sprawy AI" 
+                                                    isOn={notifications.newCases}
+                                                    onToggle={() => setNotifications(prev => ({ ...prev, newCases: !prev.newCases }))}
+                                                />
+                                                <NotificationToggle 
+                                                    label="Aktualizacje bazy wiedzy" 
+                                                    isOn={notifications.kbUpdates}
+                                                    onToggle={() => setNotifications(prev => ({ ...prev, kbUpdates: !prev.kbUpdates }))}
+                                                />
+                                                <NotificationToggle 
+                                                    label="Wiadomości systemowe" 
+                                                    isOn={notifications.systemMessages}
+                                                    onToggle={() => setNotifications(prev => ({ ...prev, systemMessages: !prev.systemMessages }))}
+                                                />
+                                                <NotificationToggle 
+                                                    label="Promocje i nowości" 
+                                                    isOn={notifications.promos}
+                                                    onToggle={() => setNotifications(prev => ({ ...prev, promos: !prev.promos }))}
+                                                />
                                             </div>
                                         </div>
 

@@ -1,7 +1,23 @@
 import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 
-export const ModernLoading: React.FC = () => {
+const LOADING_STYLES = `
+  ::-webkit-scrollbar { display: none !important; width: 0 !important; }
+  * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+  
+  .lex-brand-monument {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 200;
+    color: #D4AF37;
+    text-transform: uppercase;
+    letter-spacing: 0.5em;
+    margin-top: -100px;
+    user-select: none;
+    pointer-events: none;
+  }
+`;
+
+export const ModernLoading: React.FC = React.memo(() => {
   useEffect(() => {
     // Blokujemy scroll u podstaw
     document.documentElement.style.overflow = 'hidden';
@@ -31,21 +47,7 @@ export const ModernLoading: React.FC = () => {
         padding: 0
       }}
     >
-      <style>{`
-        ::-webkit-scrollbar { display: none !important; width: 0 !important; }
-        * { scrollbar-width: none !important; -ms-overflow-style: none !important; }
-        
-        .lex-brand-monument {
-          font-family: 'Outfit', sans-serif;
-          font-weight: 200;
-          color: #D4AF37;
-          text-transform: uppercase;
-          letter-spacing: 0.5em;
-          margin-top: -100px;
-          user-select: none;
-          pointer-events: none;
-        }
-      `}</style>
+      <style>{LOADING_STYLES}</style>
 
       <div className="relative flex flex-col items-center">
         {/* LOGO */}
@@ -93,4 +95,4 @@ export const ModernLoading: React.FC = () => {
       </div>
     </section>
   );
-};
+});

@@ -61,11 +61,11 @@ function StatCard({
         </div>
         
         <div className="flex flex-col min-w-0">
-           <p className="text-[7px] font-bold text-white/40 uppercase tracking-[0.2em] truncate mb-1 font-outfit">
+           <p className="text-[7px] font-bold text-black/60 uppercase tracking-[0.2em] truncate mb-1 font-outfit">
              {label}
            </p>
            <div className="flex items-center gap-2">
-              <p className="text-sm font-black text-white tracking-widest truncate font-outfit">
+              <p className="text-sm font-black text-black tracking-widest truncate font-outfit">
                 {value}
               </p>
               {trend && (

@@ -49,6 +49,7 @@ def _build_judge_prompt(
     parts.append("\nWYMÓN KRYTYCZNY: Zsyntetyzuj WSZYSTKIE powyższe raporty w jedną spójną i ostateczną odpowiedź prawną.")
     parts.append("DYREKTYWA KOMUNIKACYJNA: Jesteś frontem dla klienta. Masz bezwzględny obowiązek tłumaczyć zawiły język prawniczy i suche paragrafy na zrozumiały, jasny i ludzki język.")
     parts.append("Jeżeli eksperci powołują się na art. / ust. / k.c. / k.p.k. - wyjaśniaj od razu co one w praktyce oznaczają dla klienta. Odpowiedź ma być profesjonalna, ale wysoce empatyczna (ELI5 - tłumacz tak, by laik zrozumiał).")
+    parts.append("JĘZYK: ZAWSZE odpowiadaj w języku polskim, gdy użytkownik pisze po polsku. Nigdy nie zmieniaj języka na chiński, angielski ani inny bez wyraźnego żądania użytkownika.")
     return "\n".join(parts)
 
 async def synthesize_judgment(
@@ -69,7 +70,7 @@ async def synthesize_judgment(
     """Finalna synteza odpowiedzi przez model sędziego."""
     user_prompt = _build_judge_prompt(query, analyst_results, raw_context, document_text, history_summary, expert_memory)
     
-    messages = [{"role": "system", "content": judge_system_prompt or "Jesteś sędzią-agregatorem. Stwórz konsensus."}]
+    messages = [{"role": "system", "content": judge_system_prompt or "Jesteś sędzią-agregatorem. Stwórz konsensus. ZAWSZE odpowiadaj w języku polskim, gdy użytkownik pisze po polsku."}]
     if history:
         messages.extend(history[-10:])
 

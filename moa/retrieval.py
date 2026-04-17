@@ -215,9 +215,15 @@ async def retrieve_legal_context(
     table: str | None = None,
     model_override: str | None = None,
     history: list | None = None,
+    include_user_db: bool = False,
 ) -> tuple[list[RetrievedChunk], str]:
     """
-    Pelen pipeline retrieval (HYBRYDOWY): Szuka w bazie prawnej (Legal) i bazie użytkownika (User).
+    Pelen pipeline retrieval (HYBRYDOWY): Szuka w bazie prawnej (Legal) i opcjonalnie w bazie użytkownika (User).
+    
+    KLUCZOWA ZMIANA BEZPIECZEŃSTWA:
+    - Domyślnie include_user_db=False - szuka TYLKO w knowledge_base_legal
+    - Dostęp do knowledge_base_user wymaga jawnego ustawienia include_user_db=True
+    - Zapobiega wyciekom danych między sprawami prawniczymi
     """
     # ---- KROK 1: Wyciąganie słów kluczowych (Keyword Extraction) ----
     keywords = []
@@ -258,7 +264,8 @@ async def retrieve_legal_context(
         embedding = await get_query_embedding(query)
         v_tasks = []
         
-        # Zawsze szukaj w legal jeśli nie wymuszono user
+        # BEZPIECZEŃSTWO: Domyślnie szukaj TYLKO w knowledge_base_legal
+        # Dostęp do knowledge_base_user tylko gdy jawnie włączony przez include_user_db=True
         if not table or table == "knowledge_base_legal":
             v_tasks.append(client.post(
                 f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/match_knowledge_legal",
@@ -266,8 +273,8 @@ async def retrieve_legal_context(
                 headers=supabase_headers
             ))
         
-        # Zawsze szukaj w user jeśli nie wymuszono legal
-        if not table or table == "knowledge_base_user":
+        # Szukaj w user DB tylko gdy: include_user_db=True LUB table="knowledge_base_user"
+        if include_user_db or table == "knowledge_base_user":
             v_tasks.append(client.post(
                 f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/match_knowledge_user",
                 json={"query_embedding": embedding, "match_threshold": match_threshold, "match_count": match_count},
@@ -278,13 +285,15 @@ async def retrieve_legal_context(
         kw_tasks = []
         all_kws = (keywords[:2] + sub_keywords)[:4]
         for kw in all_kws:
+            # BEZPIECZEŃSTWO: Domyślnie szukaj TYLKO w knowledge_base_legal
             if not table or table == "knowledge_base_legal":
                 kw_tasks.append(client.get(
                     f"{SUPABASE_URL.rstrip('/')}/rest/v1/knowledge_base_legal",
                     params={"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 3},
                     headers=supabase_headers
                 ))
-            if not table or table == "knowledge_base_user":
+            # Szukaj w user DB tylko gdy: include_user_db=True LUB table="knowledge_base_user"
+            if include_user_db or table == "knowledge_base_user":
                 kw_tasks.append(client.get(
                     f"{SUPABASE_URL.rstrip('/')}/rest/v1/knowledge_base_user",
                     params={"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 3},

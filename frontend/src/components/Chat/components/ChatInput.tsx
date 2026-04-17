@@ -264,7 +264,7 @@ export function ChatInput({
           >
             {attachments.map((att, idx) => (
               <FilePreview
-                key={att.id || idx}
+                key={att.id ? String(att.id) : `attachment-${idx}`}
                 attachment={att}
                 onRemove={() => removeAttachment(idx)}
                 onPreview={() => onPreviewDoc(att)}
@@ -301,59 +301,59 @@ export function ChatInput({
          {/* Left Icons inside input - ARCHITECTURAL SEPARATION */}
          <div className="flex items-center gap-1 pb-1 pl-1 shrink-0 text-white/40">
             {/* 0. NOWA KONSULTACJA (Plus) */}
-            <button 
-              title="Nowa Konsultacja" 
-              onClick={handleNewChat} 
-              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-new"
+            <button
+              title="Nowa Konsultacja"
+              onClick={handleNewChat}
+              className="p-2 hover:bg-cyan-500/10 rounded-xl transition-all -mt-1 group/btn-new"
             >
-               <Plus size={18} className="group-hover/btn-new:scale-110 transition-transform" />
+               <Plus size={18} className="group-hover/btn-new:scale-110 transition-transform text-black group-hover/btn-new:text-cyan-400" style={{ filter: "var(--neon-cyan)" }} />
             </button>
 
             {/* 1. ZAŁĄCZ PLIK (Attachments) */}
-            <button 
-              title="Załącz Plik" 
-              onClick={() => imageInputRef.current?.click()} 
-              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-attach"
+            <button
+              title="Załącz Plik"
+              onClick={() => imageInputRef.current?.click()}
+              className="p-2 hover:bg-fuchsia-500/10 rounded-xl transition-all -mt-1 group/btn-attach"
             >
-               <Paperclip size={18} className="group-hover/btn-attach:scale-110 transition-transform" />
+               <Paperclip size={18} className="group-hover/btn-attach:scale-110 transition-transform text-black group-hover/btn-attach:text-fuchsia-400" style={{ filter: "var(--neon-fuchsia)" }} />
             </button>
 
             {/* 2. DOKUMENTY (Existing Docs/Photos) */}
-            <button 
-              title="Dokumenty" 
-              onClick={() => onOpenLibrary('documents')} 
-              className="p-2 hover:bg-gold-primary/10 hover:text-gold-primary rounded-xl transition-all -mt-1 group/btn-doc"
+            <button
+              title="Dokumenty"
+              onClick={() => onOpenLibrary('documents')}
+              className="p-2 hover:bg-green-500/10 rounded-xl transition-all -mt-1 group/btn-doc"
             >
-               <FileText size={18} className="group-hover/btn-doc:scale-110 transition-transform" />
+               <FileText size={18} className="group-hover/btn-doc:scale-110 transition-transform text-black group-hover/btn-doc:text-green-400" style={{ filter: "var(--neon-green)" }} />
             </button>
 
             {/* 3. BIBLIOTEKA AKT (RAG / Central Knowledge Base) */}
-            <button 
-              title="Biblioteka Akt (RAG)" 
+            <button
+              title="Biblioteka Akt (RAG)"
               onClick={(e) => {
                 e.stopPropagation();
                 setUseRag(!useRag);
                 if (!useRag) onOpenLibrary('all');
-              }} 
+              }}
               className={cn(
                 "p-2 rounded-xl transition-all flex items-center justify-center -mt-1 relative group/btn-rag",
                 useRag ? "text-gold-primary bg-gold-primary/5 border border-gold-primary/10 shadow-lg" : "text-white/15 hover:bg-white/5"
               )}
             >
-               <Database size={18} className={cn("transition-transform group-hover/btn-rag:scale-110", useRag ? "animate-pulse" : "")} />
+               <Database size={18} className={cn("transition-transform group-hover/btn-rag:scale-110 text-black group-hover/btn-rag:text-gold-primary", useRag ? "text-gold-primary animate-pulse" : "")} style={{ filter: useRag ? "drop-shadow(0 0 8px rgba(212, 175, 55, 0.8))" : "none" }} />
                <div className={cn("absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20", useRag ? "bg-gold-primary" : "bg-white/10")} />
             </button>
 
-            <button 
-              title="Dyktuj" 
+            <button
+              title="Dyktuj"
               onClick={toggleListen}
               className={cn(
-                "p-2 rounded-xl transition-all flex items-center justify-center relative shadow-xs -mt-1",
-                isListening ? "text-red-500 bg-red-500/10 border border-red-500/20" : "hover:bg-red-500/10 hover:text-red-500"
+                "p-2 rounded-xl transition-all flex items-center justify-center relative shadow-xs -mt-1 group/btn-mic",
+                isListening ? "text-red-500 bg-red-500/10 border border-red-500/20" : "hover:bg-red-500/10"
               )}
             >
                {isListening && (
-                 <motion.div 
+                 <motion.div
                    layoutId="mic-pulse"
                    initial={{ scale: 0.8, opacity: 0 }}
                    animate={{ scale: [1, 1.6, 1], opacity: [0, 0.4, 0] }}
@@ -361,7 +361,7 @@ export function ChatInput({
                    className="absolute inset-0 bg-red-500 rounded-xl"
                  />
                )}
-               <Mic size={18} className="relative z-10" />
+               <Mic size={18} className={cn("relative z-10 text-black group-hover/btn-mic:text-red-400", isListening && "text-red-400")} style={{ filter: isListening ? "drop-shadow(0 0 8px rgba(239, 68, 68, 0.8))" : "none" }} />
             </button>
          </div>
 
@@ -389,18 +389,19 @@ export function ChatInput({
                disabled={isLoading || (!value.trim() && attachments.length === 0)}
                onClick={isLoading ? stopGeneration : handleInternalSend}
                className={cn(
-                  "h-10 w-10 flex items-center justify-center rounded-2xl transition-all",
-                  isLoading 
-                    ? "bg-red-500/10 text-red-500 border border-red-500/20"
+                  "h-10 w-10 flex items-center justify-center rounded-2xl transition-all group/btn-send",
+                  isLoading
+                    ? "bg-gold-primary/10 text-gold-primary border border-gold-primary/20"
                     : (!value.trim() && attachments.length === 0)
-                      ? "bg-white/10 text-white/30 cursor-not-allowed"
-                       : "glass-prestige-button-gold"
+                      ? "bg-black/10 text-black/30 cursor-not-allowed"
+                      : "bg-black text-black hover:bg-gold-primary hover:text-white border border-black/20 hover:border-gold-primary/30"
                )}
+               style={{ filter: isLoading ? "drop-shadow(0 0 8px rgba(212, 175, 55, 0.6))" : "none" }}
             >
                {isLoading ? (
                   <Square size={16} fill="currentColor" />
                ) : (
-                  <Send size={16} fill="currentColor" className="-mt-1 mr-0.5" />
+                  <Send size={16} fill="currentColor" className="-mt-1 mr-0.5 group-hover/btn-send:text-white" />
                )}
             </motion.button>
          </div>

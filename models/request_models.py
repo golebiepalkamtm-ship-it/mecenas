@@ -1,7 +1,7 @@
 from typing import Any, List, Optional, Dict, Union
 from pydantic import BaseModel, Field, ConfigDict, validator
 
-MAX_MESSAGE_LENGTH = 4000
+MAX_MESSAGE_LENGTH = 10000
 MAX_HISTORY_ITEMS = 15
 
 class Attachment(BaseModel):

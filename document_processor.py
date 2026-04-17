@@ -12,7 +12,8 @@ Ekstrakcja tekstu z różnych formatów dokumentów:
 import os
 import io
 import tempfile
-from typing import Optional, Tuple
+import asyncio
+from typing import Optional, Tuple, List
 import base64
 import threading
 import hashlib
@@ -22,9 +23,9 @@ from PIL import Image
 # from PyPDF2 import PdfReader (Moved to function)
 # from docx import Document (Moved to function)
 
-# Optymalizacja Surya dla CPU (zgodnie z dokumentacją)
-os.environ["DETECTOR_BATCH_SIZE"] = "6"      # Optymalne dla CPU
-os.environ["RECOGNITION_BATCH_SIZE"] = "32"   # Optymalne dla CPU
+# Optymalizacja Surya dla CPU (tryb maksymalnej stabilności)
+os.environ["DETECTOR_BATCH_SIZE"] = "1"      # Zminimalizowano błędy indeksowania na CPU
+os.environ["RECOGNITION_BATCH_SIZE"] = "1"    # Zminimalizowano błędy indeksowania na CPU
 os.environ["OMP_NUM_THREADS"] = "4"          # Zapobiega przeciążeniu wątków na Windows
 os.environ["MKL_NUM_THREADS"] = "4"
 
@@ -126,7 +127,7 @@ def get_easyocr_reader():
         return None
 
 
-def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
+async def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
     """Wykorzystuje Vision LLM (Gemini 2.0 Flash) do precyzyjnego OCR."""
     from moa.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL
     import httpx
@@ -173,8 +174,8 @@ def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
         }
 
         print(f"[AI OCR] Wysyłanie strony do {model}...")
-        with httpx.Client(timeout=45.0) as client:
-            response = client.post(
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
                 f"{OPENROUTER_BASE_URL}/chat/completions",
                 headers=headers,
                 json=payload
@@ -188,12 +189,74 @@ def extract_text_via_ai(image_bytes: bytes) -> Tuple[str, Optional[str]]:
                 return text.strip(), None
             return "", "AI OCR zwróciło pustą odpowiedź"
 
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 403:
+            msg = "Przekroczono limit klucza OpenRouter (monthly limit) lub brak uprawnień!"
+            print(f"[ERR] [AI OCR] {msg}")
+            return "", msg
+        elif e.response.status_code == 401:
+            msg = "Nieprawidłowy klucz API OpenRouter!"
+            print(f"[ERR] [AI OCR] {msg}")
+            return "", msg
+        elif e.response.status_code == 402:
+            msg = "Brak środków na koncie OpenRouter (Insufficient Balance)!"
+            print(f"[ERR] [AI OCR] {msg}")
+            return "", msg
+        print(f"[ERR] [AI OCR] HTTP Error {e.response.status_code}")
+        return "", f"Błąd OpenRouter: Status {e.response.status_code}"
     except Exception as e:
         print(f"[ERR] [AI OCR] Błąd: {e}")
         return "", f"Błąd Vision OCR: {str(e)}"
 
 
-def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
+async def extract_text_via_ocr_space(image_bytes: bytes) -> Tuple[str, Optional[str]]:
+    """Wykorzystuje darmowe/tanie API OCR.space jako szybki fallback cloud."""
+    from moa.config import OCR_SPACE_API_KEY
+    import httpx
+    import base64
+
+    if not OCR_SPACE_API_KEY:
+        return "", "Brak klucza OCR.space"
+
+    try:
+        base64_image = base64.b64encode(image_bytes).decode('utf-8')
+        
+        payload = {
+            "apikey": OCR_SPACE_API_KEY,
+            "base64Image": f"data:image/jpeg;base64,{base64_image}",
+            "language": "pol",
+            "isOverlayRequired": False,
+            "OCREngine": 2 # Engine 2 jest lepszy dla złożonych układów i tabel
+        }
+
+        print("[CLOUD] [OCR.space] Wysyłanie obrazu do OCR.space...")
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.ocr.space/parse/image",
+                data=payload
+            )
+            response.raise_for_status()
+            result_json = response.json()
+            
+            if result_json.get("IsErroredOnProcessing"):
+                err = result_json.get("ErrorMessage", ["Nieznany błąd OCR.space"])[0]
+                return "", f"OCR.space Error: {err}"
+            
+            # Pobierz tekst ze wszystkich stron (zazwyczaj jedna dla obrazu)
+            parsed_results = result_json.get("ParsedResults", [])
+            text = "\n".join([r.get("ParsedText", "") for r in parsed_results])
+            
+            if text.strip():
+                print(f"[OK] [OCR.space] Sukces ({len(text)} znaków)")
+                return text.strip(), None
+            return "", "OCR.space nie znalazł tekstu"
+
+    except Exception as e:
+        print(f"[ERR] [OCR.space] Błąd: {e}")
+        return "", f"Błąd OCR.space: {str(e)}"
+
+
+async def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z PDF (z auto-detekcją skanów i OCR)."""
     try:
         import fitz  # PyMuPDF
@@ -222,17 +285,28 @@ def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]:
 
                 doc = fitz.open(stream=pdf_content, filetype="pdf")
                 ocr_text = ""
-                for page in doc:
+                page_count = len(doc)
+                print(f"[PDF OCR] Przetwarzanie równoległe {page_count} stron...")
+                
+                async def process_page(page_num):
+                    page = doc[page_num]
                     # Renderuj stronę do obrazu (2.0x zoom = 144 DPI - optymalny balans)
                     pix = page.get_pixmap(matrix=fitz.Matrix(2.0, 2.0))
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                    
-                    # Opcjonalne dodatkowe skalowanie jeśli strona jest gigantyczna
                     img = resize_image_for_ocr(img)
+                    
+                    page_text, _ = await extract_text_from_pil_image(img)
+                    return page_text or ""
 
-                    page_text, err = extract_text_from_pil_image(img)
-                    if page_text:
-                        ocr_text += page_text + "\n"
+                # Przetwarzaj strony równolegle (max 5 na raz, żeby nie zabić CPU/limitów)
+                semaphore = asyncio.Semaphore(5)
+                async def sem_process_page(i):
+                    async with semaphore:
+                        return await process_page(i)
+
+                page_tasks = [sem_process_page(i) for i in range(page_count)]
+                page_results = await asyncio.gather(*page_tasks)
+                ocr_text = "\n\n".join(page_results)
 
                 ocr_result = (ocr_text.strip(), None) if ocr_text.strip() else ("", "OCR nie znalazł tekstu")
                 
@@ -299,7 +373,7 @@ def resize_image_for_ocr(image: Image.Image, max_dimension: int = 2000) -> Image
     return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
 
-def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]:
+async def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu bezpośrednio z obiektu PIL Image."""
     if not any([SURYA_AVAILABLE, EASY_OCR_AVAILABLE, AI_VISION_OCR_AVAILABLE]):
         return "", "Brak silnika OCR"
@@ -307,9 +381,9 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
     # Optymalizacja rozdzielczości przed przetwarzaniem
     image = resize_image_for_ocr(image)
 
-    # Konwersja do bytes dla silników które tego wymagają
+    # Konwersja do bytes dla silników które tego wymagają (JPEG dla oszczędności pasma w AI OCR)
     img_byte_arr = io.BytesIO()
-    image.save(img_byte_arr, format="PNG")
+    image.convert("RGB").save(img_byte_arr, format="JPEG", quality=90)
     img_bytes = img_byte_arr.getvalue()
 
     # Sprawdź cache
@@ -325,7 +399,7 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
     if AI_VISION_OCR_AVAILABLE and OPENROUTER_API_KEY:
         try:
             print("[CLOUD] [AI OCR] Przesyłanie do chmury (Gemini Vision)...")
-            text, err = extract_text_via_ai(img_bytes)
+            text, err = await extract_text_via_ai(img_bytes)
             if text and not err:
                 result = text, None
                 with _ocr_cache_lock:
@@ -334,16 +408,34 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
         except Exception as ai_err:
             print(f"⚠️ AI OCR error: {ai_err}")
 
-    # 2. Próba użycia Surya (LOKALNY FALLBACK - DARMOWY)
+    # 2. Próba użycia OCR.space (CHMURA - SZYBKI FALLBACK)
+    from moa.config import OCR_SPACE_API_KEY
+    if OCR_SPACE_API_KEY:
+        try:
+            print("[CLOUD] [OCR.space] Próba fallbacku do OCR.space...")
+            text, err = await extract_text_via_ocr_space(img_bytes)
+            if text and not err:
+                result = text, None
+                with _ocr_cache_lock:
+                    _ocr_cache[cache_key] = result
+                return result
+        except Exception as ocr_space_err:
+            print(f"⚠️ OCR.space error: {ocr_space_err}")
+
+    # 3. Próba użycia Surya (LOKALNY FALLBACK - DARMOWY)
     if SURYA_AVAILABLE:
         try:
             det_predictor, rec_predictor, _ = get_surya_models()
             if det_predictor and rec_predictor:
                 # Upewniamy się, że obraz jest w formacie RGB
+                # Skalujemy nieco bardziej dla lokalnego OCR (optymalizacja prędkości i stabilności)
                 rgb_image = image.convert("RGB")
+                if max(rgb_image.size) > 1600:
+                    rgb_image = resize_image_for_ocr(rgb_image, max_dimension=1600)
 
-                print("[LOCAL] [LOKALNY FALLBACK] Surya...")
-                ocr_results = rec_predictor([rgb_image], det_predictor=det_predictor)
+                print(f"[LOCAL] [LOKALNY FALLBACK] Surya (res: {rgb_image.size})...")
+                # Surya jest CPU-intensive, odpalamy w osobnym wątku
+                ocr_results = await asyncio.to_thread(rec_predictor, [rgb_image], det_predictor=det_predictor)
 
                 full_text = ""
                 for page_result in ocr_results:
@@ -370,7 +462,7 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
             reader = get_easyocr_reader()
             if reader is not None:
                 image_array = np.array(image.convert("RGB"))
-                results = reader.readtext(image_array)
+                results = await asyncio.to_thread(reader.readtext, image_array)
                 text = "\n".join([result[1] for result in results if result[2] > 0.5])
                 result = text.strip(), None
                 with _ocr_cache_lock:
@@ -381,13 +473,16 @@ def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional[str]]
         except Exception as easy_err:
             print(f"⚠️ EasyOCR PIL error: {easy_err}")
 
-    result = "", "Nie udało się uzyskać tekstu z obrazu"
+    # 4. Finalna informacja o błędzie (jeśli wszystkie zawiodły)
+    last_error = "Wszystkie systemy OCR (AI, Surya, EasyOCR) zawiodły lub są przekroczone limity."
+    print(f"[ERR] {last_error}")
+    result = "", last_error
     with _ocr_cache_lock:
         _ocr_cache[cache_key] = result
     return result
 
 
-def extract_text_from_image(image_content: bytes) -> Tuple[str, Optional[str]]:
+async def extract_text_from_image(image_content: bytes) -> Tuple[str, Optional[str]]:
     """Ekstrakcja tekstu z obrazu (bytes) przez Surya lub EasyOCR."""
     # Sprawdź cache
     content_hash = hashlib.md5(image_content).hexdigest()
@@ -400,7 +495,7 @@ def extract_text_from_image(image_content: bytes) -> Tuple[str, Optional[str]]:
     try:
         from PIL import Image
         image = Image.open(io.BytesIO(image_content))
-        result = extract_text_from_pil_image(image)
+        result = await extract_text_from_pil_image(image)
         
         # Zapisz w cache
         with _ocr_cache_lock:
@@ -411,7 +506,7 @@ def extract_text_from_image(image_content: bytes) -> Tuple[str, Optional[str]]:
         return "", f"Błąd otwierania obrazu: {str(e)}"
 
 
-def process_document(
+async def process_document(
     file_content: bytes, filename: str, content_type: str
 ) -> Tuple[str, Optional[str]]:
     """
@@ -430,7 +525,7 @@ def process_document(
 
     # PDF
     if filename_lower.endswith(".pdf") or "application/pdf" in content_type_lower:
-        return extract_text_from_pdf(file_content)
+        return await extract_text_from_pdf(file_content)
 
     # DOCX
     elif (
@@ -446,19 +541,20 @@ def process_document(
 
     # TXT
     elif filename_lower.endswith(".txt") or "text/plain" in content_type_lower:
+        # Dekodowanie tekstu jest szybkie, nie wymaga async, ale używamy await dla spójności i przyszłej rozbudowy
         return extract_text_from_txt(file_content)
 
     # Obrazy
     elif filename_lower.endswith(
         (".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tiff")
     ) or content_type_lower.startswith("image/"):
-        return extract_text_from_image(file_content)
+        return await extract_text_from_image(file_content)
 
     else:
         return "", f"Nieobsługiwany format: {filename} (type: {content_type})"
 
 
-def process_base64_document(
+async def process_base64_document(
     base64_content: str, filename: str, content_type: str
 ) -> Tuple[str, Optional[str]]:
     """
@@ -474,7 +570,7 @@ def process_base64_document(
     """
     try:
         file_content = base64.b64decode(base64_content)
-        return process_document(file_content, filename, content_type)
+        return await process_document(file_content, filename, content_type)
     except Exception as e:
         return "", f"Błąd dekodowania base64: {str(e)}"
 

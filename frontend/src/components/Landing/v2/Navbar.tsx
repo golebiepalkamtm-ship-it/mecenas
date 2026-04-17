@@ -12,35 +12,41 @@ export const Navbar = ({ onLoginOpen, onPortalClick }: { onLoginOpen: () => void
     const nav = navRef.current;
     if (!nav) return;
 
-    ScrollTrigger.create({
-      start: "top -50", // Start slightly after top
-      onUpdate: (self) => {
-        // ALWAYS show if we are near the top
-        if (self.scroll() < 100) {
-          gsap.to(nav, { yPercent: 0, duration: 0.4, ease: "power3.out", overwrite: true });
-          nav.classList.remove('navbar-scrolled');
-        } 
-        // Show if scrolling up
-        else if (self.direction === -1) {
-          gsap.to(nav, { yPercent: 0, duration: 0.4, ease: "power3.out", overwrite: true });
-          nav.classList.add('navbar-scrolled');
-        } 
-        // Hide if scrolling down
-        else if (self.direction === 1) {
-          gsap.to(nav, { yPercent: -100, duration: 0.4, ease: "power3.out", overwrite: true });
-          nav.classList.add('navbar-scrolled');
+    // Defer ScrollTrigger initialization with setTimeout to prevent blocking
+    const initScrollTrigger = () => {
+      ScrollTrigger.create({
+        start: "top -50", // Start slightly after top
+        onUpdate: (self) => {
+          // ALWAYS show if we are near the top
+          if (self.scroll() < 100) {
+            gsap.to(nav, { yPercent: 0, duration: 0.4, ease: "power3.out", overwrite: true });
+            nav.classList.remove('navbar-scrolled');
+          }
+          // Show if scrolling up
+          else if (self.direction === -1) {
+            gsap.to(nav, { yPercent: 0, duration: 0.4, ease: "power3.out", overwrite: true });
+            nav.classList.add('navbar-scrolled');
+          }
+          // Hide if scrolling down
+          else if (self.direction === 1) {
+            gsap.to(nav, { yPercent: -100, duration: 0.4, ease: "power3.out", overwrite: true });
+            nav.classList.add('navbar-scrolled');
+          }
         }
-      }
-    });
+      });
+    };
+
+    const timeoutId = setTimeout(initScrollTrigger, 50);
 
     return () => {
+      clearTimeout(timeoutId);
       ScrollTrigger.getAll().forEach(t => t.kill());
     };
   }, []);
 
   return (
     <nav
-      ref={navRef as any}
+      ref={navRef}
       className="fixed top-0 left-0 right-0 z-200 h-24 flex items-center justify-between px-12 bg-transparent pointer-events-none"
     >
       <div className="flex items-center gap-4">

@@ -29,6 +29,10 @@ import { cn } from "../../utils/cn";
 
 import React from "react";
 
+interface ChatViewProps {
+  onNavigate?: (tab: Tab) => void;
+}
+
 export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewProps = {}) {
   // Navigation helper
   const goToTab = useCallback((tab: Tab) => {
@@ -83,26 +87,54 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
   
   // Cleanup OCR controllers on unmount
   useEffect(() => {
+    const controllers = ocrAbortControllers.current;
     return () => {
-      ocrAbortControllers.current.forEach(controller => controller.abort());
-      ocrAbortControllers.current.clear();
+      controllers.forEach(controller => controller.abort());
+      controllers.clear();
     };
   }, []);
 
   useEffect(() => {
-    if (!messagesLoaded) return;
-    
-    // Use 'auto' (instant) for the first scroll after loading a new session 
-    // to prevent janky 'smooth' transitions over hundreds of messages
-    const behavior = isFirstLoadAfterSwitch.current ? 'auto' : 'smooth';
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
-    
-    if (isFirstLoadAfterSwitch.current) {
-      isFirstLoadAfterSwitch.current = false;
+    if (!messagesLoaded) {
+      console.log("[CHAT] Messages still loading...");
+      return;
     }
+
+    // Defer scroll to prevent blocking during initial render
+    const timeoutId = setTimeout(() => {
+      performance.mark("chat-messages-loaded");
+      console.log("[CHAT] Messages loaded at:", performance.now().toFixed(2));
+
+      // Use 'auto' (instant) for the first scroll after loading a new session
+      // to prevent janky 'smooth' transitions over hundreds of messages
+      const behavior = isFirstLoadAfterSwitch.current ? 'auto' : 'smooth';
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
+
+      if (isFirstLoadAfterSwitch.current) {
+        isFirstLoadAfterSwitch.current = false;
+      }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [messages, isLoading, messagesLoaded]);
+
+  // Detector for long frames or freezes during chat - DISABLED to reduce CPU load
+  // useEffect(() => {
+  //   let lastTime = performance.now();
+  //   const detect = () => {
+  //     const now = performance.now();
+  //     const delta = now - lastTime;
+  //     if (delta > 80) { // More sensitive in Chat (80ms vs 100ms)
+  //       console.warn(`[CHAT_FREEZE] Main thread blocked for ${delta.toFixed(2)}ms. Active session: ${sessionId}`);
+  //     }
+  //     lastTime = now;
+  //     requestAnimationFrame(detect);
+  //   };
+  //   const frameId = requestAnimationFrame(detect);
+  //   return () => cancelAnimationFrame(frameId);
+  // }, [sessionId]);
   
-  const startOCRProcessing = async (id: string, file: File) => {
+  const startOCRProcessing = useCallback(async (id: string, file: File) => {
     if (processingQueue.current.has(id)) return;
     processingQueue.current.add(id);
     
@@ -121,6 +153,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
       const response = await fetch(`${API_BASE}/documents/upload-document`, {
         method: 'POST',
         body: formData,
+        signal: signal // Use the signal to allow cancellation
       });
 
       if (!response.ok) {
@@ -147,6 +180,8 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
         throw new Error(data.error || 'Błąd przetwarzania dokumentu (pusty wynik)');
       }
     } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      
       const errorMessage = err instanceof Error ? err.message : 'Wystąpił nieznany błąd podczas dodawania pliku';
       console.error("Upload/OCR Error:", err);
       setAttachments(prev => prev.map(a => a.id === id ? { 
@@ -158,7 +193,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
     } finally {
       processingQueue.current.delete(id);
     }
-  };
+  }, [queryClient]);
 
   // Actions
   const handleSend = async (message?: string) => {
@@ -264,7 +299,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
     try {
       // Add timeout for OCR processing to prevent hanging
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('OCR Processing timed out after 60 seconds')), 60000);
+        setTimeout(() => reject(new Error('OCR Processing timed out after 300 seconds (Lokalny silnik OCR pracuje wolniej, spróbuj mniejszego pliku lub odczekaj)')), 300000);
       });
       
       await Promise.race([startOCRProcessing(next.id, next.file), timeoutPromise]);
@@ -279,7 +314,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
       // Schedule next with small delay to prevent stack overflow
       setTimeout(() => processNextInQueue(), 0);
     }
-  }, []);
+  }, [startOCRProcessing]);
 
   const addAttachment = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -405,7 +440,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
               {messages.map((m, i) => (
                 <motion.div
                   key={m.id}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i === messages.length - 1 ? 0 : 0.05 }}
                 >

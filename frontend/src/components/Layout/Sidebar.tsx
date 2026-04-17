@@ -1,4 +1,4 @@
-import { Scale, LogOut } from "lucide-react";
+import { Scale, LogOut, ShieldAlert } from "lucide-react";
 import { cn } from "../../utils/cn";
 import type { Tab } from "../../types/navigation";
 import React from "react";
@@ -18,6 +18,13 @@ interface SidebarProps {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
   onLogout: () => void;
+  userRole: string;
+}
+
+interface NavItemProps {
+  item: NavItem;
+  active: boolean;
+  onClick: () => void;
 }
 
 export function Sidebar({
@@ -25,12 +32,15 @@ export function Sidebar({
   activeTab,
   onTabChange,
   onLogout,
+  userRole,
 }: SidebarProps) {
+  console.log('[SIDEBAR] userRole in Sidebar:', userRole);
+  console.log('[SIDEBAR] Should render admin button:', userRole === "admin");
   return (
-    <nav className="hidden lg:flex flex-col w-[130px] h-full relative z-[500] pointer-events-auto overflow-hidden bg-transparent">
+    <nav className="hidden lg:flex flex-col mercury-sidebar-shimmer h-full relative z-500 pointer-events-auto overflow-hidden bg-gray-900/80">
       {/* Logo zone */}
-      <div className="h-32 flex flex-col items-center justify-center shrink-0 relative z-20">
-        <div className="mt-7 w-[4.25rem] h-[4.25rem] rounded-[1.5rem] glass-liquid-convex flex items-center justify-center cursor-pointer relative group/logo border border-gold-primary/30 shadow-[0_0_25px_rgba(212,175,55,0.25)] hover:shadow-[0_0_40px_rgba(212,175,55,0.4)] transition-all duration-700">
+      <div className="h-32 flex flex-col items-center justify-center shrink-0 relative z-20 bg-gray-800/80">
+        <div className="mt-7 w-17 h-17 rounded-3xl glass-liquid-convex flex items-center justify-center cursor-pointer relative group/logo border border-gold-primary/30 shadow-[0_0_25px_rgba(212,175,55,0.25)] hover:shadow-[0_0_40px_rgba(212,175,55,0.4)] transition-all duration-700">
           <div className="absolute inset-0 rounded-inherit bg-gold-primary/5 animate-pulse" />
           <Scale
             size={35}
@@ -57,18 +67,50 @@ export function Sidebar({
       </div>
 
       {/* User footer */}
-      <div className="p-4 pb-8 shrink-0 flex justify-center">
+      <div className="p-2 pb-4 shrink-0 flex justify-center mt-auto flex flex-col gap-1">
+        {/* Debug: Always show admin button for testing */}
         <button
-          onClick={onLogout}
-          className="w-28 h-[72px] flex flex-col items-center justify-center gap-0.5 rounded-[1.25rem] transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 group"
-          title="Wyloguj się"
+          onClick={() => onTabChange("admin")}
+          className="w-20 h-12 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 group"
+          title="Admin"
         >
-          <LogOut
-            size={28}
+          <ShieldAlert
+            size={18}
             strokeWidth={1.5}
             className="relative z-10 text-black/60 group-hover:text-red-600 transition-colors duration-500"
           />
-          <span className="text-[9px] font-black uppercase tracking-[0.2em] font-outfit relative z-10 text-black/40 group-hover:text-black transition-all duration-500 whitespace-nowrap">
+          <span className="text-[8px] font-black uppercase tracking-[0.15em] font-outfit relative z-10 text-black/40 group-hover:text-black transition-all duration-500 whitespace-nowrap">
+            Admin
+          </span>
+        </button>
+        {/* Original conditional button - commented out */}
+        {/* {userRole === "admin" && (
+          <button
+            onClick={() => onTabChange("admin")}
+            className="w-20 h-12 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 group"
+            title="Admin"
+          >
+            <ShieldAlert
+              size={18}
+              strokeWidth={1.5}
+              className="relative z-10 text-black/60 group-hover:text-red-600 transition-colors duration-500"
+            />
+            <span className="text-[8px] font-black uppercase tracking-[0.15em] font-outfit relative z-10 text-black/40 group-hover:text-black transition-all duration-500 whitespace-nowrap">
+              Admin
+            </span>
+          </button>
+        )} */}
+        <button
+          onClick={onLogout}
+          className="w-20 h-12 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 group"
+          title="Wyloguj się"
+        >
+          <LogOut
+            size={18}
+            strokeWidth={1.5}
+            className="relative z-10 text-black/60 group-hover:text-red-600 transition-colors duration-500"
+          />
+          <span className="text-[8px] font-black uppercase tracking-[0.15em] font-outfit relative z-10 text-black/40 group-hover:text-black transition-all duration-500 whitespace-nowrap">
             Wyloguj
           </span>
         </button>

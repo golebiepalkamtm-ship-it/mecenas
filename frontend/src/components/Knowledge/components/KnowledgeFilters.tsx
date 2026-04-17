@@ -1,5 +1,4 @@
 import { Search, Layers, BookOpen, Gavel, Archive, Plus, Loader2 } from "lucide-react";
-import { NeonButton } from "../../UI";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
@@ -65,7 +64,7 @@ export function KnowledgeFilters({
             placeholder="Szukaj w bazie wiedzy..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full glass-prestige-input focus:border-gold-primary/40 focus:bg-white/4 rounded-3xl py-4 pl-12 pr-6 text-[11px] text-white font-medium tracking-tight placeholder:text-slate-600 focus:outline-hidden transition-all shadow-2xl font-outfit"
+            className="w-full glass-prestige-input focus:border-gold-primary/40 focus:bg-white/4 rounded-3xl py-4 pl-12 pr-6 text-[11px] text-black font-medium tracking-tight placeholder:text-slate-600 focus:outline-hidden transition-all shadow-2xl font-outfit"
           />
           
           {/* Animated focus indicator */}
@@ -85,7 +84,7 @@ export function KnowledgeFilters({
               "flex items-center gap-3 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 relative overflow-hidden group/tab font-outfit",
               activeCategory === cat.id
                 ? "glass-liquid-convex text-black shadow-xl scale-105 z-10"
-                : "text-black/30 hover:text-black/60 hover:bg-black/5",
+                : "text-black/60 hover:text-black/80 hover:bg-black/5",
             )}
           >
             <span className={cn(

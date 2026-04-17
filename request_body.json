@@ -1,4 +1,0 @@
-{
-  "model": "gemini-3-pro-high",
-  "messages": [{"role": "user", "content": "Hello"}]
-}

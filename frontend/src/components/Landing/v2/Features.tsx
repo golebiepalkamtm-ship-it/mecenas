@@ -33,7 +33,7 @@ export const Features = () => {
   return (
     <section className="py-24 px-6 bg-[#121212] relative overflow-hidden">
       {/* Intense gold background wash */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_60%,rgba(212,175,55,0.12)_0%,transparent_60%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(212,175,55,0.06)_0%,transparent_80%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(212,175,55,0.05)_0%,transparent_40%)] pointer-events-none" />
       <div className="max-w-6xl mx-auto">
         <motion.div
@@ -44,7 +44,7 @@ export const Features = () => {
            className="text-center mb-24"
         >
           <span className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#6b7280] mb-6 block">Technologia</span>
-          <h2 className="text-3xl md:text-5xl font-inter font-semibold tracking-tight text-chameleon drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] mb-6">
+          <h2 className="animate-text text-3xl md:text-5xl font-inter font-semibold tracking-tight text-chameleon drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)] mb-6">
             Narzędzia legal-tech nowej generacji
           </h2>
           <div className="w-12 h-px bg-white/20 mx-auto" />

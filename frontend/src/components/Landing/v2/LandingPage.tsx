@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Navbar } from "./Navbar";
 import { Hero } from "./Hero";
 import { AnimatedSection } from "./AnimatedSection";
@@ -26,69 +26,66 @@ const LandingPage = ({ onGoToPortal, onStartTrial }: { onGoToPortal?: () => void
     document.documentElement.style.overflow = "auto";
     document.body.style.overflow = "auto";
 
-    // LENIS SMOOTH SCROLL (Awwwards Standard)
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: 'vertical',
-      gestureOrientation: 'vertical',
-      smoothWheel: true,
-      wheelMultiplier: 1.1,
-      touchMultiplier: 2,
-    });
-
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-    
-    gsap.ticker.add((time) => {
-      lenis.raf(time * 1000);
-    });
-    
-    gsap.ticker.lagSmoothing(0);
-    requestAnimationFrame(raf);
-
-    // Grouped initialization to prevent layout thrashing
+    // Defer heavy operations with setTimeout to allow browser paint first
     const initAnimations = () => {
-      // 1. Single read phase: SplitType
-      const splitHeaders = new SplitType('.hero-title, h2', { types: 'chars' });
-      
-      // 2. Write phase: GSAP Entrance
-      gsap.utils.toArray('.hero-title, h2').forEach((title: any) => {
-        const chars = title.querySelectorAll('.char');
-        if (chars.length > 0) {
-          gsap.from(chars, {
-            y: 40,
-            opacity: 0,
-            stagger: 0.02,
-            duration: 1,
-            ease: "expo.out",
-            scrollTrigger: {
-              trigger: title,
-              start: "top 85%",
-            }
-          });
-        }
+      // LENIS SMOOTH SCROLL (Awwwards Standard)
+      const lenis = new Lenis({
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        orientation: "vertical",
+        gestureOrientation: "vertical",
+        smoothWheel: true,
+        wheelMultiplier: 1.1,
+        touchMultiplier: 2,
       });
-      
-      return splitHeaders;
+
+      const tickerHandler = (time: number) => {
+        lenis.raf(time * 1000);
+      };
+
+      gsap.ticker.add(tickerHandler);
+      gsap.ticker.lagSmoothing(0);
+
+      const ctx = gsap.context(() => {
+        // 1. Single read phase: SplitType
+        // Optimized: Only split the main hero title and specific h2s to avoid DOM bloating
+        const splitElements = document.querySelectorAll(".hero-title, h2.animate-text");
+        Array.from(splitElements).forEach(el => new SplitType(el as HTMLElement, { types: "chars" }));
+
+        splitElements.forEach((title) => {
+          const chars = title.querySelectorAll(".char");
+          if (chars.length > 0) {
+            gsap.from(chars, {
+              y: 40,
+              opacity: 0,
+              stagger: 0.02,
+              duration: 1,
+              ease: "expo.out",
+              scrollTrigger: {
+                trigger: title,
+                start: "top 85%",
+              }
+            });
+          }
+        });
+      });
+
+      return { ctx, tickerHandler, lenis };
     };
 
-    let splitHeadersInstance: SplitType | null = null;
-
-    // Use a small delay or font detection to avoid geometry recalculation on font load
-    const timer = setTimeout(() => {
-      requestAnimationFrame(() => {
-        splitHeadersInstance = initAnimations();
-      });
+    // Use setTimeout with delay to allow browser to complete paint before heavy operations
+    let animationState: ReturnType<typeof initAnimations> | null = null;
+    const timeoutId = setTimeout(() => {
+      animationState = initAnimations();
     }, 100);
 
     return () => {
-      clearTimeout(timer);
-      lenis.destroy();
-      if (splitHeadersInstance) splitHeadersInstance.revert();
-      ScrollTrigger.getAll().forEach(st => st.kill());
+      clearTimeout(timeoutId);
+      if (animationState) {
+        animationState.ctx.revert();
+        gsap.ticker.remove(animationState.tickerHandler);
+        animationState.lenis.destroy();
+      }
       document.documentElement.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
     };
@@ -97,8 +94,8 @@ const LandingPage = ({ onGoToPortal, onStartTrial }: { onGoToPortal?: () => void
   return (
     <div className="relative bg-[#121212] text-[#9ca3af] selection:bg-white selection:text-[#9ca3af] min-h-screen">
       <Navbar 
-        onLoginOpen={onGoToPortal} 
-        onPortalClick={onGoToPortal}
+        onLoginOpen={onGoToPortal || (() => {})} 
+        onPortalClick={onGoToPortal || (() => {})}
       />
       
       <main>

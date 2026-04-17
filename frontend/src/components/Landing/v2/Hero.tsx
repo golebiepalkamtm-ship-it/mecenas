@@ -8,7 +8,7 @@ export const Hero = ({ onStartTrial }: { onStartTrial: () => void }) => {
         <img 
           src="/hero-legal.png" 
           alt="The Future of Legal Intelligence" 
-          className="w-full h-full object-cover object-top opacity-100 contrast-110 saturate-[1.15]"
+          className="w-full h-full object-cover object-top opacity-100"
           fetchPriority="high"
           loading="eager"
         />

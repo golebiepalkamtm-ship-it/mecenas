@@ -30,6 +30,7 @@ from moa.prompt_builder import (
 )
 from moa.gemini_client import call_gemini_direct
 from moa.config import GOOGLE_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY
+from utils.token_counter import count_tokens, truncate_to_tokens
 
 ANALYST_SYSTEM_PROMPT = """[ROLE: LEGAL_EXPERT_ANALYST]
 Jesteś najwyższej klasy analitykiem prawnym. Twoim zadaniem jest rygorystyczne oddzielenie stanu faktycznego od podstawy prawnej.
@@ -40,6 +41,7 @@ ZASADY ANALIZY (KRYTYCZNE):
 3. LOGIKA: Nałóż prawo z <legal_context> na fakty z <user_document>.
 4. DOKŁADNOŚĆ: Zawsze podawaj nazwę aktu prawnego i numer artykułu, na który się powołujesz, ale TYLKO jeśli znajduje się on w <legal_context>.
 5. ADVERSARIAL THINKING: Szukaj słabych punktów w oskarżeniu/decyzji na podstawie faktów klienta, stosując twarde prawo z bazy wiedzy.
+6. JĘZYK: ZAWSZE odpowiadaj w języku polskim, gdy użytkownik pisze po polsku. Nigdy nie zmieniaj języka na chiński, angielski ani inny bez wyraźnego żądania użytkownika.
 """
 
 def _build_analyst_user_prompt(
@@ -59,10 +61,8 @@ def _build_analyst_user_prompt(
 
     doc_section = ""
     if document_text and document_text.strip():
-        # Truncate if too long to save tokens (40k chars is ~10k tokens)
-        display_text = document_text
-        if len(display_text) > 40_000:
-            display_text = display_text[:40_000] + "\n... [TREŚĆ OBCIĘTA ZE WZGLĘDU NA LIMIT KONTEKSTU] ..."
+        # Profesjonalne ucinanie na poziomie tokenów
+        display_text = truncate_to_tokens(document_text, 15000) 
         doc_section = f"<user_document>\n{display_text}\n</user_document>\n\n"
 
     history_section = ""
@@ -154,6 +154,25 @@ async def _call_with_retry(
             return content, attempt
 
         except Exception as e:
+            # SZYBKA ŁATA DLA BŁĘDU 402 (BRAK ŚRODKÓW / ZA DUŻO TOKENÓW NA RAZ)
+            if hasattr(e, 'status_code') and e.status_code == 402:
+                print(f"   [!] OpenRouter Error 402: Próba profesjonalnej redukcji kosztów...")
+                try:
+                    # Zmniejszamy tylko max_tokens, zachowujemy jakość jeśli to możliwe
+                    if provider == "google" and effective_api_key:
+                         content = await call_gemini_direct(
+                            model_id=model, system_prompt=system_prompt, user_prompt=user_prompt,
+                            history=history, temperature=LLM_TEMPERATURE, max_tokens=1000
+                        )
+                    else:
+                        response = await client.chat.completions.create(
+                            model=model, messages=messages, temperature=LLM_TEMPERATURE, max_tokens=1000,
+                        )
+                        content = response.choices[0].message.content or ""
+                    return content, attempt
+                except Exception as inner_e:
+                    print(f"   [!] Retry 402 failed: {inner_e}")
+            
             if attempt < MAX_RETRIES:
                 wait = RETRY_BASE_DELAY * (2**attempt)
                 print(f"   [!] Błąd {model}: {str(e)[:100]}... Ponawiam za {wait}s")

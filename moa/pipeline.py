@@ -51,19 +51,26 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
 
     try:
         # 1. RETRIEVAL
-        print(f"\n[WAIT] KROK 1: Przeszukiwanie bazy wiedzy (RAG)...")
-        rag_query = request.query
-        try:
-            chunks, context_text = await retrieve_legal_context(
-                query=rag_query, 
-                category=request.category,
-                document_text=request.document_text
-            )
-            has_legal_context = bool(context_text.strip())
-            print(f"[OK] RAG zakonczony. Znaleziono {len(chunks)} fragmentow.")
-        except Exception as rag_err:
-            print(f"[ERR] RAG nie zadzialal: {str(rag_err)}")
-            chunks, context_text, has_legal_context = [], "", False
+        if request.context_text:
+            print(f"[OK] Pominięto retrieval (kontekst przekazany bezpośrednio, {len(request.context_text)} znaków).")
+            context_text = request.context_text
+            chunks = [] # W tym przypadku nie mamy segmentów, ale MOA ich nie potrzebuje bezpośrednio (tylko do ELI)
+            has_legal_context = True
+        else:
+            print(f"\n[WAIT] KROK 1: Przeszukiwanie bazy wiedzy (RAG)...")
+            rag_query = request.query
+            try:
+                chunks, context_text = await retrieve_legal_context(
+                    query=rag_query, 
+                    category=request.category,
+                    document_text=request.document_text,
+                    include_user_db=request.include_user_db
+                )
+                has_legal_context = bool(context_text.strip())
+                print(f"[OK] RAG zakonczony. Znaleziono {len(chunks)} fragmentow.")
+            except Exception as rag_err:
+                print(f"[ERR] RAG nie zadzialal: {str(rag_err)}")
+                chunks, context_text, has_legal_context = [], "", False
 
         # 2. ANALYSIS
         async with AsyncOpenAI(
@@ -99,7 +106,7 @@ async def run_moa_pipeline(request: MOARequest) -> MOAResult:
 
             for res in analyst_results:
                 if not res.success:
-                    print(f"      [ERR] Model {res.model} zawiodl: {res.response[:100]}...")
+                    print(f"      [ERR] Model {res.model_id} zawiodl: {res.response[:100]}...")
 
             if success_count == 0:
                 print("[CRITICAL] Zaden ekspert nie odpowiedzial poprawnie!")

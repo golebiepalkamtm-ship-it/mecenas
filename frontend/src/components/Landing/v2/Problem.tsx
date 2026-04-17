@@ -23,8 +23,8 @@ export const Problem = () => {
   return (
     <section className="py-24 px-6 relative bg-[#0f0f0f] border-y border-white/5 overflow-hidden">
       {/* Intense gold background wash */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(212,175,55,0.15)_0%,transparent_70%)] pointer-events-none" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(212,175,55,0.08)_0%,transparent_50%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(212,175,55,0.06)_0%,transparent_70%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(212,175,55,0.03)_0%,transparent_50%)] pointer-events-none" />
       <div className="max-w-6xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -33,7 +33,7 @@ export const Problem = () => {
           className="text-center mb-20"
         >
           <span className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#6b7280] mb-6 block">Problem</span>
-          <h2 className="text-3xl md:text-5xl font-inter font-semibold tracking-tight text-chameleon  mb-6">
+          <h2 className="animate-text text-3xl md:text-5xl font-inter font-semibold tracking-tight text-chameleon  mb-6">
             Masz pytanie prawne i...
           </h2>
           <div className="w-12 h-px bg-white/20 mx-auto" />

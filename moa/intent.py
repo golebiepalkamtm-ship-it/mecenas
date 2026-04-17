@@ -150,24 +150,44 @@ async def classify_intent(
     message: str, 
     model_override: str | None = None,
     has_docs: bool = False
-) -> Intent:
+) -> tuple[Intent, bool]:
     """
     Główna funkcja klasyfikacji.
-    1. Jeśli has_docs=True -> zawsze LEGAL_QUERY
+    Zwraca krotkę: (Intent, include_user_db)
+    
+    1. Jeśli has_docs=True -> zawsze LEGAL_QUERY, include_user_db=False (domyślnie, ale sprawdzamy słowa kluczowe)
     2. Najpierw sprawdza reguły (zero koszt)
     3. Jeśli niejednoznaczne — pyta tani model LLM
+    4. Wykrywa słowa kluczowe dla dostępu do bazy user
     """
+    # Wykrywanie słów kluczowych dla bazy user - robimy to najpierw
+    user_db_keywords = [
+        r"przeszukaj\s+moje\s+(notatki|dokumenty|pliki)",
+        r"szukaj\s+w\s+moich\s+(notatkach|dokumentach|plikach)",
+        r"znajd[zź]\s+w\s+moich\s+(notatkach|dokumentach|plikach)",
+        r"w\s+mojej\s+bazie",
+    ]
+    
+    message_lower = message.lower()
+    include_user_db = False
+    for pattern in user_db_keywords:
+        if re.search(pattern, message_lower, re.IGNORECASE):
+            include_user_db = True
+            print(f"   [INTENT] Wykryto słowa kluczowe dla bazy user: '{message[:50]}...'")
+            break
+            
     if has_docs:
-        print(f"   [INTENT] Force LEGAL (wykryto załączniki)")
-        return Intent.LEGAL_QUERY
+        print(f"   [INTENT] Force LEGAL (wykryto załączniki), include_user_db={include_user_db}")
+        return Intent.LEGAL_QUERY, include_user_db
+    
     # Krok 1: Reguły
     rule_result = classify_by_rules(message)
     if rule_result is not None:
         print(f"   [INTENT] Reguły: {rule_result.value} dla: '{message[:50]}...'")
-        return rule_result
+        return rule_result, include_user_db
 
     # Krok 2: LLM (tylko jeśli reguły nie dały odpowiedzi)
     print(f"   [INTENT] LLM klasyfikacja dla: '{message[:50]}...'")
     llm_result = await classify_by_llm(message, model_override=model_override)
     print(f"   [INTENT] LLM: {llm_result.value}")
-    return llm_result
+    return llm_result, include_user_db

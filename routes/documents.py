@@ -31,8 +31,8 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
         
         print(f"   [UPLOAD] Plik zapisany lokalnie: {filename}. Wywoływanie procesora tekstu...")
         from document_processor import process_document
-        extracted_text, error = await asyncio.to_thread(
-            process_document, file_content, filename, file.content_type or ""
+        extracted_text, error = await process_document(
+            file_content, filename, file.content_type or ""
         )
 
         success = not bool(error)
@@ -201,8 +201,8 @@ async def get_document_content(filename: str):
             
             # Próba ekstrakcji tekstu
             from document_processor import process_document
-            extracted_text, error = await asyncio.to_thread(
-                process_document, file_content, safe_filename, ""
+            extracted_text, error = await process_document(
+                file_content, safe_filename, ""
             )
             
             if not error and extracted_text:

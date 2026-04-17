@@ -11,7 +11,7 @@ export const Stats = () => {
   return (
     <section className="py-24 px-6 relative overflow-hidden bg-[#0f0f0f]">
       {/* Intense gold background wash */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(212,175,55,0.18)_0%,transparent_80%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(212,175,55,0.06)_0%,transparent_80%)] pointer-events-none" />
       <div className="max-w-6xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-12">
         {STATS.map((s, i) => (
           <motion.div

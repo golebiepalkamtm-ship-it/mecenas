@@ -3,7 +3,6 @@ import {
   Check, 
   X,
   Zap,
-  Scale,
   ChevronDown,
   Shield,
   Gavel,
@@ -83,11 +82,21 @@ export function QuickIntelligencePanel() {
 
     return Object.keys(unitSystemRoles).map(id => ({
       id,
-      label: id === 'defender' ? 'Adwokat' : 
-             id === 'proceduralist' ? 'Proceduralista' :
+      label: id === 'defender' ? 'Obrońca' : 
+             id === 'proceduralist' ? 'Specjalista Proceduralny' :
              id === 'constitutionalist' ? 'Konstytucjonalista' :
-             id === 'negotiator' ? 'Mediator' :
-             id === 'evidencecracker' ? 'Analityk Dowodowy' : id.toUpperCase(),
+             id === 'negotiator' ? 'Mediator/Negocjator' :
+             id === 'evidencecracker' ? 'Analityk Dowodowy' : 
+             id === 'inquisitor' ? 'Inkwizytor' :
+             id === 'oracle' ? 'Wyrocznia Prawna' :
+             id === 'draftsman' ? 'Redaktor PISM' :
+             id === 'grandmaster' ? 'Strateg/Arcymistrz' :
+             id === 'prosecutor' ? 'Prokurator' :
+             id === 'investigator' ? 'Śledczy' :
+             id === 'forensic_expert' ? 'Biegły Sądowy' :
+             id === 'hard_judge' ? 'Sędzia Orzekający' :
+             id === 'sentencing_expert' ? 'Ekspert ds. Wyroków' :
+             id.toUpperCase(),
       icon: iconMap[id] || Shield,
       color: colorMap[id] || 'text-gold-primary',
       border: borderMap[id] || 'border-gold-primary/30',
@@ -117,8 +126,10 @@ export function QuickIntelligencePanel() {
   return (
     <div className="fixed lg:relative right-0 top-[80px] lg:top-0 bottom-0 lg:h-full w-[320px] max-w-full glass-steel-monolith rounded-none z-10000 shadow-none border-t border-white/5 pointer-events-auto flex flex-col overflow-hidden">
       <div className={cn(
-        "absolute top-0 left-0 w-full h-32 blur-[80px] pointer-events-none transition-colors duration-1000 opacity-20",
-        activeUniverse === 'defense' ? "bg-jade-primary" : "bg-white"
+        "absolute top-0 left-0 w-full h-64 pointer-events-none transition-colors duration-1000 opacity-15",
+        activeUniverse === 'defense' 
+          ? "bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.3)_0%,transparent_70%)]" 
+          : "bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.2)_0%,transparent_70%)]"
       )} />
 
       <div className="px-6 py-6 pt-6 lg:pt-6 border-b border-black/10 relative z-10 shrink-0">
@@ -147,14 +158,14 @@ export function QuickIntelligencePanel() {
             transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
           />
           <button 
-            onClick={() => applyPromptPreset('defense', { mode: 'advocate', architectPrompt: DEFENSE_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
+            onClick={() => applyPromptPreset('defense', { mode: 'single', architectPrompt: DEFENSE_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
             className={cn("relative z-10 flex items-center justify-center gap-2 py-2 outline-none", activeUniverse === 'defense' ? "text-emerald-900 font-extrabold" : "text-black/30 font-bold")}
           >
             <Shield size={12} className={activeUniverse === 'defense' ? "text-emerald-700" : "text-black/10"} />
             <span className="text-[9px] uppercase tracking-widest">Obrona</span>
           </button>
           <button 
-            onClick={() => applyPromptPreset('prosecution', { mode: 'advocate', architectPrompt: PROSECUTION_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
+            onClick={() => applyPromptPreset('prosecution', { mode: 'single', architectPrompt: PROSECUTION_MASTER_PROMPT, unitSystemRoles: {}, taskPrompts: {} })}
             className={cn("relative z-10 flex items-center justify-center gap-2 py-2 outline-none", activeUniverse === 'prosecution' ? "text-black font-extrabold" : "text-black/30 font-bold")}
           >
             <Gavel size={12} className={activeUniverse === 'prosecution' ? "text-black" : "text-black/10"} />

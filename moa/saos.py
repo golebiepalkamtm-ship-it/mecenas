@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import Any, Optional
+from typing import Any, Optional, Sequence, cast
 from urllib.parse import quote
 
 import httpx
@@ -142,10 +142,10 @@ def _build_saos_search_params(
     keywords: Optional[list[str]],
     judgment_date_from: Optional[str],
     judgment_date_to: Optional[str],
-) -> list[tuple[str, str | int]]:
-    params: list[tuple[str, str | int]] = [
-        ("pageSize", max(10, min(page_size, 100))),
-        ("pageNumber", max(0, page_number)),
+) -> Sequence[tuple[str, str]]:
+    params: list[tuple[str, str]] = [
+        ("pageSize", str(max(10, min(page_size, 100)))),
+        ("pageNumber", str(max(0, page_number))),
         ("sortingField", sorting_field),
         ("sortingDirection", sorting_direction),
     ]
@@ -185,7 +185,7 @@ def _build_saos_search_params(
     }
     for key, value in int_filters.items():
         if value is not None:
-            params.append((key, value))
+            params.append((key, str(value)))
 
     if cc_court_id is not None:
         params.append(
@@ -195,15 +195,18 @@ def _build_saos_search_params(
             )
         )
 
-    for judgment_type in judgment_types or []:
-        normalized_type = _normalize_text(judgment_type)
-        if normalized_type:
-            params.append(("judgmentTypes", normalized_type))
+    # Dla wielokrotnych wartości (judgmentTypes, keywords) dodajemy osobne tuple
+    if judgment_types:
+        for judgment_type in judgment_types:
+            normalized_type = _normalize_text(judgment_type)
+            if normalized_type:
+                params.append(("judgmentTypes", normalized_type))
 
-    for keyword in keywords or []:
-        normalized_keyword = _normalize_text(keyword)
-        if normalized_keyword:
-            params.append(("keywords", normalized_keyword))
+    if keywords:
+        for keyword in keywords:
+            normalized_keyword = _normalize_text(keyword)
+            if normalized_keyword:
+                params.append(("keywords", normalized_keyword))
 
     return params
 
@@ -277,46 +280,63 @@ async def search_saos_judgments_raw(
     debug_query = _normalize_text(query) or "[brak frazy all - filtrowanie parametrami]"
     print(f"   [SAOS] Przeszukiwanie dla: '{debug_query[:80]}'")
 
-    try:
-        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-            response = await client.get(
-                SAOS_API_SEARCH_JUDGMENTS_URL,
-                params=params,
-                headers=SAOS_HEADERS,
-            )
-
-        if response.status_code != 200:
-            print(f"   [SAOS][ERR] HTTP {response.status_code}: {response.text[:200]}")
-            return _empty_search_payload()
-
+    # Retry logic dla SAOS API
+    max_retries = 3
+    for attempt in range(max_retries):
         try:
-            data = response.json()
-        except Exception:
-            print(
-                "   [SAOS][ERR] Błąd formatu "
-                f"(Otrzymano uszkodzony JSON lub HTML): {response.text[:100]}"
-            )
+            async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+                response = await client.get(
+                    SAOS_API_SEARCH_JUDGMENTS_URL,
+                    params=cast(Any, params),
+                    headers=SAOS_HEADERS,
+                )
+
+            if response.status_code != 200:
+                print(f"   [SAOS][ERR] HTTP {response.status_code} (próba {attempt + 1}/{max_retries}): {response.text[:200]}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+                    continue
+                return _empty_search_payload()
+
+            try:
+                data = response.json()
+            except Exception:
+                print(
+                    f"   [SAOS][ERR] Błąd formatu (próba {attempt + 1}/{max_retries}) "
+                    f"(Otrzymano uszkodzony JSON lub HTML): {response.text[:100]}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+                    continue
+                return _empty_search_payload()
+
+            if not isinstance(data, dict):
+                print("   [SAOS][ERR] Nieoczekiwany format odpowiedzi (nie-dict)")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2)
+                    continue
+                return _empty_search_payload()
+
+            if not isinstance(data.get("items"), list):
+                data["items"] = []
+            if not isinstance(data.get("links"), list):
+                data["links"] = []
+            if not isinstance(data.get("info"), dict):
+                data["info"] = {"totalResults": 0}
+            if not isinstance(data.get("queryTemplate"), dict):
+                data["queryTemplate"] = {}
+
+            print(f"   [SAOS][OK] Znaleziono {len(data['items'])} orzeczeń")
+            return data
+
+        except Exception as e:
+            print(f"   [SAOS][ERR] Błąd połączenia (próba {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)
+                continue
             return _empty_search_payload()
 
-        if not isinstance(data, dict):
-            print("   [SAOS][ERR] Nieoczekiwany format odpowiedzi (nie-dict)")
-            return _empty_search_payload()
-
-        if not isinstance(data.get("items"), list):
-            data["items"] = []
-        if not isinstance(data.get("links"), list):
-            data["links"] = []
-        if not isinstance(data.get("info"), dict):
-            data["info"] = {"totalResults": 0}
-        if not isinstance(data.get("queryTemplate"), dict):
-            data["queryTemplate"] = {}
-
-        print(f"   [SAOS][OK] Znaleziono {len(data['items'])} orzeczeń")
-        return data
-
-    except Exception as e:
-        print(f"   [SAOS][ERR] Błąd połączenia: {e}")
-        return _empty_search_payload()
+    return _empty_search_payload()
 
 
 async def search_saos_judgments(query: str, page_size: int = 5) -> list[RetrievedChunk]:

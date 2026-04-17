@@ -1,0 +1,1 @@
+import sqlite3; db=sqlite3.connect(" C:/Users/Marcin_Palka/moj prawnik/cache/prawnik.db\); c=db.cursor(); c.execute(\UPDATE messages SET content = \\\[zalacznik]\\\ WHERE content LIKE \\\%data:image%\\\\); print(c.rowcount); db.commit(); db.close()

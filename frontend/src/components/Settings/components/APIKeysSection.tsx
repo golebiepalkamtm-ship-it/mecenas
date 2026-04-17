@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import { Key, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { SettingsInput } from './SettingsInput';
-import { Profile } from '../types';
-import { motion, AnimatePresence } from 'framer-motion';
-
+import type { Profile } from '../types';
 import { API_BASE } from '../../../config';
 
 interface APIKeysSectionProps {

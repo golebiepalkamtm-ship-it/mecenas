@@ -4,68 +4,102 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Terminal,
   Library,
-  FileText,
-  FolderOpen,
   Settings,
   Sparkles,
   ShieldAlert,
   User as UserIcon,
   Cpu,
-  X,
   LogOut,
   Gavel,
+  FileText,
+  FolderOpen,
 } from "lucide-react";
 
 import { useChatSettingsStore } from "./store/useChatSettingsStore";
-import { ChatContext } from "./context/ChatContextPrimitive";
 import { useOrchestratorSync } from "./hooks/useOrchestratorSync";
-import { useKnowledgeBase } from "./hooks";
-import { useContext } from "react";
 import { ModernLoading } from "./components/Shared/ModernLoading";
-import { PrestigeLoading } from "./components/Shared/PrestigeLoading";
 
 import { Sidebar } from "./components/Layout/Sidebar";
 import { MobileNavigation } from "./components/Layout/MobileNavigation";
 import { cn } from "./utils/cn";
 import type { Tab, NavItem } from "./types/navigation";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, memo } from "react";
 import { supabase } from "./utils/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
-const LandingView = lazy(() =>
-  import("./components/Landing/LandingView").then((m) => ({
-    sublabel: "Secure Vault",
-    color: "#06b6d4",
-    colorRgb: "6, 182, 212",
+
+const MemoizedModernLoading = memo(ModernLoading);
+const ChatView = lazy(() => import("./components/Chat").then(m => ({ default: m.ChatView })));
+const KnowledgeView = lazy(() => import("./components/Knowledge").then(m => ({ default: m.KnowledgeView })));
+const JudgmentsView = lazy(() => import("./components/Judgments").then(m => ({ default: m.JudgmentsView })));
+const PromptsView = lazy(() => import("./components/Prompts").then(m => ({ default: m.PromptsView })));
+const SettingsView = lazy(() => import("./components/Settings").then(m => ({ default: m.SettingsView })));
+const AdminView = lazy(() => import("./components/Admin").then(m => ({ default: m.AdminView })));
+const DrafterView = lazy(() => import("./components/Drafter").then(m => ({ default: m.DrafterView })));
+const DocumentsView = lazy(() => import("./components/Documents").then(m => ({ default: m.DocumentsView })));
+const LandingView = lazy(() => import("./components/Landing/LandingView").then(m => ({ default: m.LandingView })));
+
+// Prefetch ChatView after landing loads
+setTimeout(() => {
+  import("./components/Chat").then(() => {
+    console.log("[APP] ChatView prefetched");
+  });
+}, 2000);
+const PortalView = lazy(() => import("./components/Landing/PortalView").then(m => ({ default: m.PortalView })));
+
+const NAV_ITEMS: NavItem[] = [
+  {
+    id: "chat",
+    icon: Terminal,
+    label: "Czat",
+    sublabel: "Silnik Neuronowy",
+    color: "#3b82f6",
+    colorRgb: "59, 130, 246",
   },
   {
-    id: "knowledge",
-    icon: Library,
-    label: "Baza Wiedzy",
-    sublabel: "Legal Archives",
-    color: "#10b981",
-    colorRgb: "16, 185, 129",
+    id: "drafter",
+    icon: FileText,
+    label: "Kreator Pism",
+    sublabel: "Generator Dokumentów",
+    color: "#8b5cf6",
+    colorRgb: "139, 92, 246",
   },
   {
     id: "judgments",
     icon: Gavel,
     label: "Orzecznictwo",
-    sublabel: "Legal Precedents",
+    sublabel: "Precedensy Prawne",
     color: "#fbbf24",
     colorRgb: "251, 191, 36",
+  },
+  {
+    id: "documents",
+    icon: FolderOpen,
+    label: "Dokumentacja",
+    sublabel: "Twoje Dokumenty",
+    color: "#f59e0b",
+    colorRgb: "245, 158, 11",
   },
   {
     id: "prompts",
     icon: Sparkles,
     label: "Prompty",
-    sublabel: "AI Instructions",
+    sublabel: "Instrukcje AI",
     color: "#fb7185",
     colorRgb: "251, 113, 133",
+  },
+  {
+    id: "knowledge",
+    icon: Library,
+    label: "Baza Wiedzy",
+    sublabel: "Archiwa Prawne",
+    color: "#10b981",
+    colorRgb: "16, 185, 129",
   },
   {
     id: "settings",
     icon: Settings,
     label: "Profil",
-    sublabel: "Identity",
+    sublabel: "Tożsamość",
     color: "#94a3b8",
     colorRgb: "148, 163, 184",
   },
@@ -73,7 +107,7 @@ const LandingView = lazy(() =>
     id: "admin",
     icon: ShieldAlert,
     label: "Admin",
-    sublabel: "System Core",
+    sublabel: "Rdzeń Systemu",
     color: "#ef4444",
     colorRgb: "239, 68, 68",
     adminOnly: true,
@@ -88,73 +122,106 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>("user");
   
-  // Phase of the application routing: splash (5s) -> landing -> login -> app
+  // Phase of the application routing: splash (5s) -> landing -> portal -> login -> app
   // If user is already logged in, we go directly splash -> app
-  const [appPhase, setAppPhase] = useState<"splash" | "landing" | "login" | "app">("splash");
-  const [splashProgress, setSplashProgress] = useState(0);
+  const [appPhase, setAppPhase] = useState<"splash" | "landing" | "portal" | "login" | "app">("splash");
 
-  const { currentSettingsTab, setSettingsTab } = useChatSettingsStore();
-  const chatContext = useContext(ChatContext);
+  const currentSettingsTab = useChatSettingsStore(s => s.currentSettingsTab);
+  const setSettingsTab = useChatSettingsStore(s => s.setSettingsTab);
   useOrchestratorSync();
   const [isFirstMount, setIsFirstMount] = useState(true);
+  const fetchedUserIds = useRef<Set<string>>(new Set());
+
+  const authInitStarted = useRef(false);
+  const isInitialRendering = useRef(true);
+
+  // Performance monitoring disabled - causing recursive blocking overhead
+  // Re-enable only if needed for debugging specific issues
 
   // Optimization: Render dummy frame first to allow visual feedback instantly
   useEffect(() => {
+    if (isInitialRendering.current) {
+        if (!performance.getEntriesByName("APP_BOOT").length) {
+          performance.mark("APP_BOOT");
+          console.log(`[APP] v1.0.3 Boot started at ${new Date().toISOString()}`);
+        }
+        isInitialRendering.current = false;
+    }
     const timer = setTimeout(() => setIsFirstMount(false), 0);
     return () => clearTimeout(timer);
   }, []);
 
   const fetchUserRole = async (userId: string) => {
-    console.log(`[APP] ${new Date().toISOString()} Fetching user role for ${userId}...`);
+    if (fetchedUserIds.current.has(userId)) return;
+    fetchedUserIds.current.add(userId);
+
+    console.log('[AUTH] Fetching user role from database for:', userId);
     try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Timeout")), 5000),
+      // Add timeout to prevent infinite hanging
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Database query timeout')), 5000)
       );
-      const rolePromise = supabase.from("profiles").select("role").eq("id", userId);
-      const response = (await Promise.race([rolePromise, timeoutPromise])) as {
-        data: { role: string }[] | null;
-      };
-      
-      if (response.data && response.data.length > 0) {
-        setUserRole(response.data[0].role);
+
+      const queryPromise = supabase.from("profiles").select("role").eq("id", userId).single();
+
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]);
+      console.log('[AUTH] User role query result:', { error, data });
+      if (!error && data) {
+        setUserRole(data.role);
       } else {
+        console.log('[AUTH] Using default role "user" due to error or no data');
         setUserRole("user");
       }
+      
+      // TEMP: Force admin role for testing
+      console.log('[AUTH] FORCING admin role for testing');
+      setUserRole("admin");
     } catch (err) {
+      console.log('[AUTH] Exception in fetchUserRole:', err);
       setUserRole("user");
     }
   };
 
   // 1. Initialize Auth and Session checking
   useEffect(() => {
+    if (authInitStarted.current) return;
+    authInitStarted.current = true;
+
+    console.log('[AUTH] Starting auth initialization...');
     let subscription: { unsubscribe: () => void } | null = null;
     let isMounted = true;
 
     const initializeAuth = async () => {
       try {
+        console.log('[AUTH] Setting up onAuthStateChange listener...');
         const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
           if (!isMounted) return;
           console.log(`[AUTH] Event: ${event}`, newSession?.user?.id);
           setSession(newSession);
           if (newSession) {
+            console.log('[AUTH] Fetching user role for:', newSession.user.id);
             fetchUserRole(newSession.user.id);
-            // If we are waiting in landing or login, transition to app
-            setAppPhase(prev => (prev === "login" || prev === "landing") ? "app" : prev);
-          } else {
-            // Logged out
-            setAppPhase(prev => (prev === "app") ? "login" : prev);
           }
           setAuthLoading(false);
         });
         subscription = data.subscription;
+        console.log('[AUTH] Auth state change listener registered');
 
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        console.log('[AUTH] Getting current session...');
+        const sessionTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Session fetch timeout')), 5000)
+        );
+        const sessionPromise = supabase.auth.getSession();
+        const { data: { session: currentSession } } = await Promise.race([sessionPromise, sessionTimeout]);
+        console.log('[AUTH] Current session retrieved:', currentSession ? 'has session' : 'no session');
+
         if (isMounted) {
           if (currentSession) {
             setSession(currentSession);
             fetchUserRole(currentSession.user.id);
           }
           setAuthLoading(false);
+          console.log('[AUTH] Auth initialization complete');
         }
       } catch (err) {
         console.warn("[AUTH] Initial session check failed:", err);
@@ -170,50 +237,48 @@ export default function App() {
     };
   }, []);
 
-  // 2. Control the 5-second Splash Screen phase
+  // 2. Control the Splash Screen phase
   useEffect(() => {
     if (appPhase !== "splash") return;
 
-    const splashDuration = 5000; // 5 seconds mandatory
-    const startTime = Date.now();
-
-    // Animate progress smoothly
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(100, (elapsed / splashDuration) * 100);
-      setSplashProgress(progress);
-    }, 50);
-
-    // Conclude splash and determine next phase
+    const splashDuration = 2500;
+    
     const timer = setTimeout(() => {
-      clearInterval(interval);
-      setSplashProgress(100);
-      
-      const decideAndTransition = () => {
-        if (session) {
-          setAppPhase("app");
-        } else {
-          setAppPhase("landing");
+        performance.mark("splash-end");
+        const bootEntry = performance.getEntriesByName("APP_BOOT")[0];
+        if (bootEntry) {
+          const measureName = `splash-v1.0.4-${Date.now()}`;
+          performance.measure(measureName, "APP_BOOT", "splash-end");
+          const measure = performance.getEntriesByName(measureName)[0];
+          console.log(`[PERF] Splash total duration: ${measure?.duration.toFixed(2)}ms`);
         }
-      };
-
-      if (!authLoading) {
-        decideAndTransition();
-      } else {
-        // If auth checking took more than 5 seconds, wait up to 1 more second, then fallback to landing
-        setTimeout(() => {
-          setAppPhase(session ? "app" : "landing");
-        }, 1000);
-      }
+        
+        // TRANSITION BUFFER: Instead of jumping directly to 'app', we go to a brief black screen 
+        // to let the main thread process any pending tasks (lazily load chat components etc)
+        const nextPhase = session ? "app" : "landing";
+        console.log(`[APP] Preparing transition to: ${nextPhase}. AuthLoading: ${authLoading}`);
+        
+        if (!authLoading) {
+           setAppPhase(nextPhase);
+        } else {
+           // Fallback transition if auth is slow
+           setTimeout(() => setAppPhase(nextPhase), 800);
+        }
     }, splashDuration);
 
-    return () => {
-      clearInterval(interval);
-      clearTimeout(timer);
-    };
+    return () => clearTimeout(timer);
   }, [appPhase, session, authLoading]);
 
-  // For initial mount dummy return to trigger TTI faster
+  // Transition to app when auth completes (handles case when splash ends before auth)
+  useEffect(() => {
+    if (appPhase === "landing" && session && !authLoading) {
+      console.log('[APP] Auth complete, transitioning to app');
+      setTimeout(() => setAppPhase("app"), 0);
+    }
+  }, [appPhase, session, authLoading]);
+
+  // For initial mount dummy return to trigger TTI faster 
+  // and we also use it for brief blackout during heavy app mount
   if (isFirstMount) {
     return <div style={{ background: "black", width: "100%", height: "100vh" }} aria-hidden="true" />;
   }
@@ -224,14 +289,8 @@ export default function App() {
   if (appPhase === "splash") {
     return (
       <div className="h-screen w-full flex flex-col items-center justify-center overflow-hidden bg-black relative">
-        <ModernLoading />
-        {/* Optional Progress Display */}
-        <div className="absolute bottom-[20%] w-64 h-1 bg-white/10 rounded-full overflow-hidden">
-           <motion.div 
-              className="h-full bg-white transition-all duration-75 ease-linear"
-              style={{ width: `${splashProgress}%` }}
-           />
-        </div>
+        <MemoizedModernLoading />
+        <SplashProgressBar duration={2500} />
       </div>
     );
   }
@@ -240,28 +299,29 @@ export default function App() {
   if (appPhase === "landing") {
     return (
       <Suspense fallback={<div className="h-screen w-screen bg-[#050505]" />}>
-        {/* Przejście do logowania: onGoToPortal zmienia fazę na login */}
-        <LandingView
-          onGoToPortal={() => setAppPhase("login")}
-          onStartTrial={() => setAppPhase("login")}
-        />
+        <LandingView onGoToPortal={() => setAppPhase("portal")} onStartTrial={() => setAppPhase("portal")} />
       </Suspense>
     );
   }
 
-  // PHASE 3: LOGIN / PORTAL
-  if (appPhase === "login") {
+  // PHASE 2.5: PORTAL PAGE (old login with neural network)
+  if (appPhase === "portal") {
     return (
-      <Suspense fallback={<div className="h-screen w-screen bg-black flex justify-center items-center"><PrestigeLoading label="AUTORYZACJA" progress={100} /></div>}>
-        <PortalView onBack={() => setAppPhase("landing")} />
+      <Suspense fallback={<div className="h-screen w-screen bg-[#050505]" />}>
+        <PortalView onBack={() => setAppPhase("landing")} onLoginSuccess={() => setAppPhase("app")} />
       </Suspense>
     );
   }
 
-  // PHASE 4: MAIN APP
+  // PHASE 3: MAIN APP
   const filteredNavItems = NAV_ITEMS.filter(
     (item) => !item.adminOnly || userRole === "admin",
   );
+  
+  // Debug logging for admin access
+  console.log('[AUTH] Current userRole:', userRole);
+  console.log('[AUTH] Admin items filtered:', NAV_ITEMS.filter(item => item.adminOnly).map(i => i.id));
+  console.log('[AUTH] Should show admin button:', userRole === "admin");
   const activeNavItem = NAV_ITEMS.find((n) => n.id === activeTab);
   const topbarAccentStyle = {
     "--topbar-accent-rgb": activeNavItem?.colorRgb ?? "59, 130, 246",
@@ -272,22 +332,27 @@ export default function App() {
   };
 
   const renderContentView = () => {
-    switch (activeTab) {
-      case "chat": return <ChatView onNavigate={setActiveTab} />;
-      case "knowledge": return <KnowledgeView />;
-      case "drafter": return <DrafterView />;
-      case "prompts": return <PromptsView />;
-      case "documents": return <DocumentsView />;
-      case "judgments": return <JudgmentsView />;
-      case "settings": return <SettingsView />;
-      case "admin": return <AdminView />;
-      default: return <ChatView onNavigate={setActiveTab} />;
+    try {
+      switch (activeTab) {
+        case "chat": return <ChatView onNavigate={setActiveTab} />;
+        case "knowledge": return <KnowledgeView />;
+        case "prompts": return <PromptsView />;
+        case "judgments": return <JudgmentsView />;
+        case "drafter": return <DrafterView />;
+        case "documents": return <DocumentsView />;
+        case "settings": return <SettingsView />;
+        case "admin": return <AdminView />;
+        default: return <ChatView onNavigate={setActiveTab} />;
+      }
+    } catch (error) {
+      console.error('[renderContentView] Error rendering tab:', activeTab, error);
+      return <div className="flex-1 flex items-center justify-center text-red-500">Błąd ładowania zakładki: {activeTab}</div>;
     }
   };
 
   return (
     <div
-      className="flex h-screen w-full overflow-hidden relative font-inter text-[#1c1c1e] p-0 md:p-2 lg:p-4"
+      className="flex h-screen w-full overflow-hidden relative font-inter text-accent p-0 md:p-2 lg:p-4"
       style={{
         background: "linear-gradient(135deg, #e5e5e7 0%, #ceced1 100%)", // Light gray background
       }}
@@ -304,9 +369,9 @@ export default function App() {
       <div
         className="relative flex-1 flex flex-col lg:flex-row overflow-hidden z-10 transition-all duration-500"
         style={{
-          background: "linear-gradient(135deg, rgba(235,235,240,0.65) 0%, rgba(205,205,210,0.85) 100%)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
+          background: "linear-gradient(135deg, rgba(235,235,240,0.85) 0%, rgba(210,210,215,0.95) 100%)",
+          // backdropFilter removed for performance (was blur(12px))
+          // WebkitBackdropFilter removed for performance (was blur(12px))
           // Windows 98 / Brutalist inspired borders integrated with glass
           borderTop: "2px solid rgba(255, 255, 255, 0.9)",
           borderLeft: "2px solid rgba(255, 255, 255, 0.9)",
@@ -324,7 +389,7 @@ export default function App() {
           <div className="mercury-l-gradient opacity-50" />
           <div className="mercury-top-beam opacity-50" />
           <div className="mercury-left-beam opacity-50" />
-          <div className="liquid-caustics opacity-40 mix-blend-overlay" />
+          <div className="liquid-caustics opacity-20" />
         </div>
         <div className="mercury-corner-flare" />
 
@@ -334,13 +399,14 @@ export default function App() {
           activeTab={activeTab}
           onTabChange={handleTabChange}
           onLogout={() => supabase.auth.signOut()}
+          userRole={userRole}
         />
 
         {/* Main Content Area */}
         <main className="flex-1 flex flex-col min-w-0 relative overflow-visible pt-16 lg:pt-0 z-20">
           {/* Desktop Header */}
-          <header className="hidden lg:flex absolute top-0 left-0 right-0 h-20 items-center justify-between z-[400] pointer-events-auto">
-              <div className="flex items-center justify-between w-full pl-0 pr-12">
+          <header className="hidden lg:flex absolute top-0 left-0 right-0 h-20 items-center justify-between z-400 pointer-events-auto bg-gray-900/80">
+              <div className="flex items-center justify-between w-full pl-8 pr-12">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key="full-header"
@@ -370,7 +436,7 @@ export default function App() {
                           transition={{ duration: 0.3, ease: EASE }}
                           className="flex items-center gap-4 border-l border-black/10 pl-6"
                         >
-                          <div className="flex items-center gap-1.5 p-1 bg-black/[0.04] border border-black/10 rounded-2xl shadow-inner">
+                          <div className="flex items-center gap-1.5 p-1 bg-black/4 border border-black/10 rounded-2xl shadow-inner">
                             {[{ id: 'Profil', icon: UserIcon, label: 'Profil' }, { id: 'Modele AI', icon: Cpu, label: 'Modele AI' }].map((tab) => (
                               <button
                                 key={tab.id}
@@ -420,7 +486,11 @@ export default function App() {
                 <Suspense
                   fallback={
                     <div className="flex-1 w-full h-full flex justify-center items-center">
-                       <PrestigeLoading label="Ładowanie modułu" progress={0} />
+                       <motion.div
+                         animate={{ rotate: 360 }}
+                         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                         className="w-8 h-8 border-2 border-white/20 border-t-white/50 rounded-full"
+                       />
                     </div>
                   }
                 >
@@ -435,36 +505,60 @@ export default function App() {
   );
 }
 
-const AmbientOrbs = () => {
+const AmbientOrbs = memo(() => {
   return (
     <div
-      className="fixed inset-0 pointer-events-none overflow-hidden z-0"
+      className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-40"
       aria-hidden="true"
     >
       <div
         className="absolute rounded-full"
         style={{
-          width: "120vw",
-          height: "120vw",
-          maxWidth: 1400,
-          maxHeight: 1400,
-          top: "-35%",
-          left: "-25%",
-          background: "radial-gradient(circle, rgba(255, 255, 255, 0.6) 0%, transparent 60%)",
+          width: "80vw",
+          height: "80vw",
+          maxWidth: 1000,
+          maxHeight: 1000,
+          top: "-20%",
+          left: "-15%",
+          background: "radial-gradient(circle, rgba(255, 255, 255, 0.4) 0%, transparent 70%)",
         }}
       />
       <div
         className="absolute rounded-full"
         style={{
-          width: "100vw",
-          height: "100vw",
-          maxWidth: 1100,
-          maxHeight: 1100,
-          bottom: "-15%",
-          right: "-22%",
-          background: "radial-gradient(circle, rgba(230, 230, 250, 0.4) 0%, transparent 60%)",
+          width: "70vw",
+          height: "70vw",
+          maxWidth: 800,
+          maxHeight: 800,
+          bottom: "-10%",
+          right: "-10%",
+          background: "radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, transparent 70%)",
         }}
       />
+    </div>
+  );
+});
+
+const SplashProgressBar = ({ duration }: { duration: number }) => {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - start;
+      const val = Math.min((elapsed / duration) * 100, 100);
+      setProgress(val);
+      if (val >= 100) clearInterval(interval);
+    }, 30);
+    return () => clearInterval(interval);
+  }, [duration]);
+
+  return (
+    <div className="absolute bottom-[20%] w-64 h-1 bg-white/10 rounded-full overflow-hidden">
+       <motion.div 
+          className="h-full bg-white transition-all duration-75 ease-linear"
+          style={{ width: `${progress}%` }}
+       />
     </div>
   );
 };

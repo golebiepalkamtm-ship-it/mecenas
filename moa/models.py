@@ -37,6 +37,8 @@ class MOARequest:
     judge_system_prompt: Optional[str] = None
     api_keys: Optional[dict[str, str]] = None
     attachments: list[dict] = field(default_factory=list) # Nowość: wsparcie dla obrazów/plików
+    include_user_db: bool = False
+    context_text: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +66,11 @@ class AnalystResult:
     error: Optional[str] = None
     retries_used: int = 0
     latency_ms: float = 0.0
+
+    @property
+    def model(self):
+        """Dla kompatybilności wstecznej — wiele części kodu może szukać .model zamiast .model_id."""
+        return self.model_id
 
 
 # ---------------------------------------------------------------------------

@@ -22,6 +22,7 @@ from utils.helpers import (
     save_chat_messages,
     scrape_urls_from_text,
 )
+from utils.token_counter import count_tokens, truncate_to_tokens
 
 router = APIRouter()
 logger = logging.getLogger("LexMindChatRoutes")
@@ -31,7 +32,8 @@ logger = logging.getLogger("LexMindChatRoutes")
 async def chat_endpoint(request: ChatRequest):
     try:
         sid = request.sessionId or str(uuid.uuid4())
-        intent = await classify_intent(request.message, model_override=request.model)
+        has_docs = bool(request.attachments or request.document_text)
+        intent, include_user_db = await classify_intent(request.message, model_override=request.model, has_docs=has_docs)
 
         combined_doc_text = request.document_text or ""
         extracted_att_content, extracted_texts = await process_attachments(
@@ -52,6 +54,7 @@ async def chat_endpoint(request: ChatRequest):
             request.history or [],
             combined_doc_text,
             model_override=request.model,
+            include_user_db=include_user_db,
         )
 
         builder_config = PromptConfig(
@@ -67,36 +70,39 @@ async def chat_endpoint(request: ChatRequest):
             system_prompt += f"\n\n## KONTEKST PRAWNY (RAG):\n{context_text}"
 
         messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(format_history_for_openai(request.history or []))
+        
+        # PROFESJONALNE ZARZĄDZANIE KONTEKSTEM (TOKEN-AWARE)
+        max_prompt_tokens = 40000 # Bezpieczny limit dla większości modeli
+        
+        history_msgs = format_history_for_openai(request.history or [])
+        
+        # 1. Dodaj historię (od najnowszych, dopóki starczy miejsca)
+        allowed_history = []
+        current_tokens = count_tokens(system_prompt, request.model)
+        for msg in reversed(history_msgs):
+            msg_tokens = count_tokens(json.dumps(msg), request.model)
+            if current_tokens + msg_tokens < max_prompt_tokens * 0.4: # 40% na historię
+                allowed_history.insert(0, msg)
+                current_tokens += msg_tokens
+            else:
+                break
+        messages.extend(allowed_history)
 
-        user_msg_content = [{"type": "text", "text": request.message}]
-        user_msg_content.extend(
-            [c for c in extracted_att_content if c["type"] == "image_url"]
-        )
-
-        # DODAJEMY: Treść z załączników do promptu użytkownika (KRYTYCZNE DLA KONTEKSTU)
+        user_msg_text = request.message
         if combined_doc_text:
-            print(
-                f"   [PROMPT INFUSION] Dodawanie {len(combined_doc_text)} znaków z dokumentów do promptu."
-            )
-            user_msg_content.append(
-                {
-                    "type": "text",
-                    "text": f"\n\n### TREŚĆ ZAŁĄCZONYCH DOKUMENTÓW / KONTEKST:\n{combined_doc_text}",
-                }
-            )
+             user_msg_text += f"\n\n### KONTEKST DOKUMENTÓW:\n{combined_doc_text}"
+        
+        # Przytnij tekst użytkownika jeśli za długi
+        user_msg_text = truncate_to_tokens(user_msg_text, 10000, request.model)
+        
+        user_msg_content = [{"type": "text", "text": user_msg_text}]
+        user_msg_content.extend([c for c in extracted_att_content if c["type"] == "image_url"])
 
-        user_msg = {
-            "role": "user",
-            "content": user_msg_content,
-        }
-        messages.append(user_msg)
+        messages.append({"role": "user", "content": user_msg_content})
 
         if request.stream:
             return StreamingResponse(
-                generate_chat_stream(
-                    request, sid, messages, context_text, extracted_texts
-                ),
+                generate_chat_stream(request, sid, messages, context_text, extracted_texts),
                 media_type="text/event-stream",
             )
 
@@ -122,6 +128,7 @@ async def chat_endpoint(request: ChatRequest):
             "role": "assistant",
             "sessionId": sid,
             "rag_used": bool(context_text),
+            "user_db_used": include_user_db,
         }
     except Exception as e:
         logger.error(f"❌ Chat Error: {e}")
@@ -143,7 +150,8 @@ async def chat_consensus_endpoint(request: ChatRequest):
         if web_texts:
              combined_doc_text += "\n" + "\n".join(web_texts)
 
-        intent = await classify_intent(request.message, model_override=request.model)
+        has_docs = bool(request.attachments or request.document_text)
+        intent, include_user_db = await classify_intent(request.message, model_override=request.model, has_docs=has_docs)
         _chunks, context_text = await perform_rag_if_needed(
             intent,
             request.use_rag,
@@ -151,6 +159,7 @@ async def chat_consensus_endpoint(request: ChatRequest):
             request.history or [],
             combined_doc_text,
             model_override=request.model,
+            include_user_db=include_user_db,
         )
 
         if intent != Intent.LEGAL_QUERY and not combined_doc_text:
@@ -174,11 +183,11 @@ async def chat_consensus_endpoint(request: ChatRequest):
             from services.chat_service import generate_moa_stream
 
             return StreamingResponse(
-                generate_moa_stream(request, sid, combined_doc_text, context_text),
+                generate_moa_stream(request, sid, combined_doc_text, context_text, extracted_att_content, include_user_db=include_user_db),
                 media_type="text/event-stream",
             )
 
-        result = await chat_consensus_moa(request, sid, combined_doc_text, context_text)
+        result = await chat_consensus_moa(request, sid, combined_doc_text, context_text, extracted_att_content, include_user_db=include_user_db)
 
         # Zapisz pełną wiadomość użytkownika z załącznikami
         moa_user_content = [{"type": "text", "text": request.message}]
@@ -214,6 +223,7 @@ async def chat_consensus_endpoint(request: ChatRequest):
                 for r in (result.analyst_results or [])
             ],
             "rag_used": bool(context_text),
+            "user_db_used": include_user_db,
             "pipeline_latency_ms": result.pipeline_latency_ms,
             "eli_explanation": result.eli_explanation,
         }
@@ -246,7 +256,8 @@ async def draft_document(request: DraftRequest):
         from moa.retrieval import retrieve_legal_context
 
         _chunks, context_text = await retrieve_legal_context(
-            rag_query
+            rag_query,
+            include_user_db=False  # BEZPIECZEŃSTWO: draft-document domyślnie tylko legal
         )
 
         user_prompt = ""
@@ -297,7 +308,8 @@ async def analyze_document(request: DocumentAnalysisRequest):
             from moa.retrieval import retrieve_legal_context
 
             chunks, context_text = await retrieve_legal_context(
-                request.question[:8000], document_text=request.document_text
+                request.question[:8000], document_text=request.document_text,
+                include_user_db=False  # BEZPIECZEŃSTWO: analyze-document domyślnie tylko legal
             )
             sources = [c.source for c in chunks]
 

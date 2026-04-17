@@ -16,13 +16,21 @@ export const BrandLogo = ({ size = 20, showTagline = false, className = "" }: Br
       >
 
         <defs>
-          <linearGradient id="aiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="50%" stopColor="#d1d1d6" />
-            <stop offset="100%" stopColor="#8e8e93" />
+          <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#b8962e" />
+            <stop offset="50%" stopColor="#b8962e" />
+            <stop offset="100%" stopColor="#b8962e" />
+          </linearGradient>
+          <linearGradient id="shineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="rgba(255,255,255,0.4)" />
+            <stop offset="50%" stopColor="rgba(255,255,255,0.1)" />
+            <stop offset="100%" stopColor="rgba(255,255,255,0)" />
           </linearGradient>
           <filter id="raised" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="4" stdDeviation="3" floodOpacity="0.5" />
+          </filter>
+          <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="6" dy="6" stdDeviation="8" floodColor="#000000" floodOpacity="0.5" />
           </filter>
         </defs>
         <g filter="url(#raised)">
@@ -30,16 +38,22 @@ export const BrandLogo = ({ size = 20, showTagline = false, className = "" }: Br
           <text
             x="0"
             y="150"
-            style={{ fontSize: "160px", fill: "none", stroke: "rgba(255,255,255,0.2)", strokeWidth: "3px" }}
+            style={{ fontSize: "160px", fill: "none", stroke: "rgba(184,150,46,0.3)", strokeWidth: "3px" }}
           >
             LexMind
           </text>
-          <text x="0" y="150" style={{ fontSize: "160px", fill: "url(#aiGradient)" }}>
+          <text x="0" y="150" style={{ fontSize: "160px", fill: "url(#goldGradient)", filter: "url(#textShadow)" }}>
+            LexMind
+          </text>
+          <text x="0" y="150" style={{ fontSize: "160px", fill: "url(#shineGradient)" }}>
             LexMind
           </text>
 
           {/* AI */}
-          <text x="710" y="150" style={{ fontSize: "160px", fill: "url(#aiGradient)" }}>
+          <text x="710" y="150" style={{ fontSize: "160px", fill: "#000000", filter: "url(#textShadow)" }}>
+            AI
+          </text>
+          <text x="710" y="150" style={{ fontSize: "160px", fill: "url(#shineGradient)" }}>
             AI
           </text>
         </g>
