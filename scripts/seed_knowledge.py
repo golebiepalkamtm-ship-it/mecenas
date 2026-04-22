@@ -76,7 +76,7 @@ async def process_file(filename: str):
         # Automatyczne rozpoznanie formatu na podstawie rozszerzenia
         content_type = "application/pdf" if filename.lower().endswith(".pdf") else "image/png"
         
-        text, error = await asyncio.to_thread(process_document, file_bytes, filename, content_type)
+        text, error = await process_document(file_bytes, filename, content_type)
         
         if error or not text:
             print(f"❌ Extraction failed: {error}")

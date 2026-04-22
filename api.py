@@ -36,6 +36,8 @@ from routes.chat import router as chat_router
 from routes.models import router as models_router
 from routes.database import router as database_router
 from routes.judgments import router as judgments_router
+from routes.health import router as health_router
+from routes.admin import router as admin_router
 
 # --- APP INITIALIZATION ---
 app = FastAPI(title="LexMind LegalTech API — Modular Backend")
@@ -54,6 +56,8 @@ app.include_router(chat_router, tags=["chat"])  # No prefix for compatibility
 app.include_router(models_router, prefix="/models", tags=["models"])
 app.include_router(database_router, tags=["database"])
 app.include_router(judgments_router, prefix="/judgments", tags=["judgments"])
+app.include_router(health_router, prefix="/health", tags=["health"])
+app.include_router(admin_router, prefix="/admin", tags=["admin"])
 
 
 @app.on_event("startup")

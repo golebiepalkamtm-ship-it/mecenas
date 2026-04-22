@@ -7,11 +7,14 @@ import {
   Info,
   ChevronDown,
   X,
-  Plus
+  Plus,
+  Zap,
+  Activity
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useModels, type Model } from '../../../hooks/useConfig';
+import { useApiManagement } from '../../../hooks';
 import { useChatSettingsStore } from '../../../store/useChatSettingsStore';
 import type { SettingsViewProps } from '../types';
 import { getBrand, normalizeVendor } from '../../Chat/constants';
@@ -21,21 +24,56 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<SettingsViewProps, 'onUpdateProfile' | 'isSaving' | 'successMsg'>) {
-  const { favoriteModels, toggleFavorite, setFavoriteModels } = useChatSettingsStore();
-  const { data: availableModels = [], isLoading } = useModels();
+  const { favoriteModels, toggleFavorite, setFavoriteModels, modelLatencies, setModelLatencies } = useChatSettingsStore();
+  const { data: allModels = [], isLoading } = useModels();
+  const { providers } = useApiManagement();
+  
+  const [isPinging, setIsPinging] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [filterVendor, setFilterVendor] = useState("all");
+
+  const activeProviders = useMemo(() => 
+    providers
+      .filter(p => p.active && p.key && p.key.trim() !== "")
+      .map(p => p.id.toLowerCase()),
+    [providers]
+  );
 
   // Normalize and group models
   const groupedAndFilteredModels = useMemo(() => {
     const query = searchQuery.toLowerCase();
     const groups: Record<string, Model[]> = {};
 
-    availableModels.forEach((m: Model) => {
+    allModels.forEach((m: Model) => {
       const vendor = normalizeVendor(m.name, m.id);
       
-      // Filter by vendor
+      // Filter by active providers
+      const providerStr = (m.provider || '').toLowerCase();
+      let normalizedProviderId = providerStr;
+      if (providerStr.includes('google')) normalizedProviderId = 'google';
+      else if (providerStr.includes('openai')) normalizedProviderId = 'openai';
+      else if (providerStr.includes('anthropic')) normalizedProviderId = 'anthropic';
+      else if (providerStr.includes('mistral')) normalizedProviderId = 'mistral';
+      else if (providerStr.includes('meta')) normalizedProviderId = 'meta';
+      else if (providerStr.includes('deepseek')) normalizedProviderId = 'deepseek';
+      else if (providerStr.includes('perplexity')) normalizedProviderId = 'perplexity';
+      else if (providerStr.includes('openrouter')) normalizedProviderId = 'openrouter';
+      else if (providerStr.includes('mindee')) normalizedProviderId = 'mindee';
+      else if (providerStr.includes('cohere')) normalizedProviderId = 'cohere';
+      else if (providerStr.includes('microsoft')) normalizedProviderId = 'microsoft';
+      else if (providerStr.includes('stability')) normalizedProviderId = 'stability';
+      else if (providerStr.includes('upstage')) normalizedProviderId = 'upstage';
+      else if (providerStr.includes('x-ai')) normalizedProviderId = 'x-ai';
+
+      const isVisibleThroughDirect = activeProviders.includes(normalizedProviderId);
+      const isVisibleThroughOpenRouter = activeProviders.includes('openrouter');
+      
+      if (!isVisibleThroughDirect && !isVisibleThroughOpenRouter) {
+        return;
+      }
+
+      // Filter by vendor UI filter
       if (filterVendor !== "all" && vendor !== filterVendor) return;
       
       // Filter by search
@@ -50,18 +88,51 @@ export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<
     });
 
     return groups;
-  }, [availableModels, filterVendor, searchQuery]);
+  }, [allModels, filterVendor, searchQuery, activeProviders]);
 
   const vendors = useMemo(() => {
     return Object.keys(groupedAndFilteredModels).sort();
   }, [groupedAndFilteredModels]);
 
   const selectedModelsData = useMemo(() => {
-    return availableModels.filter(m => favoriteModels.includes(m.id));
-  }, [availableModels, favoriteModels]);
+    return allModels.filter(m => favoriteModels.includes(m.id));
+  }, [allModels, favoriteModels]);
 
   const handleSave = async () => {
     await onUpdateProfile({ favorite_models: favoriteModels });
+  };
+
+  const handlePingAll = async () => {
+    if (favoriteModels.length === 0) return;
+    setIsPinging(true);
+    try {
+      const { API_BASE } = await import('../../../config');
+      const response = await fetch(`${API_BASE}/models/ping-bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_ids: favoriteModels })
+      });
+      if (response.ok) {
+        const results = await response.json();
+        const newLatencies: Record<string, number> = {};
+        results.forEach((r: { id: string; latency_ms?: number }) => {
+          if (r.latency_ms) newLatencies[r.id] = r.latency_ms;
+          else newLatencies[r.id] = -1; // -1 as offline
+        });
+        setModelLatencies({ ...modelLatencies, ...newLatencies });
+      }
+    } catch (err) {
+      console.error("Bulk ping failed", err);
+    } finally {
+      setIsPinging(false);
+    }
+  };
+
+  const getLatencyColor = (ms: number) => {
+    if (ms < 0) return 'text-red-500';
+    if (ms < 1500) return 'text-emerald-400';
+    if (ms < 4000) return 'text-amber-400';
+    return 'text-red-400';
   };
 
   if (isLoading) {
@@ -102,6 +173,14 @@ export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<
               className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-red-500 hover:text-white transition-all"
             >
               WYCZYŚĆ
+            </button>
+            <button 
+              onClick={handlePingAll}
+              disabled={isPinging || favoriteModels.length === 0}
+              className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-emerald-500 hover:text-white transition-all flex items-center gap-2 group"
+            >
+              <Zap size={12} className={cn(isPinging && "animate-pulse")} />
+              {isPinging ? 'TESTOWANIE...' : 'TESTUJ SZYBKOŚĆ'}
             </button>
             <button 
               onClick={handleSave}
@@ -150,6 +229,11 @@ export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<
                     <span className="text-[10px] text-white/70 font-bold whitespace-nowrap">
                       {m.name.includes(":") ? m.name.split(":").slice(1).join(":").trim() : m.name}
                     </span>
+                    {modelLatencies[m.id] !== undefined && (
+                      <span className={cn("text-[9px] font-black", getLatencyColor(modelLatencies[m.id]))}>
+                        {modelLatencies[m.id] === -1 ? 'OFF' : `${modelLatencies[m.id]}ms`}
+                      </span>
+                    )}
                     <button 
                       onClick={() => toggleFavorite(m.id)}
                       className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-red-500/20 text-white/20 hover:text-red-400 transition-all"
@@ -234,11 +318,15 @@ export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<
                           )}>
                             {cleanName || m.id}
                           </span>
-                          <span className="flex items-center gap-2 mt-1 flex-wrap">
+                           <span className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className="text-[8px] text-white/30 font-bold uppercase tracking-widest">{vendor}</span>
                             {m.vision && <span className="bg-emerald-500/20 text-emerald-400 text-[8px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">👁️ Vision</span>}
                             {m.id.toLowerCase().includes('free') && <span className="bg-blue-500/20 text-blue-400 text-[8px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">Free</span>}
-                            {(m.id.includes('128k') || m.id.includes('200k') || m.id.includes('opus') || m.id.includes('pro')) && <span className="bg-purple-500/20 text-purple-400 text-[8px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wider">🧠 Premium</span>}
+                            {modelLatencies[m.id] !== undefined && (
+                              <span className={cn("flex items-center gap-1 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-sm bg-black/40 border border-white/5", getLatencyColor(modelLatencies[m.id]))}>
+                                <Activity size={8} /> {modelLatencies[m.id] === -1 ? 'OFFLINE' : `${modelLatencies[m.id]}ms`}
+                              </span>
+                            )}
                           </span>
                         </div>
                       </div>

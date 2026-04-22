@@ -9,6 +9,36 @@ import { useChatSettingsStore } from '../../store/useChatSettingsStore';
 import { SettingsInput } from './components/SettingsInput';
 import { APIKeysSection } from './components/APIKeysSection';
 import { ModelOrchestrator } from '../ModelOrchestrator';
+import { useModelHealth } from '../../hooks/useModelHealth';
+
+function SystemInfoCard({ icon: Icon, label, value, status }: { icon: React.ElementType; label: string; value: string; status: 'active' | 'warning' | 'neutral' }) {
+    const statusColor = { active: 'text-emerald-400', warning: 'text-amber-400', neutral: 'text-gold-primary' }[status];
+    const statusDot = { active: 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]', warning: 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]', neutral: 'bg-gold-primary shadow-[0_0_6px_rgba(212,175,55,0.5)]' }[status];
+    return (
+        <div className="p-3.5 rounded-xl glass-prestige flex items-center gap-2.5 hover:bg-white/5 transition-all">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/5 shrink-0">
+                <Icon size={13} className={statusColor} />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em] truncate">{label}</p>
+                <p className={`text-[9px] font-black ${statusColor} uppercase tracking-wider flex items-center gap-1.5 mt-0.5 truncate`}>
+                    <span className={`w-1 h-1 rounded-full ${statusDot}`} />{value}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+function NotificationToggle({ label, isOn, onToggle }: { label: string; isOn: boolean; onToggle: () => void }) {
+    return (
+        <div className="px-4 py-3 rounded-xl glass-prestige flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer" onClick={onToggle}>
+            <span className="text-[8px] font-black uppercase tracking-widest text-white/80 truncate mr-2">{label}</span>
+            <div className={`w-7 h-3.5 rounded-full transition-all flex items-center px-0.5 shrink-0 ${isOn ? 'bg-gold-primary' : 'bg-white/20'}`}>
+                <motion.div animate={{ x: isOn ? 13 : 0 }} className={`w-2.5 h-2.5 rounded-full ${isOn ? 'bg-black' : 'bg-white/40'}`} />
+            </div>
+        </div>
+    );
+}
 
 export function SettingsView() {
     console.log('[SettingsView] Rendering...');
@@ -18,6 +48,7 @@ export function SettingsView() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
+    const { healthData } = useModelHealth();
     const currentSettingsTab = useChatSettingsStore(s => s.currentSettingsTab);
     const [notifications, setNotifications] = useState({
         newCases: true,
@@ -50,34 +81,6 @@ export function SettingsView() {
         loadProfile();
     }, []);
 
-    function SystemInfoCard({ icon: Icon, label, value, status }: { icon: React.ElementType; label: string; value: string; status: 'active' | 'warning' | 'neutral' }) {
-        const statusColor = { active: 'text-emerald-400', warning: 'text-amber-400', neutral: 'text-gold-primary' }[status];
-        const statusDot = { active: 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]', warning: 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.5)]', neutral: 'bg-gold-primary shadow-[0_0_6px_rgba(212,175,55,0.5)]' }[status];
-    return (
-        <div className="p-3.5 rounded-xl glass-prestige flex items-center gap-2.5 hover:bg-white/5 transition-all">
-                <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-white/5 shrink-0">
-                    <Icon size={13} className={statusColor} />
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="text-[7px] font-black text-white/30 uppercase tracking-[0.3em] truncate">{label}</p>
-                    <p className={`text-[9px] font-black ${statusColor} uppercase tracking-wider flex items-center gap-1.5 mt-0.5 truncate`}>
-                        <span className={`w-1 h-1 rounded-full ${statusDot}`} />{value}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    function NotificationToggle({ label, isOn, onToggle }: { label: string; isOn: boolean; onToggle: () => void }) {
-        return (
-            <div className="px-4 py-3 rounded-xl glass-prestige flex items-center justify-between hover:bg-white/10 transition-all cursor-pointer" onClick={onToggle}>
-                <span className="text-[8px] font-black uppercase tracking-widest text-white/80 truncate mr-2">{label}</span>
-                <div className={`w-7 h-3.5 rounded-full transition-all flex items-center px-0.5 shrink-0 ${isOn ? 'bg-gold-primary' : 'bg-white/20'}`}>
-                    <motion.div animate={{ x: isOn ? 13 : 0 }} className={`w-2.5 h-2.5 rounded-full ${isOn ? 'bg-black' : 'bg-white/40'}`} />
-                </div>
-            </div>
-        );
-    }
 
     const handleUpdateProfile = async (updates: Partial<Profile>) => {
         if (!user) return;
@@ -243,12 +246,43 @@ export function SettingsView() {
 
                                     {/* Column 4: System, Powiadomienia, Usuń Konto */}
                                     <div className="space-y-4 flex flex-col h-full">
-                                        {/* System */}
+                                        {/* System & Optimization */}
                                         <div>
-                                            <h3 className="text-[10px] font-black text-white italic tracking-tight uppercase text-gold-gradient mb-2">System</h3>
+                                            <h3 className="text-[10px] font-black text-white italic tracking-tight uppercase text-gold-gradient mb-2 flex items-center justify-between">
+                                                System
+                                                <span className="text-emerald-400 text-[7px] animate-pulse">Neural Optimized</span>
+                                            </h3>
+                                            
+                                            {/* Priority: Auto Speed Selection Toggle */}
+                                            <div className="mb-4 p-4 rounded-2xl glass-prestige-gold border border-gold-primary/20 bg-gold-primary/5 hover:bg-gold-primary/10 transition-all cursor-pointer group"
+                                                 onClick={() => useChatSettingsStore.getState().setAutoSpeedSelection(!useChatSettingsStore.getState().autoSpeedSelection)}>
+                                                <div className="flex items-center justify-between">
+                                                   <div className="flex items-center gap-3">
+                                                      <div className="w-8 h-8 rounded-xl bg-gold-primary/20 flex items-center justify-center text-gold-primary group-hover:scale-110 transition-transform">
+                                                         <Gauge size={16} />
+                                                      </div>
+                                                      <div>
+                                                         <h4 className="text-[10px] font-black text-white uppercase tracking-widest">Priorytet: Prędkość</h4>
+                                                         <p className="text-[7px] text-white/40 font-bold uppercase tracking-tighter">Automatyczny dobór najszybszych modeli</p>
+                                                      </div>
+                                                   </div>
+                                                   <div className={`w-10 h-5 rounded-full transition-all flex items-center px-1 shrink-0 ${useChatSettingsStore(s => s.autoSpeedSelection) ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-white/10'}`}>
+                                                      <motion.div 
+                                                         animate={{ x: useChatSettingsStore(s => s.autoSpeedSelection) ? 18 : 0 }} 
+                                                         className={`w-3.5 h-3.5 rounded-full shadow-lg ${useChatSettingsStore(s => s.autoSpeedSelection) ? 'bg-white' : 'bg-white/20'}`} 
+                                                      />
+                                                   </div>
+                                                </div>
+                                            </div>
+
                                             <div className="grid grid-cols-2 gap-2">
                                                 <SystemInfoCard icon={Cpu} label="Silnik AI" value="Aktywny" status="active" />
-                                                <SystemInfoCard icon={Wifi} label="Połączenie" value="Stabilne" status="active" />
+                                                <SystemInfoCard 
+                                                    icon={Wifi} 
+                                                    label="Darmowe Modele" 
+                                                    value={`${Object.values(healthData).filter(m => m.status === 'online').length} Aktywnych`} 
+                                                    status={Object.values(healthData).some(m => m.status === 'online') ? "active" : "warning"} 
+                                                />
                                                 <SystemInfoCard icon={HardDrive} label="Baza Wiedzy" value="Zsynchronizowana" status="active" />
                                                 <SystemInfoCard icon={Gauge} label="Wersja" value="v3.0 Prestige" status="neutral" />
                                             </div>

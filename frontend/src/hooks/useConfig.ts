@@ -28,8 +28,29 @@ function readCachedModels(): Model[] {
   }
 }
 
+const ENABLED_MODELS_STORAGE_KEY = 'prawnik_enabled_models';
+
+function readEnabledModels(): string[] {
+  try {
+    const raw = window.localStorage.getItem(ENABLED_MODELS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === 'string');
+  } catch {
+    return [];
+  }
+}
+
+function saveEnabledModels(modelIds: string[]): void {
+  window.localStorage.setItem(ENABLED_MODELS_STORAGE_KEY, JSON.stringify(modelIds));
+  window.dispatchEvent(new CustomEvent('prawnik_models_updated'));
+}
+
+export { readEnabledModels, saveEnabledModels };
+
 export function useModels() {
-  return useQuery<Model[]>({
+  const query = useQuery<Model[]>({
     queryKey: ['models'],
     queryFn: async () => {
       const cachedModels = readCachedModels();
@@ -40,7 +61,7 @@ export function useModels() {
       }
 
       try {
-        const res = await fetch(`${API_BASE}/models/all`);
+        const res = await fetch(`${API_BASE}/models/admin?output_modalities=all`);
         if (!res.ok) throw new Error('Failed to fetch models');
         const list = (await res.json()) as Omit<Model, 'active'>[];
         let models = list.map((m) => ({ ...m, active: true }));
@@ -54,7 +75,7 @@ export function useModels() {
               const customList = JSON.parse(custom) as Model[];
               // Unikaj duplikatów
               const existingIds = new Set(models.map(m => m.id));
-              const newModels = customList.filter(m => !existingIds.has(m.id));
+              const newModels = customList.filter(m => m.id && !existingIds.has(m.id));
               models = [...models, ...newModels.map(m => ({ ...m, active: true }))];
             } catch (e) {
               console.warn(`Błąd parsowania modeli custom dla ${provider}:`, e);
@@ -62,16 +83,25 @@ export function useModels() {
           }
         });
 
-        localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify(models));
-        return models;
-      } catch (err) {
+        // Ostateczna deduplikacja dla bezpieczeństwa
+        const finalMap = new Map();
+        models.forEach(m => {
+          if (m.id && m.id.trim().length > 0) finalMap.set(m.id, m);
+        });
+        const deduplicatedModels = Array.from(finalMap.values());
+
+        localStorage.setItem(MODELS_CACHE_KEY, JSON.stringify(deduplicatedModels));
+        return deduplicatedModels;
+      } catch {
         if (cachedModels.length > 0) return cachedModels;
         return [];
       }
     },
-    staleTime: 1000 * 60 * 5, // Krótszy cache przy dynamicznych kluczach
+    staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: true,
   });
+
+  return query;
 }
 
 export function usePresets() {

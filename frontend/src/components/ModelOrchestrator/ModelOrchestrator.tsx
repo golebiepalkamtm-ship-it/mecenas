@@ -16,9 +16,11 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useOrchestratorStore } from '../../store/useOrchestratorStore';
-import { useModels, type Model } from '../../hooks/useConfig';
+import { useModels, type Model, readEnabledModels } from '../../hooks/useConfig';
+import { useApiManagement } from '../../hooks';
 import { getBrand } from '../Chat/constants';
 import { supabase } from '../../utils/supabaseClient';
+import { useModelHealth, type ModelHealth } from '../../hooks/useModelHealth';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -83,7 +85,19 @@ export function ModelOrchestrator() {
   } = useOrchestratorStore();
 
   const { data: rawModels = [] } = useModels();
+  const { healthData, isLoading: isHealthLoading, refreshHealth, latencies } = useModelHealth();
+  const { providers } = useApiManagement();
   const deferredSearch = useDeferredValue(searchQuery);
+
+  const activeProviders = useMemo(() => 
+    providers
+      .filter(p => p.active && p.key && p.key.trim() !== "")
+      .map(p => p.id.toLowerCase()),
+    [providers]
+  );
+
+  // Admin-selected models (hierarchia dostępu)
+  const adminSelectedModels = readEnabledModels();
 
   const handleSaveModels = async () => {
     setIsSaving(true);
@@ -139,6 +153,36 @@ export function ModelOrchestrator() {
   const filteredModels = useMemo(() => {
     const q = deferredSearch.toLowerCase();
     return enrichedModels.filter((m) => {
+      // HIERARCHIA DOSTĘPU: Pokazuj tylko modele wybrane przez admina
+      if (adminSelectedModels.length > 0 && !adminSelectedModels.includes(m.id)) {
+        return false;
+      }
+
+      // STRICT PROVIDER FILTER
+      const providerStr = (m.provider || '').toLowerCase();
+      let normalizedProviderId = providerStr;
+      if (providerStr.includes('google')) normalizedProviderId = 'google';
+      else if (providerStr.includes('openai')) normalizedProviderId = 'openai';
+      else if (providerStr.includes('anthropic')) normalizedProviderId = 'anthropic';
+      else if (providerStr.includes('mistral')) normalizedProviderId = 'mistral';
+      else if (providerStr.includes('meta')) normalizedProviderId = 'meta';
+      else if (providerStr.includes('deepseek')) normalizedProviderId = 'deepseek';
+      else if (providerStr.includes('perplexity')) normalizedProviderId = 'perplexity';
+      else if (providerStr.includes('openrouter')) normalizedProviderId = 'openrouter';
+      else if (providerStr.includes('mindee')) normalizedProviderId = 'mindee';
+      else if (providerStr.includes('cohere')) normalizedProviderId = 'cohere';
+      else if (providerStr.includes('microsoft')) normalizedProviderId = 'microsoft';
+      else if (providerStr.includes('stability')) normalizedProviderId = 'stability';
+      else if (providerStr.includes('upstage')) normalizedProviderId = 'upstage';
+      else if (providerStr.includes('x-ai')) normalizedProviderId = 'x-ai';
+
+      const isVisibleThroughDirect = activeProviders.includes(normalizedProviderId);
+      const isVisibleThroughOpenRouter = activeProviders.includes('openrouter');
+      
+      if (!isVisibleThroughDirect && !isVisibleThroughOpenRouter) {
+        return false;
+      }
+
       if (filterVendor !== 'all') {
         const v = (m.name.includes(':') ? m.name.split(':')[0].trim() : m.id.split('/')[0]).toUpperCase();
         if (v !== filterVendor) return false;
@@ -152,11 +196,21 @@ export function ModelOrchestrator() {
       }
       return true;
     });
-  }, [enrichedModels, filterVendor, filterTag, deferredSearch]);
+  }, [enrichedModels, adminSelectedModels, filterVendor, filterTag, deferredSearch, activeProviders]);
 
   const favoriteModels = useMemo(
-    () => enrichedModels.filter((m) => favoriteModelIds.includes(m.id)),
-    [enrichedModels, favoriteModelIds]
+    () => enrichedModels
+      .filter((m) => favoriteModelIds.includes(m.id))
+      .sort((a, b) => {
+        // SORTOWANIE WEDŁUG SZYBKOŚCI: Najszybsze modele najpierw
+        const aLatency = latencies[a.id] || 9999;
+        const bLatency = latencies[b.id] || 9999;
+        if (aLatency !== bLatency) return aLatency - bLatency;
+
+        // Jeśli takie same latency, sortuj alfabetycznie
+        return a.name.localeCompare(b.name);
+      }),
+    [enrichedModels, favoriteModelIds, latencies]
   );
 
   const groupedByVendor = useMemo(() => {
@@ -212,9 +266,12 @@ export function ModelOrchestrator() {
                         {isSaving ? 'ZAPISUJ...' : 'ZAPISZ'}
                     </button>
                     <button
-                        onClick={() => window.dispatchEvent(new CustomEvent('prawnik_models_updated'))}
-                        className="ml-2 text-white/20 hover:text-white transition-colors"
-                        title="Odśwież"
+                        onClick={() => {
+                            window.dispatchEvent(new CustomEvent('prawnik_models_updated'));
+                            refreshHealth();
+                        }}
+                        className={cn("ml-2 text-white/20 hover:text-white transition-colors", isHealthLoading && "animate-spin")}
+                        title="Odśwież statusy"
                     >
                         <RotateCcw size={12} />
                     </button>
@@ -295,7 +352,13 @@ export function ModelOrchestrator() {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {favoriteModels.map(m => (
-                            <ModelMiniTile key={m.id} model={m} isFavorite={true} onToggle={() => toggleFavoriteModel(m.id)} />
+                            <ModelMiniTile 
+                                key={m.id} 
+                                model={m} 
+                                isFavorite={true} 
+                                onToggle={() => toggleFavoriteModel(m.id)} 
+                                health={healthData[m.id]}
+                            />
                         ))}
                     </div>
                 </div>
@@ -320,6 +383,7 @@ export function ModelOrchestrator() {
                                     model={m}
                                     isFavorite={favoriteModelIds.includes(m.id)}
                                     onToggle={() => toggleFavoriteModel(m.id)}
+                                    health={healthData[m.id]}
                                 />
                             ))}
                         </div>
@@ -337,7 +401,7 @@ export function ModelOrchestrator() {
   );
 }
 
-function ModelMiniTile({ model, isFavorite, onToggle }: { model: OrchestratorModel, isFavorite: boolean, onToggle: () => void }) {
+function ModelMiniTile({ model, isFavorite, onToggle, health }: { model: OrchestratorModel, isFavorite: boolean, onToggle: () => void, health?: ModelHealth }) {
   const brand = getBrand(model.provider || (model.id.includes('/') ? model.id.split('/')[0] : 'unknown'));
   const cleanName = model.name.includes(':') ? model.name.split(':').slice(1).join(':').trim() : model.name;
 
@@ -367,7 +431,20 @@ function ModelMiniTile({ model, isFavorite, onToggle }: { model: OrchestratorMod
             isFavorite ? "text-white" : "text-white/60 group-hover:text-white")}>
             {cleanName || model.id}
         </span>
-        <span className="text-[7px] text-white/20 font-bold uppercase tracking-widest mt-0.5">{(model.provider || (model.id.includes('/') ? model.id.split('/')[0] : 'unknown')).toUpperCase()}</span>
+        <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[7px] text-white/20 font-bold uppercase tracking-widest">{(model.provider || (model.id.includes('/') ? model.id.split('/')[0] : 'unknown')).toUpperCase()}</span>
+            {health && (
+                <div className="flex items-center gap-1.5 ml-1">
+                    <div className={cn("w-1 h-1 rounded-full", health.status === 'online' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500")} />
+                    <span className={cn("text-[6px] font-black tracking-tighter transition-colors", health.status === 'online' ? "text-emerald-500/80" : "text-red-500/80")}>
+                        {health.status === 'online' ? `${health.latency_ms}ms` : 'OFFLINE'}
+                    </span>
+                    {health.status === 'online' && health.latency_ms < 1000 && (
+                        <Zap size={8} className="text-gold-primary animate-pulse ml-0.5" />
+                    )}
+                </div>
+            )}
+        </div>
       </div>
 
       {isFavorite && (

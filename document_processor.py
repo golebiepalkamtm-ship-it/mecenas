@@ -11,6 +11,7 @@ Ekstrakcja tekstu z różnych formatów dokumentów:
 
 import os
 import io
+import time
 import tempfile
 import asyncio
 from typing import Optional, Tuple, List
@@ -34,7 +35,7 @@ os.environ["MKL_NUM_THREADS"] = "4"
 SURYA_AVAILABLE = False
 EASY_OCR_AVAILABLE = False
 GOOGLE_VISION_AVAILABLE = False
-AI_VISION_OCR_AVAILABLE = True  # Nowy silnik oparty o Gemini/GPT-4o via OpenRouter
+AI_VISION_OCR_AVAILABLE = False  # WYŁĄCZONE - zwraca błąd 403 (limit przekroczony). Używamy OCR.space
 
 # Cache dla wyników OCR (żeby uniknąć podwójnego przetwarzania tego samego dokumentu)
 MAX_OCR_CACHE_SIZE = 50 
@@ -77,18 +78,28 @@ _surya_models = {"det": None, "rec": None, "layout": None, "langs": ["pl", "en"]
 _surya_lock = threading.Lock()
 
 
-def get_surya_models():
+async def get_surya_models():
     """Zwraca modele Surya (ładowane leniwie)."""
+    # Sprawdzenie bez locka dla krotkiej sciezki
+    if _surya_models["det"] is not None:
+        return _surya_models["det"], _surya_models["rec"], _surya_models["layout"]
+
+    # Lock zapobiega podwojnej inicjalizacji
     with _surya_lock:
         if _surya_models["det"] is None:
             try:
                 from surya.models import load_predictors
-
-                print("Inicjalizacja modeli Surya (OCR + Layout)...")
-                predictors = load_predictors()
+                print("   [OCR] Inicjalizacja modeli Surya (OCR + Layout)... To może zająć chwilę.")
+                # load_predictors jest BARDZO ciężkie — wywołujemy w wątku, żeby nie mrozic pętli async
+                # ale jesteśmy już wewnątrz locka, więc używamy prostej funkcji do wątku
+                def _do_load():
+                    return load_predictors()
+                
+                predictors = await asyncio.to_thread(_do_load)
                 _surya_models["det"] = predictors.get("detection")
                 _surya_models["rec"] = predictors.get("recognition")
                 _surya_models["layout"] = predictors.get("layout")
+                print("   [OCR] Modele Surya załadowane pomyślnie.")
             except Exception as e:
                 print(f"⚠️ Błąd podczas ładowania modeli Surya: {e}")
                 return None, None, None
@@ -263,12 +274,16 @@ async def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]
         from PIL import Image
         doc = fitz.open(stream=pdf_content, filetype="pdf")
         text = ""
-        for page in doc:
+        page_count = len(doc)
+        print(f"   [PDF] Otwarto dokument: {page_count} stron.")
+        for i, page in enumerate(doc):
             text += page.get_text() + "\n"
+            if i % 10 == 0 and i > 0:
+                print(f"   [PDF] Wyekstrahowano tekst: {i}/{page_count} stron...")
 
         # Jeśli PDF jest pusty lub ma bardzo mało tekstu (prawdopodobnie skan), spróbuj OCR
         if (not text.strip() or len(text.strip()) < 50) and (SURYA_AVAILABLE or EASY_OCR_AVAILABLE or AI_VISION_OCR_AVAILABLE):
-            print(f"PDF ma zbyt mało tekstu ({len(text.strip())} zn.). Uruchamiam silnik OCR...")
+            print(f"   [PDF] Tekst natywny zbyt krótki ({len(text.strip())} zn.). Inicjowanie OCR...")
             
             # Sprawdź cache dla OCR
             content_hash = hashlib.md5(pdf_content).hexdigest()
@@ -305,7 +320,9 @@ async def extract_text_from_pdf(pdf_content: bytes) -> Tuple[str, Optional[str]]
                         return await process_page(i)
 
                 page_tasks = [sem_process_page(i) for i in range(page_count)]
+                print(f"   [PDF OCR] Start zadań równoległych dla {page_count} stron...")
                 page_results = await asyncio.gather(*page_tasks)
+                print(f"   [PDF OCR] Zakończono zadania dla wszystkich stron.")
                 ocr_text = "\n\n".join(page_results)
 
                 ocr_result = (ocr_text.strip(), None) if ocr_text.strip() else ("", "OCR nie znalazł tekstu")
@@ -394,25 +411,11 @@ async def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional
             print("PIL OCR Cache: Użyto cache'a dla obrazu")
             return _ocr_cache[cache_key]
 
-    # 1. Próba użycia AI Vision OCR (CHMURA - NAJSZYBSZA I NAJDOKŁADNIEJSZA)
-    from moa.config import OPENROUTER_API_KEY
-    if AI_VISION_OCR_AVAILABLE and OPENROUTER_API_KEY:
-        try:
-            print("[CLOUD] [AI OCR] Przesyłanie do chmury (Gemini Vision)...")
-            text, err = await extract_text_via_ai(img_bytes)
-            if text and not err:
-                result = text, None
-                with _ocr_cache_lock:
-                    _ocr_cache[cache_key] = result
-                return result
-        except Exception as ai_err:
-            print(f"⚠️ AI OCR error: {ai_err}")
-
-    # 2. Próba użycia OCR.space (CHMURA - SZYBKI FALLBACK)
+    # 1. Próba użycia OCR.space (CHMURA - GŁÓWNY SILNIK OCR - DARMOWY)
     from moa.config import OCR_SPACE_API_KEY
     if OCR_SPACE_API_KEY:
         try:
-            print("[CLOUD] [OCR.space] Próba fallbacku do OCR.space...")
+            print("[CLOUD] [OCR.space] Główny silnik OCR - wysyłanie do OCR.space...")
             text, err = await extract_text_via_ocr_space(img_bytes)
             if text and not err:
                 result = text, None
@@ -422,10 +425,10 @@ async def extract_text_from_pil_image(image: Image.Image) -> Tuple[str, Optional
         except Exception as ocr_space_err:
             print(f"⚠️ OCR.space error: {ocr_space_err}")
 
-    # 3. Próba użycia Surya (LOKALNY FALLBACK - DARMOWY)
+    # 2. Próba użycia Surya (LOKALNY FALLBACK - DARMOWY)
     if SURYA_AVAILABLE:
         try:
-            det_predictor, rec_predictor, _ = get_surya_models()
+            det_predictor, rec_predictor, _ = await get_surya_models()
             if det_predictor and rec_predictor:
                 # Upewniamy się, że obraz jest w formacie RGB
                 # Skalujemy nieco bardziej dla lokalnego OCR (optymalizacja prędkości i stabilności)
@@ -520,8 +523,11 @@ async def process_document(
     Returns:
         Tuple: (ekstraktowany_tekst, błąd)
     """
+    start_time = time.time()
     filename_lower = filename.lower()
     content_type_lower = content_type.lower()
+    
+    print(f"   [PROCESSOR] Start: {filename} ({content_type})")
 
     # PDF
     if filename_lower.endswith(".pdf") or "application/pdf" in content_type_lower:
@@ -551,7 +557,12 @@ async def process_document(
         return await extract_text_from_image(file_content)
 
     else:
-        return "", f"Nieobsługiwany format: {filename} (type: {content_type})"
+        result = "", f"Nieobsługiwany format: {filename} (type: {content_type})"
+
+    duration = time.time() - start_time
+    text_len = len(result[0]) if result[0] else 0
+    print(f"   [PROCESSOR] Koniec: {filename} | Tekst: {text_len} zn. | Czas: {duration:.2f}s")
+    return result
 
 
 async def process_base64_document(

@@ -26,6 +26,7 @@ import type { Tab, NavItem } from "./types/navigation";
 import { lazy, Suspense, memo } from "react";
 import { supabase } from "./utils/supabaseClient";
 import type { Session } from "@supabase/supabase-js";
+import { ChatProvider } from "./context/ChatContext";
 
 const MemoizedModernLoading = memo(ModernLoading);
 const ChatView = lazy(() => import("./components/Chat").then(m => ({ default: m.ChatView })));
@@ -38,12 +39,6 @@ const DrafterView = lazy(() => import("./components/Drafter").then(m => ({ defau
 const DocumentsView = lazy(() => import("./components/Documents").then(m => ({ default: m.DocumentsView })));
 const LandingView = lazy(() => import("./components/Landing/LandingView").then(m => ({ default: m.LandingView })));
 
-// Prefetch ChatView after landing loads
-setTimeout(() => {
-  import("./components/Chat").then(() => {
-    console.log("[APP] ChatView prefetched");
-  });
-}, 2000);
 const PortalView = lazy(() => import("./components/Landing/PortalView").then(m => ({ default: m.PortalView })));
 
 const NAV_ITEMS: NavItem[] = [
@@ -124,7 +119,7 @@ export default function App() {
   
   // Phase of the application routing: splash (5s) -> landing -> portal -> login -> app
   // If user is already logged in, we go directly splash -> app
-  const [appPhase, setAppPhase] = useState<"splash" | "landing" | "portal" | "login" | "app">("splash");
+  const [appPhase, setAppPhase] = useState<"splash" | "landing" | "portal" | "login" | "wait-auth" | "app">("splash");
 
   const currentSettingsTab = useChatSettingsStore(s => s.currentSettingsTab);
   const setSettingsTab = useChatSettingsStore(s => s.setSettingsTab);
@@ -172,14 +167,23 @@ export default function App() {
         console.log('[AUTH] Using default role "user" due to error or no data');
         setUserRole("user");
       }
-      
-      // TEMP: Force admin role for testing
-      console.log('[AUTH] FORCING admin role for testing');
-      setUserRole("admin");
     } catch (err) {
       console.log('[AUTH] Exception in fetchUserRole:', err);
       setUserRole("user");
     }
+  };
+
+  const applyResolvedSession = (resolvedSession: Session | null) => {
+    setSession(resolvedSession);
+    setAuthLoading(false);
+
+    if (resolvedSession) {
+      console.log('[AUTH] Applying resolved session for:', resolvedSession.user.id);
+      void fetchUserRole(resolvedSession.user.id);
+      return;
+    }
+
+    setUserRole("user");
   };
 
   // 1. Initialize Auth and Session checking
@@ -194,15 +198,10 @@ export default function App() {
     const initializeAuth = async () => {
       try {
         console.log('[AUTH] Setting up onAuthStateChange listener...');
-        const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        const { data } = supabase.auth.onAuthStateChange((event, newSession) => {
           if (!isMounted) return;
           console.log(`[AUTH] Event: ${event}`, newSession?.user?.id);
-          setSession(newSession);
-          if (newSession) {
-            console.log('[AUTH] Fetching user role for:', newSession.user.id);
-            fetchUserRole(newSession.user.id);
-          }
-          setAuthLoading(false);
+          applyResolvedSession(newSession);
         });
         subscription = data.subscription;
         console.log('[AUTH] Auth state change listener registered');
@@ -216,11 +215,7 @@ export default function App() {
         console.log('[AUTH] Current session retrieved:', currentSession ? 'has session' : 'no session');
 
         if (isMounted) {
-          if (currentSession) {
-            setSession(currentSession);
-            fetchUserRole(currentSession.user.id);
-          }
-          setAuthLoading(false);
+          applyResolvedSession(currentSession);
           console.log('[AUTH] Auth initialization complete');
         }
       } catch (err) {
@@ -236,6 +231,18 @@ export default function App() {
       if (subscription) subscription.unsubscribe();
     };
   }, []);
+
+  // Failsafe: never stay on wait-auth forever if Supabase stalls.
+  useEffect(() => {
+    if (appPhase !== "wait-auth" || !authLoading) return;
+
+    const timer = setTimeout(() => {
+      console.warn("[AUTH] wait-auth timeout reached, forcing authLoading=false");
+      setAuthLoading(false);
+    }, 4000);
+
+    return () => clearTimeout(timer);
+  }, [appPhase, authLoading]);
 
   // 2. Control the Splash Screen phase
   useEffect(() => {
@@ -256,24 +263,37 @@ export default function App() {
         // TRANSITION BUFFER: Instead of jumping directly to 'app', we go to a brief black screen 
         // to let the main thread process any pending tasks (lazily load chat components etc)
         const nextPhase = session ? "app" : "landing";
-        console.log(`[APP] Preparing transition to: ${nextPhase}. AuthLoading: ${authLoading}`);
+        
+        // Prefetch ChatView just before transitioning to app
+        if (nextPhase === "app") {
+          import("./components/Chat").catch(() => {});
+        }
         
         if (!authLoading) {
-           setAppPhase(nextPhase);
+           if (nextPhase === "app") {
+             setTimeout(() => setAppPhase("app"), 150);
+           } else {
+             setAppPhase(nextPhase);
+           }
         } else {
-           // Fallback transition if auth is slow
-           setTimeout(() => setAppPhase(nextPhase), 800);
+           setAppPhase("wait-auth");
         }
     }, splashDuration);
 
     return () => clearTimeout(timer);
   }, [appPhase, session, authLoading]);
 
-  // Transition to app when auth completes (handles case when splash ends before auth)
+  // Transition to app when auth completes (handles case when splash ends before auth or wait-auth phase)
   useEffect(() => {
-    if (appPhase === "landing" && session && !authLoading) {
-      console.log('[APP] Auth complete, transitioning to app');
-      setTimeout(() => setAppPhase("app"), 0);
+    if ((appPhase === "landing" || appPhase === "wait-auth") && !authLoading) {
+      if (session) {
+        // TRANSITION BUFFER: Prefetch ChatView before transitioning to give the browser time to fetch chunks
+        import("./components/Chat").catch(() => {});
+        setTimeout(() => setAppPhase("app"), 150);
+      } else if (appPhase === "wait-auth") {
+        // If they were stuck waiting but have no session, send them to landing on next tick
+        setTimeout(() => setAppPhase("landing"), 0);
+      }
     }
   }, [appPhase, session, authLoading]);
 
@@ -308,8 +328,25 @@ export default function App() {
   if (appPhase === "portal") {
     return (
       <Suspense fallback={<div className="h-screen w-screen bg-[#050505]" />}>
-        <PortalView onBack={() => setAppPhase("landing")} onLoginSuccess={() => setAppPhase("app")} />
+        <PortalView 
+          onBack={() => setAppPhase("landing")} 
+          onLoginSuccess={() => {
+            // TRANSITION BUFFER: Prevent synchronous unmount of PortalView & mount of ChatView
+            // Request the bundle, and transition to 'app' on the next few frames to avoid main thread saturation
+            import("./components/Chat").catch(() => {});
+            setTimeout(() => setAppPhase("app"), 150);
+          }} 
+        />
       </Suspense>
+    );
+  }
+
+  // PHASE 2.7: WAIT-AUTH (splash ended but supabase hasn't resolved session yet)
+  if (appPhase === "wait-auth") {
+    return (
+      <div className="h-screen w-full flex flex-col items-center justify-center overflow-hidden bg-black relative">
+        <MemoizedModernLoading />
+      </div>
     );
   }
 
@@ -318,10 +355,6 @@ export default function App() {
     (item) => !item.adminOnly || userRole === "admin",
   );
   
-  // Debug logging for admin access
-  console.log('[AUTH] Current userRole:', userRole);
-  console.log('[AUTH] Admin items filtered:', NAV_ITEMS.filter(item => item.adminOnly).map(i => i.id));
-  console.log('[AUTH] Should show admin button:', userRole === "admin");
   const activeNavItem = NAV_ITEMS.find((n) => n.id === activeTab);
   const topbarAccentStyle = {
     "--topbar-accent-rgb": activeNavItem?.colorRgb ?? "59, 130, 246",
@@ -351,6 +384,7 @@ export default function App() {
   };
 
   return (
+    <ChatProvider>
     <div
       className="flex h-screen w-full overflow-hidden relative font-inter text-accent p-0 md:p-2 lg:p-4"
       style={{
@@ -502,6 +536,7 @@ export default function App() {
         </main>
       </div>
     </div>
+    </ChatProvider>
   );
 }
 

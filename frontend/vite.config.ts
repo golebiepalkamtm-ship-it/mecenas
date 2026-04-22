@@ -1,4 +1,4 @@
-// Vite Configuration v1.0.1
+// Vite Configuration v1.0.3
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -20,5 +20,14 @@ export default defineConfig({
       protocol: 'ws',
     },
     allowedHosts: true,
+    watch: {
+      usePolling: true,
+    }
+  },
+  optimizeDeps: {
+    rolldownOptions: {
+      // Aligning with Vite 8 / Rolldown standards
+      // jsx is handled via tsconfig.app.json automatically
+    }
   }
 })

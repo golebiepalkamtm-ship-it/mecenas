@@ -35,7 +35,7 @@ const PROMPT_TRANSLATIONS: Record<string, string> = {
   'prosecutor': 'Prokurator',
   'investigator': 'Śledczy',
   'forensic_expert': 'Biegły Sądowy',
-  'hard_judge': 'Sędzia Orzekający',
+  'hard_judge': 'Główny Analityk Śledczy',
   'sentencing_expert': 'Ekspert ds. Wyroków',
   'navigator': 'Nawigator',
   

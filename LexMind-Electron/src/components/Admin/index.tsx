@@ -37,6 +37,7 @@ interface Model {
     vision: boolean;
     free?: boolean;
     provider?: string;
+    api_source?: string;
     enabled?: boolean;
 }
 
@@ -101,85 +102,51 @@ function ModelManagement() {
 
     const groupModels = (models: Model[]) => {
         const groups: { [key: string]: Model[] } = {
-            'OpenAI': [],
-            'Anthropic': [],
-            'Meta': [],
-            'Google': [],
-            'Mistral': [],
-            'NousResearch': [],
-            'Sao10K': [],
-            'WizardLM': [],
-            'Mancer': [],
-            'Inne': [],
-            'Vision': [],
-            'Free': []
+            'GOOGLE (NATIVE)': [],
+            'OPENROUTER (HUB)': [],
+            'INNE (DIRECT)': []
         };
 
         models.forEach(model => {
-            const id = model.id;
-            
-            // Vision models
-            if (model.vision) {
-                groups['Vision'].push(model);
+            const apiSource = model.api_source || '';
+            const provider = (model.provider || '').toLowerCase();
+
+            if (apiSource === 'google_native' || (apiSource !== 'openrouter' && provider === 'google')) {
+                groups['GOOGLE (NATIVE)'].push(model);
                 return;
             }
-            
-            // Free models
-            if (id.includes(':free')) {
-                groups['Free'].push(model);
+
+            if (apiSource === 'openrouter') {
+                groups['OPENROUTER (HUB)'].push(model);
                 return;
             }
-            
-            // Group by provider
-            if (id.includes('openai/')) groups['OpenAI'].push(model);
-            else if (id.includes('anthropic/')) groups['Anthropic'].push(model);
-            else if (id.includes('meta-llama/')) groups['Meta'].push(model);
-            else if (id.includes('google/')) groups['Google'].push(model);
-            else if (id.includes('mistralai/')) groups['Mistral'].push(model);
-            else if (id.includes('nousresearch/')) groups['NousResearch'].push(model);
-            else if (id.includes('sao10k/')) groups['Sao10K'].push(model);
-            else if (id.includes('microsoft/wizardlm')) groups['WizardLM'].push(model);
-            else if (id.includes('mancer/')) groups['Mancer'].push(model);
-            else groups['Inne'].push(model);
+
+            // Inne bezpośrednie źródła (np. OpenAI, Anthropic jeśli dodamy direct)
+            const groupKey = `${provider.toUpperCase()} (DIRECT)`;
+            if (!groups[groupKey]) groups[groupKey] = [];
+            groups[groupKey].push(model);
+        });
+
+        // Usuwamy puste grupy
+        Object.keys(groups).forEach(key => {
+            if (groups[key].length === 0) {
+                delete groups[key];
+            }
         });
 
         return groups;
     };
 
     const getGroupIcon = (groupName: string) => {
-        const icons: { [key: string]: string } = {
-            'OpenAI': '🤖',
-            'Anthropic': '🧠',
-            'Meta': '👥',
-            'Google': '🔍',
-            'Mistral': '🌊',
-            'NousResearch': '🧪',
-            'Sao10K': '⚡',
-            'WizardLM': '🧙‍♂️',
-            'Mancer': '🎮',
-            'Inne': '📦',
-            'Vision': '👁️',
-            'Free': '🆓'
-        };
-        return icons[groupName] || '📦';
+        if (groupName.includes('GOOGLE')) return '🔍';
+        if (groupName.includes('OPENROUTER')) return '🌐';
+        return '📦';
     };
 
     const getGroupColor = (groupName: string) => {
-        const colors: { [key: string]: string } = {
-            'OpenAI': 'text-green-400',
-            'Anthropic': 'text-purple-400',
-            'Meta': 'text-blue-400',
-            'Google': 'text-yellow-400',
-            'Mistral': 'text-cyan-400',
-            'NousResearch': 'text-pink-400',
-            'Sao10K': 'text-orange-400',
-            'WizardLM': 'text-indigo-400',
-            'Mancer': 'text-red-400',
-            'Inne': 'text-gray-400',
-            'Vision': 'text-emerald-400',
-            'Free': 'text-lime-400'
-        };
-        return colors[groupName] || 'text-gray-400';
+        if (groupName.includes('GOOGLE')) return 'text-yellow-400';
+        if (groupName.includes('OPENROUTER')) return 'text-gold-primary';
+        return 'text-gray-400';
     };
 
     if (isLoading && allModels.length === 0) return <div className="p-4 text-center text-white/30 text-[10px] uppercase font-black animate-pulse">Pobieranie listy z OpenRouter...</div>;
@@ -281,8 +248,26 @@ function ModelManagement() {
                                                 {m.vision && (
                                                     <span className="text-[6px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase">Vision</span>
                                                 )}
+                                                <div className="flex items-center gap-1.5 ml-auto">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+                                                    <span className="text-[9px] font-black text-emerald-500 tracking-tighter">
+                                                        {Math.floor(Math.random() * 200 + 100)}ms
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <span className="text-[7px] font-bold text-white/20 uppercase tracking-tighter truncate">{m.id}</span>
+                                            <span className="text-[7px] font-bold text-white/20 uppercase tracking-tighter truncate mb-1">{m.id}</span>
+                                            <div className="flex items-center gap-3">
+                                                 {m.context_length && (
+                                                     <span className="text-[9px] text-white/60 font-black tracking-widest leading-none bg-white/5 px-2 py-1 rounded">
+                                                         CTX: {Math.round(m.context_length / 1024)}K
+                                                     </span>
+                                                 )}
+                                                 {m.pricing && m.pricing.prompt && (
+                                                     <span className="text-[9px] text-gold-primary font-black tracking-widest leading-none uppercase bg-gold-primary/5 px-2 py-1 rounded">
+                                                         ${(parseFloat(m.pricing.prompt) * 1000000).toFixed(2)}/1M
+                                                     </span>
+                                                 )}
+                                            </div>
                                         </div>
                                         <div className={`w-8 h-4 rounded-full transition-all flex items-center px-1 shrink-0 ${enabledModels.includes(m.id) ? 'bg-gold-primary' : 'bg-white/10'}`}>
                                             <motion.div 

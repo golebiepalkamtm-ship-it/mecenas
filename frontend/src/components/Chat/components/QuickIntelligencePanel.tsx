@@ -19,6 +19,8 @@ import { cn } from '../../../utils/cn';
 import { useChatSettingsStore } from '../../../store/useChatSettingsStore';
 import { useOrchestratorStore } from '../../../store/useOrchestratorStore';
 import { useModels } from '../../../hooks/useConfig';
+import { useApiManagement } from '../../../hooks';
+import { useModelHealth } from '../../../hooks/useModelHealth';
 import { getBrand } from '../constants';
 
 const DEFENSE_MASTER_PROMPT = `[CORE_IDENTITY: SUPREME_DEFENSE_COMMAND]
@@ -26,7 +28,7 @@ Jesteś Naczelnym Dowódcą Sztabu Obrony — meta-strategiem koordynującym zes
 Twoja jedyna misja: WYCIĄGNĄĆ KLIENTA Z KAŻDEJ OPRESJI PRAWNEJ.`;
 
 const PROSECUTION_MASTER_PROMPT = `[CORE_IDENTITY: STATE_PROSECUTION_APPARATUS]
-Jesteś Naczelnym Koordynatorem Aparatu Oskarżycielskiego — meta-analitykiem kierującym zespołem prokuratorów, śledczych, biegłych i sędziów. 
+Jesteś Naczelnym Koordynatorem Aparatu Oskarżycielskiego — meta-analitykiem kierującym zespołem prokuratorów, śledczych i biegłych. 
 Twoja jedyna misja: ZBUDOWAĆ SZCZELNY, NIEPODWAŻALNY PRZYPADEK OSKARŻENIA.`;
 
 export function QuickIntelligencePanel() {
@@ -43,6 +45,11 @@ export function QuickIntelligencePanel() {
     setExpertRoleForModel,
     activePromptPresetId,
     applyPromptPreset,
+    selectedExperts,
+    setExperts,
+    setActiveModels,
+    selectedSingleModel,
+    setSelectedSingleModel,
     unitSystemRoles 
   } = useChatSettingsStore();
   
@@ -94,14 +101,15 @@ export function QuickIntelligencePanel() {
              id === 'prosecutor' ? 'Prokurator' :
              id === 'investigator' ? 'Śledczy' :
              id === 'forensic_expert' ? 'Biegły Sądowy' :
-             id === 'hard_judge' ? 'Sędzia Orzekający' :
+             id === 'hard_judge' ? 'Główny Analityk Śledczy' :
              id === 'sentencing_expert' ? 'Ekspert ds. Wyroków' :
              id.toUpperCase(),
       icon: iconMap[id] || Shield,
       color: colorMap[id] || 'text-gold-primary',
       border: borderMap[id] || 'border-gold-primary/30',
       glow: glowMap[id] || 'bg-gold-primary/10'
-    }));
+    }))
+    .filter(role => role.id.trim().length > 0);
   }, [unitSystemRoles]);
 
   const [isRolesOpen, setIsRolesOpen] = useState(true);
@@ -109,13 +117,76 @@ export function QuickIntelligencePanel() {
   const [isJudgeOpen, setIsJudgeOpen] = useState(true);
   
   const { data: allModels = [] } = useModels();
+  const { healthData } = useModelHealth();
+  const { providers } = useApiManagement();
+
+  const activeProviders = useMemo(() => 
+    providers
+      .filter(p => p.active && p.key && p.key.trim() !== "")
+      .map(p => p.id.toLowerCase()),
+    [providers]
+  );
   
   const availableModels = useMemo(() => {
+    let filtered = allModels;
+
+    // Filter by active providers
+    filtered = filtered.filter(model => {
+        const provider = (model.provider || '').toLowerCase();
+        let normalizedProviderId = provider;
+        if (provider.includes('google')) normalizedProviderId = 'google';
+        else if (provider.includes('openai')) normalizedProviderId = 'openai';
+        else if (provider.includes('anthropic')) normalizedProviderId = 'anthropic';
+        else if (provider.includes('mistral')) normalizedProviderId = 'mistral';
+        else if (provider.includes('meta')) normalizedProviderId = 'meta';
+        else if (provider.includes('deepseek')) normalizedProviderId = 'deepseek';
+        else if (provider.includes('perplexity')) normalizedProviderId = 'perplexity';
+        else if (provider.includes('openrouter')) normalizedProviderId = 'openrouter';
+        else if (provider.includes('mindee')) normalizedProviderId = 'mindee';
+        else if (provider.includes('cohere')) normalizedProviderId = 'cohere';
+        else if (provider.includes('microsoft')) normalizedProviderId = 'microsoft';
+        else if (provider.includes('stability')) normalizedProviderId = 'stability';
+        else if (provider.includes('upstage')) normalizedProviderId = 'upstage';
+        else if (provider.includes('x-ai')) normalizedProviderId = 'x-ai';
+
+        const isVisibleThroughDirect = activeProviders.includes(normalizedProviderId);
+        const isVisibleThroughOpenRouter = activeProviders.includes('openrouter');
+        
+        return isVisibleThroughDirect || isVisibleThroughOpenRouter;
+    });
+
     if (favoriteModels.length > 0) {
-      return allModels.filter(m => favoriteModels.includes(m.id));
+      return filtered.filter(m => favoriteModels.includes(m.id));
     }
-    return [];
-  }, [allModels, favoriteModels]);
+    return filtered;
+  }, [allModels, favoriteModels, activeProviders]);
+
+  // Synchronizacja: Czyścimy wybrane modele, jeśli ich dostawcy nie są już aktywni
+  useEffect(() => {
+    if (allModels.length === 0 || activeProviders.length === 0) return;
+    
+    const cleanup = () => {
+        const validExperts = selectedExperts.filter((id: string) => availableModels.some(m => m.id === id));
+        if (validExperts.length !== selectedExperts.length) {
+            setExperts(validExperts);
+        }
+
+        const validActive = activeModels.filter((id: string) => availableModels.some(m => m.id === id));
+        if (validActive.length !== activeModels.length) {
+            setActiveModels(validActive);
+        }
+
+        if (selectedSingleModel && !availableModels.some(m => m.id === selectedSingleModel)) {
+            setSelectedSingleModel("");
+        }
+
+        if (selectedJudge && !availableModels.some(m => m.id === selectedJudge)) {
+            setSelectedJudge("");
+        }
+    };
+
+    cleanup();
+  }, [availableModels, selectedExperts, activeModels, selectedSingleModel, selectedJudge, setSelectedJudge, setExperts, setActiveModels, setSelectedSingleModel, allModels.length, activeProviders.length]);
 
   useEffect(() => {
     if (favoriteModels.length === 0 && favoriteModelIds.length > 0) {
@@ -179,6 +250,36 @@ export function QuickIntelligencePanel() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-6 space-y-8 relative z-10 custom-scrollbar pb-40 text-black">
+        
+        {/* AUTO SPEED SELECTION TOGGLE */}
+        <section className="pt-6">
+           <div className="p-4 rounded-2xl glass-liquid-convex bg-gold-primary/10 border border-gold-primary/20 shadow-xl relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gold-primary/5 neural-orb opacity-40 animate-pulse pointer-events-none" />
+              <div className="flex items-center justify-between relative z-10">
+                 <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gold-primary/20 border border-gold-primary/30 flex items-center justify-center shadow-lg">
+                       <Zap size={18} className="text-gold-primary animate-pulse" />
+                    </div>
+                    <div>
+                       <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-black italic">Auto-Wybór (Speed)</h4>
+                       <p className="text-[7px] text-black/50 font-bold uppercase tracking-widest mt-1">Priorytet Szybkości Łącza</p>
+                    </div>
+                 </div>
+                 <button 
+                  onClick={() => useChatSettingsStore.getState().setAutoSpeedSelection(!useChatSettingsStore.getState().autoSpeedSelection)}
+                  className={cn(
+                    "w-12 h-6 rounded-full transition-all relative border p-1 shrink-0",
+                    useChatSettingsStore(s => s.autoSpeedSelection) ? "bg-gold-primary border-gold-primary/30" : "bg-black/10 border-black/10"
+                  )}
+                 >
+                    <motion.div 
+                      animate={{ x: useChatSettingsStore(s => s.autoSpeedSelection) ? 24 : 0 }}
+                      className="w-4 h-4 rounded-full bg-white shadow-lg"
+                    />
+                 </button>
+              </div>
+           </div>
+        </section>
         
         <section className="space-y-4 pt-6">
            <button onClick={() => setIsRolesOpen(!isRolesOpen)} className="flex items-center justify-between w-full px-1 group">
@@ -250,7 +351,8 @@ export function QuickIntelligencePanel() {
                       const assignedRole = expertRoleByModel?.[m.id] || "";
                       const currentRoleObj = roleList.find(r => r.id === assignedRole);
                       const brand = getBrand(m.provider || "unknown");
-                      const activeColor = "#ced4da"; // Platinum-ish for models
+                      const activeColor = "#ced4da";
+                      const health = healthData[m.id];
 
                       return (
                        <div key={m.id} className="space-y-2">
@@ -273,7 +375,17 @@ export function QuickIntelligencePanel() {
                                <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border relative z-10", isSelected ? "bg-black/5 border-black/10 text-black shadow-lg" : "text-black/10 border-black/5")}>
                                   <brand.icon size={13} />
                                </div>
-                               <span className={cn("text-[10px] font-black uppercase flex-1 truncate text-left relative z-10 tracking-widest text-black")}>{m.name}</span>
+                               <div className="flex-1 min-w-0 flex flex-col text-left relative z-10">
+                                  <span className={cn("text-[10px] font-black uppercase truncate tracking-widest text-black")}>{m.name}</span>
+                                  {health && (
+                                    <div className="flex items-center gap-1 mt-0.5">
+                                       <div className={cn("w-1 h-1 rounded-full", health.status === 'online' ? "bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" : "bg-red-500")} />
+                                       <span className="text-[6px] font-black text-black/40 uppercase tracking-tighter">
+                                         {health.status === 'online' ? `${health.latency_ms}ms` : 'OFFLINE'}
+                                       </span>
+                                    </div>
+                                  )}
+                               </div>
                                <div className={cn("w-2 h-2 rounded-full relative z-10 shadow-lg", isSelected ? (currentRoleObj ? currentRoleObj.color.replace('text-', 'bg-') : "bg-black") : "bg-black/5")} />
                            </button>
                            {isSelected && (
@@ -298,7 +410,7 @@ export function QuickIntelligencePanel() {
            <button onClick={() => setIsJudgeOpen(!isJudgeOpen)} className="flex items-center justify-between w-full px-1 group mb-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-xl bg-black/10 border border-black/20 flex items-center justify-center shadow-lg"><Gavel size={16} className="text-black" /></div>
-                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80 font-outfit">Sędzia-Syntetyzator</h4>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-black/80 font-outfit">GŁÓWNY STRATEG</h4>
               </div>
               <ChevronDown size={14} className={cn("text-black/40 transition-transform", isJudgeOpen && "rotate-180")} />
            </button>

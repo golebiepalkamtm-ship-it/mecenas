@@ -88,7 +88,7 @@ export function DrafterPanel({ chatMessages, onClose, isOpen }: DrafterPanelProp
     
     const relevantMessages = chatMessages.slice(-20); // Last 20 messages for context
     const contextParts = relevantMessages.map(m => {
-      const role = m.role === 'user' ? 'KLIENT' : 'RADCA AI';
+      const role = m.role === 'user' ? 'KLIENT' : 'LexMind';
       return `[${role}]: ${m.content}`;
     });
     

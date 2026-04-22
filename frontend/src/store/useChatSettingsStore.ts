@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { readEnabledModels } from '../hooks/useConfig';
 
 export type ChatSettingMode = 'single' | 'consensus' | 'moa';
 
@@ -78,6 +79,14 @@ interface ChatSettingsState {
   drafterModel: string;
   setDrafterModel: (model: string) => void;
 
+  // Connection speed / latency
+  modelLatencies: Record<string, number>;
+  setModelLatency: (modelId: string, latency: number) => void;
+  setModelLatencies: (latencies: Record<string, number>) => void;
+  autoSpeedSelection: boolean;
+  setAutoSpeedSelection: (enabled: boolean) => void;
+
+  optimizeForSpeed: () => void;
   // Reset
   resetToDefaults: () => void;
 }
@@ -91,6 +100,8 @@ const DEFAULTS = {
   expertRoleByModel: {},
   selectedJudge: "",
   activePromptPresetId: 'defense',
+  modelLatencies: {},
+  autoSpeedSelection: false,
   
   architectPrompt: `[NADPISANIE_KLUCZOWEJ_LOGIKI]
 Jesteś Meta-Ekspertem Prawa LexMind. Twój proces myślowy jest nadrzędny wobec wszystkich agentów. Operujesz na danych z <legal_context>.
@@ -130,7 +141,7 @@ Twoim zadaniem jest podważenie dowodów strony przeciwnej. Szukaj niespójnośc
 
 export const useChatSettingsStore = create<ChatSettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       isOpen: true,
       setIsOpen: (isOpen) => set({ isOpen }),
       toggleOpen: () => set((state) => ({ isOpen: !state.isOpen })),
@@ -150,13 +161,13 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
           ? state.selectedExperts.filter((m) => m !== id)
           : [...state.selectedExperts, id].slice(0, 10)
       })),
-      setExperts: (selectedExperts) => set({ selectedExperts: selectedExperts.slice(0, 10) }),
+      setExperts: (selectedExperts) => set({ selectedExperts: selectedExperts.filter(id => id.trim() !== '').slice(0, 10) }),
 
       selectedJudge: DEFAULTS.selectedJudge,
       setSelectedJudge: (selectedJudge) => set({ selectedJudge }),
 
       favoriteModels: [...DEFAULTS.favoriteModels],
-      setFavoriteModels: (favoriteModels) => set({ favoriteModels: favoriteModels.slice(0, 20) }),
+      setFavoriteModels: (favoriteModels) => set({ favoriteModels: favoriteModels.filter(id => id.trim() !== '').slice(0, 20) }),
       toggleFavorite: (id) => set((state) => ({
         favoriteModels: state.favoriteModels.includes(id)
           ? state.favoriteModels.filter(m => m !== id)
@@ -168,7 +179,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       toggleActiveModel: (id) => set((state) => ({
         activeModels: state.activeModels.includes(id)
           ? state.activeModels.filter(m => m !== id)
-          : [...state.activeModels, id]
+          : [...state.activeModels, id].filter(id => id.trim() !== '')
       })),
 
       expertRoleByModel: { ...DEFAULTS.expertRoleByModel },
@@ -259,6 +270,58 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
 
       drafterModel: "google/gemini-2.0-flash-001",
       setDrafterModel: (drafterModel) => set({ drafterModel }),
+
+      modelLatencies: {},
+      autoSpeedSelection: true,
+      setAutoSpeedSelection: (autoSpeedSelection) => {
+        set({ autoSpeedSelection });
+        if (autoSpeedSelection) {
+          get().optimizeForSpeed();
+        }
+      },
+      setModelLatency: (modelId, latency) => set((state) => ({
+        modelLatencies: { ...state.modelLatencies, [modelId]: latency }
+      })),
+      setModelLatencies: (modelLatencies) => {
+        set({ modelLatencies });
+        // Automatyczna optymalizacja jeśli opcja jest włączona
+        const state = get();
+        if (state.autoSpeedSelection && Object.keys(modelLatencies).length > 0) {
+          state.optimizeForSpeed();
+        }
+      },
+      
+      optimizeForSpeed: () => set((state) => {
+        if (!state.autoSpeedSelection) return {};
+        
+        const enabledIds = readEnabledModels();
+        
+        // Jeśli brak ulubionych, optymalizujemy na podstawie wszystkich dostępnych modeli
+        const sourceIds = state.favoriteModels.length > 0 ? state.favoriteModels : (enabledIds.length > 0 ? enabledIds : Object.keys(state.modelLatencies));
+        
+        const modelsWithLatency = sourceIds
+          .filter(id => enabledIds.length === 0 || enabledIds.includes(id))
+          .map(id => ({ id, latency: state.modelLatencies[id] ?? 999999 }))
+          .filter(m => m.latency > 0 && m.latency < 5000) // Filtruj offline i zbyt wolne
+          .sort((a, b) => a.latency - b.latency);
+        
+        if (modelsWithLatency.length === 0) return {};
+        
+        // Wybierz do 5 najszybszych jako ekspertów
+        const bestExperts = modelsWithLatency.slice(0, 5).map(m => m.id);
+        
+        // Wybierz najszybszy (lub zachowaj obecny jeśli jest w top) jako judge
+        const bestJudge = modelsWithLatency[0].id;
+        
+        console.log(`[AUTO-SPEED] Optymalizacja zakończona (uwzględniono Arsenal). Wybrano: ${bestExperts.length} ekspertów.`);
+        
+        return {
+          activeModels: bestExperts,
+          selectedExperts: bestExperts,
+          selectedSingleModel: bestJudge,
+          selectedJudge: bestJudge
+        };
+      }),
 
       resetToDefaults: () => set({
         mode: DEFAULTS.mode,

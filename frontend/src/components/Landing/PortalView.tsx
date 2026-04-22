@@ -246,7 +246,7 @@ export function PortalView({ onBack, onLoginSuccess }: { onBack?: () => void; on
         className="fixed -top-10 -left-10 lg:-top-16 lg:-left-16 z-100"
       >
         <img
-          src="/logo.png"
+          src="/pobrane.png"
           alt="LexMind"
           className="w-80 h-80 sm:w-[400px] sm:h-[400px] lg:w-[500px] lg:h-[500px] object-contain filter drop-shadow-[0_0_30px_rgba(212,175,55,0.4)] mix-blend-screen opacity-90"
         />

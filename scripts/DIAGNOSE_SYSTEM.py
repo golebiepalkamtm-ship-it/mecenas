@@ -30,7 +30,7 @@ async def check_port(port):
 
 async def diagnose():
     print("\n" + "="*60)
-    print(f"DIAGNOSTYKA SYSTEMU RADCA AI - {datetime.now().strftime('%H:%M:%S')}")
+    print(f"DIAGNOSTYKA SYSTEMU LexMind - {datetime.now().strftime('%H:%M:%S')}")
     print("="*60)
 
     # 1. SPRAWDZANIE PORTÓW

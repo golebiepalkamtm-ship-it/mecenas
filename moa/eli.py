@@ -9,13 +9,12 @@ ELI_API_BASE_URL = "https://api.sejm.gov.pl/eli"
 async def search_isap_acts(query: str, limit: int = 5) -> List[RetrievedChunk]:
     """
     Przeszukuje bazę ELI (European Legislation Identifier) Sejmu RP.
-    Zwraca akty prawne pasujące do zapytania.
+    Pobiera akty prawne pasujące do zapytania ORAZ ich treść (fragmenty).
     """
     url = f"{ELI_API_BASE_URL}/acts/search"
     params = {
         "limit": limit,
         "keyword": query, 
-        # "inForce": "1" # Można odkomentować, by szukać tylko obowiązujących
     }
     
     print(f"   [ELI/ISAP] Szukam aktów dla: '{query[:50]}...'")
@@ -26,7 +25,7 @@ async def search_isap_acts(query: str, limit: int = 5) -> List[RetrievedChunk]:
     }
     
     try:
-        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as client:
             response = await client.get(url, params=params, headers=headers)
             
             if response.status_code != 200:
@@ -37,6 +36,37 @@ async def search_isap_acts(query: str, limit: int = 5) -> List[RetrievedChunk]:
             items = data.get("items", [])
             
             chunks = []
+            
+            # Równolegle pobierz treści aktów (max 3, żeby nie obciążyć API)
+            text_tasks = []
+            for item in items[:3]:
+                eli_ref = item.get("ELI", "")
+                if eli_ref:
+                    # API Sejmu: /eli/acts/{publisher}/{year}/{pos}/text → zwraca treść aktu
+                    text_url = f"{ELI_API_BASE_URL}{eli_ref.replace('/eli', '')}/text"
+                    text_tasks.append((item, client.get(text_url, headers={
+                        "User-Agent": headers["User-Agent"],
+                        "Accept": "text/html"  # Treść tekstu ujednoliconego
+                    }, timeout=10)))
+            
+            # Pobierz treści równolegle
+            text_results = {}
+            if text_tasks:
+                responses = await asyncio.gather(
+                    *[t[1] for t in text_tasks], return_exceptions=True
+                )
+                for i, resp in enumerate(responses):
+                    item = text_tasks[i][0]
+                    eli_ref = item.get("ELI", "")
+                    if not isinstance(resp, Exception) and hasattr(resp, 'status_code') and resp.status_code == 200:
+                        import re as _re
+                        # Wyciągnij tekst z HTML — usuń tagi, zostaw treść
+                        raw_text = _re.sub(r'<[^>]+>', ' ', resp.text)
+                        raw_text = _re.sub(r'\s+', ' ', raw_text).strip()
+                        # Ogranicz do 5000 znaków (najważniejsze początkowe artykuły)
+                        text_results[eli_ref] = raw_text[:5000]
+                        print(f"   [ELI][TEXT] Pobrano treść aktu: {eli_ref} ({len(raw_text)} znaków)")
+            
             for item in items:
                 title = item.get("title", "Brak tytułu")
                 status = item.get("status", "nieznany")
@@ -44,7 +74,10 @@ async def search_isap_acts(query: str, limit: int = 5) -> List[RetrievedChunk]:
                 eli_ref = item.get("ELI", "n/a")
                 pub_date = item.get("announcementDate", "n/a")
                 
-                # Budujemy czytelną treść dla modelu AI
+                # Sprawdź czy mamy pełną treść aktu
+                act_text = text_results.get(eli_ref, "")
+                
+                # Budujemy treść — z pełnym tekstem jeśli dostępny
                 content = (
                     f"TYTUŁ AKTU: {title}\n"
                     f"ADRES: {address}\n"
@@ -53,15 +86,18 @@ async def search_isap_acts(query: str, limit: int = 5) -> List[RetrievedChunk]:
                     f"IDENTYFIKATOR ELI: {eli_ref}"
                 )
                 
-                source = f"SEJM/ISAP: {address}"
+                if act_text:
+                    content += f"\n\nTREŚĆ AKTU PRAWNEGO (FRAGMENTY):\n{act_text}"
+                
+                source = f"SEJM/ISAP — ustawa: {address}"
                 
                 chunks.append(RetrievedChunk(
                     content=content,
                     source=source,
-                    similarity=0.88 # Wysoki priorytet dla oficjalnych aktów prawnych
+                    similarity=0.88
                 ))
             
-            print(f"   [ELI][OK] Znaleziono {len(chunks)} dokumentów")
+            print(f"   [ELI][OK] Znaleziono {len(chunks)} dokumentów ({len(text_results)} z treścią)")
             return chunks
             
     except Exception as e:

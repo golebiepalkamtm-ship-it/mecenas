@@ -57,7 +57,10 @@ _COMPILED_SMALLTALK = [re.compile(p, re.IGNORECASE) for p in _SMALLTALK_PATTERNS
 # Wzorce dodatkowe (Wymuszenie legal)
 _FORCE_LEGAL_PATTERNS = [
     r"\[REF:.*\]",  # Tag referencji do dokumentu z UI
-    r"\.pdf\b", r"\.docx\b", r"\.jpg\b", r"\.png\b", # Wspomnienie pliku
+    r"\.pdf\b",
+    r"\.docx\b",
+    r"\.jpg\b",
+    r"\.png\b",  # Wspomnienie pliku
 ]
 _COMPILED_FORCE_LEGAL = [re.compile(p, re.IGNORECASE) for p in _FORCE_LEGAL_PATTERNS]
 
@@ -86,7 +89,7 @@ def classify_by_rules(message: str) -> Optional[Intent]:
 # Klasa 2: LLM (tani model dla niejednoznacznych przypadków)
 # ---------------------------------------------------------------------------
 
-_CLASSIFIER_MODEL = "openai/gpt-4o-mini"  # Najtańszy rozsądny model
+_CLASSIFIER_MODEL = "openai/gpt-5.4-mini"  # Najtańszy rozsądny model
 
 _CLASSIFIER_PROMPT = """Jesteś klasyfikatorem intencji w aplikacji prawnej AI.
 Odpowiedz JEDNYM słowem (bez kropki, bez wyjaśnień):
@@ -147,14 +150,12 @@ async def classify_by_llm(message: str, model_override: str | None = None) -> In
 
 
 async def classify_intent(
-    message: str, 
-    model_override: str | None = None,
-    has_docs: bool = False
+    message: str, model_override: str | None = None, has_docs: bool = False
 ) -> tuple[Intent, bool]:
     """
     Główna funkcja klasyfikacji.
     Zwraca krotkę: (Intent, include_user_db)
-    
+
     1. Jeśli has_docs=True -> zawsze LEGAL_QUERY, include_user_db=False (domyślnie, ale sprawdzamy słowa kluczowe)
     2. Najpierw sprawdza reguły (zero koszt)
     3. Jeśli niejednoznaczne — pyta tani model LLM
@@ -167,19 +168,23 @@ async def classify_intent(
         r"znajd[zź]\s+w\s+moich\s+(notatkach|dokumentach|plikach)",
         r"w\s+mojej\s+bazie",
     ]
-    
+
     message_lower = message.lower()
     include_user_db = False
     for pattern in user_db_keywords:
         if re.search(pattern, message_lower, re.IGNORECASE):
             include_user_db = True
-            print(f"   [INTENT] Wykryto słowa kluczowe dla bazy user: '{message[:50]}...'")
+            print(
+                f"   [INTENT] Wykryto słowa kluczowe dla bazy user: '{message[:50]}...'"
+            )
             break
-            
+
     if has_docs:
-        print(f"   [INTENT] Force LEGAL (wykryto załączniki), include_user_db={include_user_db}")
+        print(
+            f"   [INTENT] Force LEGAL (wykryto załączniki), include_user_db={include_user_db}"
+        )
         return Intent.LEGAL_QUERY, include_user_db
-    
+
     # Krok 1: Reguły
     rule_result = classify_by_rules(message)
     if rule_result is not None:

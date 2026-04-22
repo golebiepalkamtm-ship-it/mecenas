@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+export { useModelHealth } from "./useModelHealth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../utils/supabaseClient";
+import type { User } from "@supabase/supabase-js";
 import { API_BASE } from "../config";
 
 import type { Document, KnowledgeDocument } from "../types/library";
@@ -241,14 +243,55 @@ export function useUserLibrary() {
  * Ten hook jest uproszczony do zarządzania widocznością dostawców w UI.
  */
 export function useApiManagement() {
-  const [providers, setProviders] = useState<ApiProvider[]>([
-    {
-      id: "openrouter",
-      name: "OpenRouter (Master Engine)",
-      active: true,
-      key: "••••••••",
-    },
-  ]);
+  const STORAGE_KEY = "lexmind_api_providers_v2";
+
+  const [providers, setProviders] = useState<ApiProvider[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse saved providers", e);
+      }
+    }
+    return [
+      {
+        id: "openrouter",
+        name: "OpenRouter (Master Engine)",
+        active: true,
+        key: "••••••••",
+      },
+      {
+        id: "google",
+        name: "Google (Gemini SDK)",
+        active: true,
+        key: "••••••••",
+      },
+      {
+        id: "openai",
+        name: "OpenAI",
+        active: false,
+        key: "",
+      },
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        active: false,
+        key: "",
+      },
+      {
+        id: "mindee",
+        name: "Mindee (OCR Engine)",
+        active: true,
+        key: "••••••••",
+      }
+    ];
+  });
+
+  // Save to localStorage whenever providers change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(providers));
+  }, [providers]);
 
   const toggleProvider = (id: string) => {
     setProviders((prev) =>
@@ -258,9 +301,29 @@ export function useApiManagement() {
 
   const updateKey = async (id: string, key: string) => {
     setProviders((prev) => prev.map((p) => (p.id === id ? { ...p, key } : p)));
+    
+    // Sync with other specific keys if needed
+    if (id === "google") localStorage.setItem("GOOGLE_API_KEY", key);
+    if (id === "openai") localStorage.setItem("OPENAI_API_KEY", key);
+    if (id === "anthropic") localStorage.setItem("ANTHROPIC_API_KEY", key);
+    if (id === "mindee") localStorage.setItem("MINDEE_API_KEY", key);
   };
 
-  return { providers, toggleProvider, updateKey };
+  const addProvider = (name: string, key?: string) => {
+    const id = name.toLowerCase().replace(/\s+/g, '-');
+    if (providers.find(p => p.id === id)) return;
+    setProviders([...providers, { id, name, active: true, key: key || "" }]);
+  };
+
+  const removeProvider = (id: string) => {
+    if (['openrouter', 'google', 'openai', 'anthropic', 'mindee'].includes(id)) {
+      alert("Nie można usunąć systemowego dostawcy.");
+      return;
+    }
+    setProviders((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  return { providers, toggleProvider, updateProviderKey: updateKey, addProvider, removeProvider };
 }
 
 /**
@@ -279,11 +342,11 @@ export function useSystemPrompt() {
           setTimeout(() => reject(new Error("Timeout")), 5000)
         );
         const userPromise = supabase.auth.getUser();
-        const authResponse = await Promise.race([userPromise, timeoutPromise]) as { data: { user: any } };
+        const authResponse = (await Promise.race([userPromise, timeoutPromise])) as { data: { user: User | null } }; 
         const { data: { user } } = authResponse;
         const authDuration = Date.now() - startTime;
         console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} Auth completed in ${authDuration}ms`);
-
+        
         if (!user) {
           console.log(`[SYSTEM_PROMPT] ${new Date().toISOString()} No user`);
           return;
@@ -295,7 +358,7 @@ export function useSystemPrompt() {
           .eq("id", user.id)
           .single();
 
-        const profileResponse = await Promise.race([profilePromise, timeoutPromise]) as { data: { system_prompt: string | null } | null; error: any };
+        const profileResponse = await Promise.race([profilePromise, timeoutPromise]) as { data: { system_prompt: string | null } | null; error: unknown };
         const { data, error } = profileResponse;
         const totalDuration = Date.now() - startTime;
 
@@ -347,7 +410,7 @@ export function useProfile() {
         queryFn: async () => {
             console.log(`[PROFILE] ${new Date().toISOString()} Fetching user profile...`);
             const startTime = Date.now();
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = (await supabase.auth.getUser()) as { data: { user: User | null } };
             const authDuration = Date.now() - startTime;
             console.log(`[PROFILE] ${new Date().toISOString()} Auth check completed in ${authDuration}ms`);
 
@@ -373,7 +436,7 @@ export function useProfile() {
         staleTime: 1000 * 60 * 5, // 5 minut
     });
 
-    const updateProfile = async (updates: any) => {
+    const updateProfile = async (updates: Record<string, unknown>) => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
@@ -396,12 +459,128 @@ export function useProfile() {
 /**
  * Hook do obsługi czatu przez Supabase Edge Functions.
  */
+interface AdminStats {
+  users: number;
+  docs: number;
+  requests: number;
+  tokens: number;
+}
+
+interface ServiceHealth {
+  id: string;
+  name: string;
+  status: "online" | "offline" | "degraded";
+  latency: number;
+}
+
+export function useAdminSystem() {
+  const [stats, setStats] = useState<AdminStats>({
+    users: 0,
+    docs: 0,
+    requests: 0,
+    tokens: 0,
+  });
+  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSystemStats = async () => {
+      setIsLoading(true);
+      try {
+        const res = await fetch(`${API_BASE}/admin/stats`);
+        if (res.ok) {
+          const data = await res.json();
+          setStats(data.stats || { users: 0, docs: 0, requests: 0, tokens: 0 });
+          setServices(data.services || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch admin stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSystemStats();
+    const interval = setInterval(fetchSystemStats, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return { stats, services, isLoading };
+}
+
+interface AdminUser {
+  id: string;
+  email: string;
+  role: string;
+  created_at: string;
+}
+
+export function useAdminUsers() {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchUsers = useCallback(async (showLoading = false) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/users`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      fetchUsers();
+    }, 0);
+    return () => clearTimeout(timeout);
+  }, [fetchUsers]);
+
+  const updateUserRole = useCallback(async (userId: string, newRole: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}/role`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+        );
+      }
+    } catch (error) {
+      console.error("Failed to update user role:", error);
+    }
+  }, []);
+
+  const deleteUser = useCallback(async (userId: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
+      }
+    } catch (error) {
+      console.error("Failed to delete user:", error);
+    }
+  }, []);
+
+  return { users, isLoading, updateUserRole, deleteUser, refetch: fetchUsers };
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const activeMessagesRequestId = useRef(0);
   const [initialBootDone, setInitialBootDone] = useState(false);
 
   // Sessions & Models
@@ -475,12 +654,10 @@ export function useChat() {
   const fetchModels = useCallback(async () => {
     try {
       const res = await fetchWithRetry(`${API_BASE}/models/all`);
-      const startTime = performance.now();
       const text = await res.text();
       const parseStart = performance.now();
       const data = JSON.parse(text);
       const parseDuration = performance.now() - parseStart;
-      const totalProcessDuration = performance.now() - startTime;
       
       console.log(`[CHAT] Models data size: ${(text.length / 1024).toFixed(2)}KB, parse took ${parseDuration.toFixed(2)}ms`);
       
@@ -511,9 +688,15 @@ export function useChat() {
   }, [fetchWithRetry]);
 
   useEffect(() => {
-    fetchModels();
+    // Defer model loading to allow UI to paint first
+    const timer = setTimeout(() => {
+      fetchModels();
+    }, 100);
     window.addEventListener("prawnik_models_updated", fetchModels);
-    return () => window.removeEventListener("prawnik_models_updated", fetchModels);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("prawnik_models_updated", fetchModels);
+    };
   }, [fetchModels]);
 
   const fetchSessions = useCallback(async () => {
@@ -521,7 +704,6 @@ export function useChat() {
       const res = await fetchWithRetry(`${API_BASE}/sessions`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       
-      const startTime = performance.now();
       const text = await res.text();
       const parseStart = performance.now();
       const data: ChatSession[] = JSON.parse(text);
@@ -543,7 +725,11 @@ export function useChat() {
   }, [fetchWithRetry]);
 
   useEffect(() => {
-    fetchSessions();
+    // Defer session loading to avoid blocking the main thread on mount
+    const timer = setTimeout(() => {
+      fetchSessions();
+    }, 200);
+    return () => clearTimeout(timer);
   }, [fetchSessions]);
 
   const [messagesLoaded, setMessagesLoaded] = useState(false);
@@ -554,29 +740,66 @@ export function useChat() {
       setMessagesLoaded(true);
       return;
     }
+
+    const requestId = ++activeMessagesRequestId.current;
     setMessagesLoaded(false);
+
     try {
-      const res = await fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages?limit=100`);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Messages fetch timeout")), 8000),
+      );
+      const res = await Promise.race([
+        fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages?limit=100`, 1),
+        timeoutPromise,
+      ]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: ChatMessage[] = await res.json();
+
+      const text = await res.text();
+      const parseStart = performance.now();
+      const data: ChatMessage[] = JSON.parse(text);
+      const parseDuration = performance.now() - parseStart;
+
+      console.log(
+        `[CHAT] Messages payload for ${sessionId}: ${(text.length / 1024).toFixed(2)}KB, parse took ${parseDuration.toFixed(2)}ms`,
+      );
+
+      if (requestId !== activeMessagesRequestId.current) {
+        return;
+      }
+
       setMessages(data || []);
-    } catch {
+    } catch (error) {
+      if (requestId !== activeMessagesRequestId.current) {
+        return;
+      }
+
+      console.warn("[CHAT] Failed to load archived messages:", error);
       // KOŁO RATUNKOWE: jeśli historia nie załaduje się, zaczynamy czysty czat
       setMessages([]);
     } finally {
-      setMessagesLoaded(true);
+      if (requestId === activeMessagesRequestId.current) {
+        setMessagesLoaded(true);
+      }
     }
   }, [sessionId, fetchWithRetry]);
 
   useEffect(() => {
-    loadMessages();
+    // Opóźnione ładowanie wiadomości, aby nie blokować UI
+    const timer = setTimeout(() => {
+      loadMessages();
+    }, 300);
+    return () => clearTimeout(timer);
   }, [loadMessages]);
 
 
   // Latch: once boot completes the first time, never go back to "not complete"
   useEffect(() => {
     if (!initialBootDone && modelsLoaded && sessionsLoaded && messagesLoaded) {
-      setInitialBootDone(true);
+      // Defer state update to next tick to avoid cascading render warning
+      const timeout = setTimeout(() => {
+        setInitialBootDone(true);
+      }, 0);
+      return () => clearTimeout(timeout);
     }
   }, [initialBootDone, modelsLoaded, sessionsLoaded, messagesLoaded]);
 
@@ -618,12 +841,14 @@ export function useChat() {
   }, [sessionId, stopGeneration, fetchSessions, newChat]);
 
   const switchSession = useCallback(async (id: string) => {
+    if (id === sessionId) return;
+
     setMessagesLoaded(false);
     setMessages([]); // Clear current messages immediately
     setSessionId(id);
     localStorage.setItem("prawnik_session_id", id);
     // Effects will handle loading messages
-  }, []);
+  }, [sessionId]);
 
   const removeSession = useCallback(
     async (id: string) => {

@@ -279,7 +279,7 @@ export default function App() {
             {!showNav && <div className="w-8 lg:hidden shrink-0" />}
             <div className="flex flex-col min-w-0">
               <h1 className="text-base md:text-xl lg:text-2xl font-outfit font-black tracking-tight uppercase italic shimmer-text drop-shadow-2xl leading-none truncate">
-                Radca AI — LexMind
+                LexMind — Nowoczesny Prawnik AI
               </h1>
               <p className="text-[7px] md:text-[9px] font-inter font-black text-(--text-secondary) uppercase tracking-[0.3em] mt-0.5 opacity-60 truncate">
                 {NAV_ITEMS.find(n => n.id === activeTab)?.sublabel || 'Inteligentny System Prawny'}

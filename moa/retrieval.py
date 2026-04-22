@@ -216,6 +216,7 @@ async def retrieve_legal_context(
     model_override: str | None = None,
     history: list | None = None,
     include_user_db: bool = False,
+    parsed_params: dict | None = None,
 ) -> tuple[list[RetrievedChunk], str]:
     """
     Pelen pipeline retrieval (HYBRYDOWY): Szuka w bazie prawnej (Legal) i opcjonalnie w bazie użytkownika (User).
@@ -240,7 +241,24 @@ async def retrieve_legal_context(
         if re.search(rf"\b{short}\b", search_text.upper()): keywords.append(full)
 
     # ---- KROK 2: Planowanie Wyszukiwania (AI) ----
-    sub_keywords, saos_query, eli_query = await _extract_search_plans(query, document_text, history=history)
+    if parsed_params:
+        # Konwersja ELI params (lista) na ciąg znaków
+        eli_p = parsed_params.get("eli_params", [])
+        eli_query = " ".join(eli_p) if isinstance(eli_p, list) else str(eli_p)
+        
+        # Konwersja SAOS params (lista) na ciąg znaków
+        saos_p = parsed_params.get("saos_params", [])
+        if isinstance(saos_p, list):
+             saos_query = " ".join(saos_p)
+        elif isinstance(saos_p, dict):
+             saos_query = " ".join(str(v) for v in saos_p.values() if v)
+        else:
+             saos_query = str(saos_p)
+             
+        sub_keywords = []
+        print(f"   [NODE 1] Użyto parametrów z Węzła 1: SAOS='{saos_query}', ELI='{eli_query}'")
+    else:
+        sub_keywords, saos_query, eli_query = await _extract_search_plans(query, document_text, history=history)
     
     if not saos_query: saos_query = " ".join(keywords) or "prawo"
     if not eli_query: eli_query = " ".join(keywords) or "ustawa"
@@ -289,14 +307,14 @@ async def retrieve_legal_context(
             if not table or table == "knowledge_base_legal":
                 kw_tasks.append(client.get(
                     f"{SUPABASE_URL.rstrip('/')}/rest/v1/knowledge_base_legal",
-                    params={"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 3},
+                    params={"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 10},
                     headers=supabase_headers
                 ))
             # Szukaj w user DB tylko gdy: include_user_db=True LUB table="knowledge_base_user"
             if include_user_db or table == "knowledge_base_user":
                 kw_tasks.append(client.get(
                     f"{SUPABASE_URL.rstrip('/')}/rest/v1/knowledge_base_user",
-                    params={"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 3},
+                    params={"select": "content,metadata", "content": f"ilike.*{kw}*", "limit": 10},
                     headers=supabase_headers
                 ))
 
@@ -331,15 +349,42 @@ async def retrieve_legal_context(
     chunks: list[RetrievedChunk] = []
     seen_contents = set()
 
-    def add_chunk(content, source, similarity):
+    def _classify_source(source: str) -> str:
+        """Klasyfikuje źródło na typ: law, judgment, knowledge."""
+        s = source.lower()
+        if "saos" in s or "orzeczeni" in s or "wyrok" in s:
+            return "judgment"
+        elif "isap" in s or "eli" in s or "ustaw" in s or "kodeks" in s or "rozporządz" in s:
+            return "law"
+        return "knowledge"
+
+    def _build_source_url(source: str, source_type: str) -> str | None:
+        """Generuje URL do źródła jeśli możliwe."""
+        if source_type == "judgment" and "SAOS ID:" in source:
+            try:
+                saos_id = source.split("SAOS ID:")[1].strip().split(" ")[0].split(",")[0]
+                return f"https://www.saos.org.pl/judgments/{saos_id}"
+            except Exception:
+                pass
+        elif source_type == "law" and "ISAP" in source.upper():
+            # Link do ISAP
+            return "https://isap.sejm.gov.pl/"
+        return None
+
+    def add_chunk(content, source, similarity, force_type=None):
         if not content: return
         c_hash = hashlib.md5(content[:300].encode()).hexdigest()
         if c_hash not in seen_contents:
-            chunks.append(RetrievedChunk(content=content, source=source, similarity=similarity))
+            stype = force_type or _classify_source(source)
+            surl = _build_source_url(source, stype)
+            chunks.append(RetrievedChunk(
+                content=content, source=source, similarity=similarity,
+                source_type=stype, source_url=surl
+            ))
             seen_contents.add(c_hash)
 
     # Priority 1: ELI (Law)
-    for c in eli_chunks: add_chunk(c.content, c.source, c.similarity)
+    for c in eli_chunks: add_chunk(c.content, c.source, c.similarity, "law")
     
     # Priority 2: Keyword (Exact matches in User/Legal)
     for doc in keyword_docs:
@@ -350,23 +395,69 @@ async def retrieve_legal_context(
         add_chunk(doc.get("content"), doc.get("metadata", {}).get("filename") or "Baza Wiedzy", float(doc.get("similarity", 0.0)))
     
     # Priority 4: SAOS (Judgments)
-    for c in saos_chunks: add_chunk(c.content, c.source, c.similarity)
+    for c in saos_chunks: add_chunk(c.content, c.source, c.similarity, "judgment")
 
-    # ---- KROK 5: Kontrola dlugosci kontekstu ----
+    # ---- KROK 5: Numerowanie referencji i formatowanie kontekstu ----
     chunks.sort(key=lambda x: x.similarity, reverse=True)
     
-    context_parts: list[str] = []
+    # Segregacja + numerowanie
+    law_parts: list[str] = []
+    judgment_parts: list[str] = []
+    knowledge_parts: list[str] = []
+    
     total_chars = 0
+    ref_counter = 1
+    used_chunks: list[RetrievedChunk] = []
+    
     for chunk in chunks:
         if total_chars + len(chunk.content) > MAX_CONTEXT_CHARS:
             break
-        context_parts.append(f"ŹRÓDŁO: {chunk.source}\nTREŚĆ: {chunk.content}")
+        
+        # Nadaj ref_id
+        chunk.ref_id = f"[{ref_counter}]"
+        ref_counter += 1
+        used_chunks.append(chunk)
+        
+        # Format z numerem referencji — modele mogą cytować [1], [2]
+        formatted = f"{chunk.ref_id} ŹRÓDŁO: {chunk.source}\n{chunk.content}"
         total_chars += len(chunk.content) + 50
+        
+        if chunk.source_type == "judgment":
+            judgment_parts.append(formatted)
+        elif chunk.source_type == "law":
+            law_parts.append(formatted)
+        else:
+            knowledge_parts.append(formatted)
 
-    context_text = "\n\n---\n\n".join(context_parts)
-    print(f"   [i] Hybrid Retrieval: {len(chunks)} chunks ({len(keyword_docs)} kw, {len(raw_vector_docs)} vec, {len(saos_chunks)} saos, {len(eli_chunks)} eli)")
+    # Składanie kontekstu z wyraźnymi sekcjami
+    sections: list[str] = []
+    
+    if law_parts:
+        sections.append(
+            "## 📜 PRZEPISY PRAWNE (USTAWY, KODEKSY, ROZPORZĄDZENIA)\n"
+            "INSTRUKCJA: Cytuj przepisy podając numer referencji np. [1], [2] oraz art., ust., pkt.\n\n"
+            + "\n\n---\n\n".join(law_parts)
+        )
+    
+    if judgment_parts:
+        sections.append(
+            "## ⚖️ ORZECZNICTWO SĄDOWE (WYROKI — SAOS)\n"
+            "INSTRUKCJA: Przywołuj wyroki podając numer referencji np. [3], sygnaturę i sąd.\n\n"
+            + "\n\n---\n\n".join(judgment_parts)
+        )
+    
+    if knowledge_parts:
+        sections.append(
+            "## 📚 BAZA WIEDZY PRAWNEJ\n"
+            "INSTRUKCJA: Cytuj podając numer referencji.\n\n"
+            + "\n\n---\n\n".join(knowledge_parts)
+        )
+    
+    context_text = "\n\n" + "=" * 40 + "\n\n".join(sections)
+    
+    print(f"   [i] Hybrid Retrieval: {len(used_chunks)} chunks ({len(keyword_docs)} kw, {len(raw_vector_docs)} vec, {len(saos_chunks)} saos, {len(eli_chunks)} eli)")
+    print(f"   [i] Sections: {len(law_parts)} law, {len(judgment_parts)} judgments, {len(knowledge_parts)} knowledge")
     print(f"   [i] Final context: {len(context_text)} chars")
 
-    return chunks, context_text
-
+    return used_chunks, context_text
 

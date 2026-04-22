@@ -1,9 +1,9 @@
 @echo off
 setlocal
-title RADCA AI - ULTIMATE LAUNCHER
+title LexMind - ULTIMATE LAUNCHER
 
 echo ======================================================
-echo          RADCA AI - ATOMOWE CZYSZCZENIE I START
+echo          LexMind - ATOMOWE CZYSZCZENIE I START
 echo ======================================================
 
 :: 1. ZAMYKANIE PROCESOW NA PORTACH (Uzywamy PowerShell dla niezawodnosci)

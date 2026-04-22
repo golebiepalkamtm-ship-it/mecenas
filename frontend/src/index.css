@@ -241,6 +241,42 @@ body {
     0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
+/* ─── Neon Status Utilities ─── */
+@utility neon-status-emerald {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.6), 0 0 30px rgba(16, 185, 129, 0.4);
+  background-color: rgba(16, 185, 129, 0.25);
+  border-color: rgba(16, 185, 129, 0.6);
+  @apply text-black font-black;
+}
+
+@utility neon-status-red {
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.6), 0 0 30px rgba(239, 68, 68, 0.4);
+  background-color: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.6);
+  @apply text-black font-black;
+}
+
+@utility neon-status-amber {
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.6), 0 0 30px rgba(245, 158, 11, 0.4);
+  background-color: rgba(245, 158, 11, 0.25);
+  border-color: rgba(245, 158, 11, 0.6);
+  @apply text-black font-black;
+}
+
+@utility neon-status-gold {
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.6), 0 0 30px rgba(212, 175, 55, 0.4);
+  background-color: rgba(212, 175, 55, 0.25);
+  border-color: rgba(212, 175, 55, 0.6);
+  @apply text-black font-black;
+}
+
+@utility neon-status-sky {
+  box-shadow: 0 0 15px rgba(14, 165, 233, 0.6), 0 0 30px rgba(14, 165, 233, 0.4);
+  background-color: rgba(14, 165, 233, 0.25);
+  border-color: rgba(14, 165, 233, 0.6);
+  @apply text-black font-black;
+}
+
 /* ─── Font Utilities ─── */
 @utility font-outfit {
   font-family: "Outfit", sans-serif;
@@ -585,7 +621,6 @@ body {
     rgba(60, 60, 60, 0.92) 30%,
     rgba(40, 40, 40, 0.95) 100%
   );
-  clip-path: polygon(0 0, 100% 0, 100% 80px, 130px 80px, 130px 100%, 0 100%);
   z-index: 0;
   pointer-events: none;
 }

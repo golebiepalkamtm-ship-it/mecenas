@@ -50,9 +50,7 @@ async def index_document_to_supabase(file_content: bytes, filename: str, content
     
     try:
         # 1. Ekstrakcja
-        extracted_text, error = await asyncio.to_thread(
-            process_document, file_content, filename, content_type
-        )
+        extracted_text, error = await process_document(file_content, filename, content_type)
         if error or not extracted_text:
             return {"success": False, "error": error or "Pusty dokument."}
 

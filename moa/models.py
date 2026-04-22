@@ -4,7 +4,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
+
+
+# ---------------------------------------------------------------------------
+# Diagnostyka kroków pipeline'u
+# ---------------------------------------------------------------------------
+@dataclass
+class StepDiagnostic:
+    """Szczegółowa diagnostyka pojedynczego kroku w pipeline."""
+
+    step_name: str
+    latency_ms: float
+    status: str = "ok"
+    details: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -36,9 +51,13 @@ class MOARequest:
     expert_role_prompts: Optional[dict[str, str]] = None
     judge_system_prompt: Optional[str] = None
     api_keys: Optional[dict[str, str]] = None
-    attachments: list[dict] = field(default_factory=list) # Nowość: wsparcie dla obrazów/plików
+    attachments: list[dict] = field(
+        default_factory=list
+    )  # Nowość: wsparcie dla obrazów/plików
     include_user_db: bool = False
     context_text: Optional[str] = None
+    model_latencies: Optional[dict[str, float]] = field(default_factory=dict)
+    user_id: str = "default"
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +70,20 @@ class RetrievedChunk:
     content: str
     source: str  # Nazwa pliku / kodeksu
     similarity: float = 0.0
+    source_type: str = "knowledge"  # "law" | "judgment" | "knowledge"
+    source_url: Optional[str] = None  # URL do źródła (ISAP/SAOS/ELI)
+    ref_id: Optional[str] = None  # Identyfikator referencji [1], [2]...
+
+
+@dataclass
+class SourceReference:
+    """Referencja źródłowa do wyświetlenia obok odpowiedzi (jak Libra)."""
+
+    ref_id: str  # np. "[1]", "[2]"
+    label: str  # np. "Art. 62 ust. 1 u.p.n."
+    source_type: str  # "law" | "judgment" | "knowledge"
+    snippet: str = ""  # Krótki fragment treści
+    url: Optional[str] = None  # URL do pełnego źródła
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +117,13 @@ class MOAResult:
     judge_model: str
     analyst_results: list[AnalystResult] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
+    cited_sources: list[SourceReference] = field(
+        default_factory=list
+    )  # Inline citations jak Libra
     total_context_chars: int = 0
     retrieved_chunks_count: int = 0
     pipeline_latency_ms: float = 0.0
     success: bool = True
     error: Optional[str] = None
-    eli_explanation: Optional[str] = None  # Wyjaśnienie decyzji AI (Explainable AI)
+    eli_explanation: Optional[str] = None
+    diagnostics: List[StepDiagnostic] = field(default_factory=list)

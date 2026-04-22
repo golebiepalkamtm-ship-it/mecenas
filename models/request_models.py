@@ -4,11 +4,13 @@ from pydantic import BaseModel, Field, ConfigDict, validator
 MAX_MESSAGE_LENGTH = 10000
 MAX_HISTORY_ITEMS = 15
 
+
 class Attachment(BaseModel):
     name: str = ""
     type: str = ""
     content: str = ""
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra="allow")
+
 
 class ChatRequest(BaseModel):
     message: str = ""
@@ -32,20 +34,24 @@ class ChatRequest(BaseModel):
     mode: str = "advocate"
     stream: bool = False
     api_keys: Optional[Dict[str, str]] = None
-    model_config = ConfigDict(extra='allow')
+    user_id: str = "default"
+    model_config = ConfigDict(extra="allow")
 
-    @validator('message')
+    @validator("message")
     def message_length(cls, v):
         if len(v) > MAX_MESSAGE_LENGTH:
-            raise ValueError(f'Wiadomość jest zbyt długa (maksymalnie {MAX_MESSAGE_LENGTH} znaków)')
+            raise ValueError(
+                f"Wiadomość jest zbyt długa (maksymalnie {MAX_MESSAGE_LENGTH} znaków)"
+            )
         return v
 
-    @validator('history')
+    @validator("history")
     def history_limit(cls, v):
         if v and len(v) > MAX_HISTORY_ITEMS:
             # Automatycznie przycinamy historię zamiast wyrzucać błąd
             return v[-MAX_HISTORY_ITEMS:]
         return v
+
 
 class DraftRequest(BaseModel):
     system_prompt: Optional[str] = None
@@ -55,15 +61,17 @@ class DraftRequest(BaseModel):
     history: list[Any] = []
     sessionId: Optional[str] = None
 
-    @validator('user_instructions')
+    @validator("user_instructions")
     def instructions_length(cls, v):
         if len(v) > 10000:
-            raise ValueError('Instrukcje są zbyt długie (maksymalnie 10000 znaków)')
+            raise ValueError("Instrukcje są zbyt długie (maksymalnie 10000 znaków)")
         return v
+
 
 class ExtractFormalDataRequest(BaseModel):
     text: Optional[str] = None
     history: list[Any] = []
+
 
 class DocumentUploadResponse(BaseModel):
     success: bool
@@ -71,6 +79,7 @@ class DocumentUploadResponse(BaseModel):
     extracted_text: str
     text_length: int
     error: Optional[str] = None
+
 
 class DocumentAnalysisRequest(BaseModel):
     document_text: str

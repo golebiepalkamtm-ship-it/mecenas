@@ -57,7 +57,7 @@ export const ModernLoading: React.FC = React.memo(() => {
           transition={{ duration: 1.5 }}
         >
           <img
-            src="/logo.png?v=999"
+            src="/pobrane.png"
             alt="LexMind"
             className="w-72 h-72 md:w-[480px] md:h-[480px] object-contain block border-none outline-none"
           />

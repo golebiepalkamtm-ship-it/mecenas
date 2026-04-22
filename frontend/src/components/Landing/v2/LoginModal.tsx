@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
-import LoginPortal from "../LoginPortal";
+import { PortalView } from "../PortalView";
 
 export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
   return (
@@ -27,7 +27,7 @@ export const LoginModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () =
             >
               <X size={24} />
             </button>
-            <LoginPortal onSuccess={onClose} />
+            <PortalView onLoginSuccess={onClose} />
           </motion.div>
         </div>
       )}

@@ -13,7 +13,7 @@ from services.chat_service import (
 )
 from moa.intent import classify_intent, Intent
 from moa.http_client import get_shared_openai_client
-from moa.config import LLM_TEMPERATURE
+from moa.config import LLM_TEMPERATURE, get_safe_max_tokens, is_vision_model
 
 from moa.prompt_builder import IdentityMode, PromptConfig, build_system_prompt
 from utils.helpers import (
@@ -31,7 +31,7 @@ logger = logging.getLogger("LexMindChatRoutes")
 @router.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
-        sid = request.sessionId or str(uuid.uuid4())
+        sid = request.sessionId or getattr(request, "session_id", None) or str(uuid.uuid4())
         has_docs = bool(request.attachments or request.document_text)
         intent, include_user_db = await classify_intent(request.message, model_override=request.model, has_docs=has_docs)
 
@@ -58,14 +58,18 @@ async def chat_endpoint(request: ChatRequest):
         )
 
         builder_config = PromptConfig(
-            mode=IdentityMode(request.mode) if request.mode else IdentityMode.ADVOCATE,
+            mode=IdentityMode.from_str(request.mode) if request.mode else IdentityMode.ADVOCATE,
             task=request.task or "general",
             role=request.task or "navigator",
             has_legal_context=bool(context_text),
             has_document=bool(combined_doc_text),
         )
 
-        system_prompt = build_system_prompt(builder_config)
+        system_prompt = build_system_prompt(
+            builder_config, 
+            custom_role_prompt=request.system_role_prompt,
+            custom_task_prompt=request.custom_task_prompt
+        )
         if context_text:
             system_prompt += f"\n\n## KONTEKST PRAWNY (RAG):\n{context_text}"
 
@@ -74,13 +78,13 @@ async def chat_endpoint(request: ChatRequest):
         # PROFESJONALNE ZARZĄDZANIE KONTEKSTEM (TOKEN-AWARE)
         max_prompt_tokens = 40000 # Bezpieczny limit dla większości modeli
         
-        history_msgs = format_history_for_openai(request.history or [])
+        history_msgs = format_history_for_openai(request.history or [], model_id=request.model)
         
         # 1. Dodaj historię (od najnowszych, dopóki starczy miejsca)
         allowed_history = []
         current_tokens = count_tokens(system_prompt, request.model)
         for msg in reversed(history_msgs):
-            msg_tokens = count_tokens(json.dumps(msg), request.model)
+            msg_tokens = count_tokens(json.dumps(msg, ensure_ascii=False), request.model)
             if current_tokens + msg_tokens < max_prompt_tokens * 0.4: # 40% na historię
                 allowed_history.insert(0, msg)
                 current_tokens += msg_tokens
@@ -96,10 +100,45 @@ async def chat_endpoint(request: ChatRequest):
         user_msg_text = truncate_to_tokens(user_msg_text, 10000, request.model)
         
         user_msg_content = [{"type": "text", "text": user_msg_text}]
-        user_msg_content.extend([c for c in extracted_att_content if c["type"] == "image_url"])
+        # Tylko modele z vision mogą przyjmować image_url — reszta crashuje z 404
+        if is_vision_model(request.model):
+            user_msg_content.extend([c for c in extracted_att_content if c["type"] == "image_url"])
+        elif any(c["type"] == "image_url" for c in extracted_att_content):
+            logger.info(f"   [VISION] Model {request.model} nie obsługuje obrazów — tekst z OCR zostanie użyty.")
 
         messages.append({"role": "user", "content": user_msg_content})
 
+        is_moa = request.mode in ("moa", "consensus") or (request.selected_models and len(request.selected_models) > 0)
+
+        if is_moa:
+            if request.stream:
+                from services.chat_service import generate_moa_stream
+                return StreamingResponse(
+                    generate_moa_stream(request, sid, combined_doc_text, context_text, extracted_att_content, include_user_db=include_user_db),
+                    media_type="text/event-stream",
+                )
+            
+            # Non-streaming MOA
+            result = await chat_consensus_moa(request, sid, combined_doc_text, context_text, extracted_att_content, include_user_db=include_user_db)
+            return {
+                "id": str(uuid.uuid4()),
+                "content": result.final_answer,
+                "model": f"moa-{len(result.analyst_results or [])}experts",
+                "role": "assistant",
+                "sessionId": sid,
+                "consensus_used": True,
+                "expert_analyses": [
+                    {"model": r.model_id, "response": r.response, "success": r.success}
+                    for r in (result.analyst_results or [])
+                ],
+                "rag_used": bool(context_text),
+                "user_db_used": include_user_db,
+                "pipeline_latency_ms": result.pipeline_latency_ms,
+                "eli_explanation": result.eli_explanation,
+                "cited_sources": [asdict(cs) for cs in result.cited_sources] if result.cited_sources else [],
+            }
+
+        # ORIGINAL SINGLE MODEL LOGIC
         if request.stream:
             return StreamingResponse(
                 generate_chat_stream(request, sid, messages, context_text, extracted_texts),
@@ -107,18 +146,34 @@ async def chat_endpoint(request: ChatRequest):
             )
 
         client = get_shared_openai_client()
-        response = await client.chat.completions.create(
-            model=request.model,
-            messages=messages,
-            temperature=LLM_TEMPERATURE,
-            max_tokens=2500,
-        )
+        try:
+            response = await client.chat.completions.create(
+                model=request.model,
+                messages=messages,
+                temperature=0.1,
+                max_tokens=get_safe_max_tokens(request.model),
+            )
+        except Exception as e:
+            if hasattr(e, 'status_code') and e.status_code == 402:
+                from moa.config import FREE_FALLBACK_MODELS
+                logger.warning("   [REPAIR] 402 in /chat. Cycling through FREE models...")
+                for fallback_model in FREE_FALLBACK_MODELS:
+                    try:
+                        response = await client.chat.completions.create(
+                            model=fallback_model,
+                            messages=messages,
+                            temperature=0.1,
+                            max_tokens=get_safe_max_tokens(fallback_model),
+                        )
+                        break
+                    except: continue
+                else: raise e
+            else:
+                raise e
         answer = response.choices[0].message.content or "Brak odpowiedzi."
 
-        # Zapisz pełną wiadomość użytkownika z załącznikami, a nie tylko sam tekst
-        db_user = user_msg_content
         save_chat_messages(
-            sid, json.dumps(db_user), answer, message_type="final_answer"
+            sid, json.dumps(user_msg_content, ensure_ascii=False), answer, message_type="final_answer"
         )
 
         return {
@@ -139,7 +194,7 @@ async def chat_endpoint(request: ChatRequest):
 @router.post("/chat-consensus")
 async def chat_consensus_endpoint(request: ChatRequest):
     try:
-        sid = request.sessionId or str(uuid.uuid4())
+        sid = request.sessionId or getattr(request, "session_id", None) or str(uuid.uuid4())
         combined_doc_text = request.document_text or ""
         extracted_att_content, extracted_texts = await process_attachments(request.attachments or [])
         if extracted_texts:
@@ -191,9 +246,11 @@ async def chat_consensus_endpoint(request: ChatRequest):
 
         # Zapisz pełną wiadomość użytkownika z załącznikami
         moa_user_content = [{"type": "text", "text": request.message}]
-        moa_user_content.extend(
-            [c for c in extracted_att_content if c["type"] == "image_url"]
-        )
+        # Obrazy w historii zapisujemy tylko jeśli model agregujący wspiera vision
+        if is_vision_model(request.aggregator_model or request.model):
+            moa_user_content.extend(
+                [c for c in extracted_att_content if c["type"] == "image_url"]
+            )
         if combined_doc_text:
             moa_user_content.append(
                 {
@@ -204,10 +261,10 @@ async def chat_consensus_endpoint(request: ChatRequest):
 
         save_chat_messages(
             sid,
-            json.dumps(moa_user_content),
+            json.dumps(moa_user_content, ensure_ascii=False),
             result.final_answer,
             message_type="moa_consensus",
-            reasoning=json.dumps([asdict(r) for r in (result.analyst_results or [])]),
+            reasoning=json.dumps([asdict(r) for r in (result.analyst_results or [])], ensure_ascii=False),
             eli_explanation=result.eli_explanation,
         )
 
@@ -226,6 +283,7 @@ async def chat_consensus_endpoint(request: ChatRequest):
             "user_db_used": include_user_db,
             "pipeline_latency_ms": result.pipeline_latency_ms,
             "eli_explanation": result.eli_explanation,
+            "cited_sources": [asdict(cs) for cs in result.cited_sources] if result.cited_sources else [],
         }
     except Exception as e:
         print(f"\n❌ [CRITICAL ERROR] chat_consensus_moa failed:")
@@ -291,7 +349,7 @@ async def draft_document(request: DraftRequest):
         )
 
         response = await client.chat.completions.create(
-            model=request.model, messages=messages, max_tokens=4000
+            model=request.model, messages=messages, max_tokens=get_safe_max_tokens(request.model, 4000)
         )
         return {"content": response.choices[0].message.content, "role": "assistant"}
     except Exception as e:

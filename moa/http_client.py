@@ -37,7 +37,7 @@ class HTTPClientPool:
                     "X-Title": "LexMind AI",
                 },
                 http_client=self.get_httpx_client(),
-                max_retries=0
+                max_retries=2
             )
         return self._openai_client
 

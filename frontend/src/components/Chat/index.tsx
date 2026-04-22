@@ -246,8 +246,17 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
       attachments: attachmentData,
       created_at: new Date().toISOString(),
     };
-    setMessages((prev: ChatMessage[]) => [...prev, userMsg as ChatMessage]);
-    
+
+    // Add temporary assistant message for streaming
+    const assistantMsgId = "assistant-" + Date.now();
+    const tempAssistantMsg: Message = {
+      id: assistantMsgId,
+      role: "assistant",
+      content: "",
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev: ChatMessage[]) => [...prev, userMsg as ChatMessage, tempAssistantMsg as ChatMessage]);
     setAttachments([]);
 
     chatMutation.mutate({
@@ -255,36 +264,50 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
       history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
       sessionId: sessionId || undefined,
       attachments: attachmentData,
-      document_text: combinedDocText
+      document_text: combinedDocText,
+      onChunk: (chunk) => {
+        setMessages((prev: ChatMessage[]) => prev.map(msg => 
+          msg.id === assistantMsgId ? { ...msg, content: msg.content + chunk } : msg
+        ));
+      },
+      onMetadata: (meta: any) => {
+        if (!sessionId && meta.sessionId) {
+          setSessionId(meta.sessionId as string);
+          localStorage.setItem("prawnik_session_id", meta.sessionId as string);
+        }
+        // NOWOŚĆ: Aktualizacja wiadomości o wszystkie otrzymane metadane (eksperci, ELI itp.)
+        setMessages((prev: ChatMessage[]) => prev.map(msg => 
+          msg.id === assistantMsgId ? { 
+            ...msg, 
+            ...meta,
+            expert_analyses: (meta.expert_analyses as ExpertAnalysis[]) || msg.expert_analyses || [],
+            eli_explanation: (meta.eli_explanation as string) || msg.eli_explanation
+          } : msg
+        ));
+      }
     }, {
       onSuccess: (data) => {
-        const assistantMsg: Message = {
-          id: data.id,
-          role: "assistant",
-          content: data.content,
-          sources: data.sources || [],
-          consensus_used: isConsensusMode,
-          expert_analyses: data.expert_analyses || [],
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev: ChatMessage[]) => [...prev, assistantMsg as ChatMessage]);
-        
-        if (!sessionId && data.sessionId) {
-          setSessionId(data.sessionId);
-          localStorage.setItem("prawnik_session_id", data.sessionId);
-        }
+        // Final update with stable ID and all metadata
+        setMessages((prev: ChatMessage[]) => prev.map(msg => 
+          msg.id === assistantMsgId ? { 
+            ...msg, 
+            id: data.id,
+            content: data.content,
+            sources: data.sources || [],
+            consensus_used: isConsensusMode,
+            expert_analyses: data.expert_analyses || [],
+          } : msg
+        ));
         
         fetchSessions();
       },
       onError: (error: Error) => {
-        setMessages((prev: ChatMessage[]) => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            role: "assistant",
+        setMessages((prev: ChatMessage[]) => prev.map(msg => 
+          msg.id === assistantMsgId ? { 
+            ...msg, 
             content: `❌ Błąd: ${error.message}`,
-          }
-        ]);
+          } : msg
+        ));
       }
     });
   };

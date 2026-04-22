@@ -6,6 +6,9 @@ from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
 
 DB_PATH = Path("cache") / "prawnik.db"
+DEFAULT_HISTORY_LIMIT = 30
+MAX_HISTORY_LIMIT = 50
+MAX_HISTORY_PREVIEW_CHARS = 12000
 
 @contextmanager
 def get_db():
@@ -145,6 +148,43 @@ def get_sessions(limit: int = 100) -> List[Dict[str, Any]]:
         print(f"[DB Error] (get_sessions): {e}")
         return []
 
+
+def _sanitize_history_limit(limit: int) -> int:
+    try:
+        parsed_limit = int(limit)
+    except (TypeError, ValueError):
+        return DEFAULT_HISTORY_LIMIT
+
+    return max(1, min(parsed_limit, MAX_HISTORY_LIMIT))
+
+
+def _truncate_preview(text: Optional[str], max_chars: int = MAX_HISTORY_PREVIEW_CHARS):
+    if not text:
+        return "", False
+
+    if len(text) <= max_chars:
+        return text, False
+
+    return (
+        text[:max_chars].rstrip() + "\n\n[... wiadomosc zostala skrocona w historii ...]",
+        True,
+    )
+
+
+def _build_history_message(row) -> Dict[str, Any]:
+    content_preview, content_truncated = _truncate_preview(row[2])
+
+    return {
+        "id": row[0],
+        "role": row[1],
+        "content": content_preview,
+        "content_truncated": content_truncated,
+        "sources": row[3].split(",") if row[3] else [],
+        "consensus_used": row[4] == "moa_consensus",
+        "has_expert_analyses": bool(row[5]),
+        "has_eli_explanation": bool(row[6]),
+    }
+
 def create_session(id: str, title: str):
     try:
         with get_db() as conn:
@@ -189,35 +229,83 @@ def save_message(id: str, session_id: str, role: str, content: str, sources: Opt
     except Exception as e:
         print(f"[DB Error] (save_message): {e}")
 
-def get_messages(session_id: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
+def get_messages(session_id: Optional[str] = None, limit: int = DEFAULT_HISTORY_LIMIT) -> List[Dict[str, Any]]:
     try:
         with get_db() as conn:
             with conn:
+                safe_limit = _sanitize_history_limit(limit)
                 if session_id:
-                    rows = conn.execute("SELECT id, role, content, sources, message_type, reasoning, eli_explanation FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?", (session_id, limit)).fetchall()
+                    rows = conn.execute(
+                        """
+                        SELECT id, role, content, sources, message_type, reasoning, eli_explanation
+                        FROM (
+                            SELECT id, role, content, sources, message_type, reasoning, eli_explanation, created_at
+                            FROM messages
+                            WHERE session_id = ?
+                            ORDER BY created_at DESC
+                            LIMIT ?
+                        ) recent_messages
+                        ORDER BY created_at ASC
+                        """,
+                        (session_id, safe_limit),
+                    ).fetchall()
                 else:
-                    rows = conn.execute("SELECT id, role, content, sources, message_type, reasoning, eli_explanation FROM messages ORDER BY created_at ASC LIMIT ?", (limit,)).fetchall()
-                
-                messages = []
-                for r in rows:
-                    msg = {
-                        "id": r[0], 
-                        "role": r[1], 
-                        "content": r[2], 
-                        "sources": r[3].split(",") if r[3] else [],
-                        "consensus_used": r[4] == "moa_consensus",
-                        "eli_explanation": r[6]
-                    }
-                    if r[5]: # reasoning -> expert_analyses
-                        try:
-                            msg["expert_analyses"] = json.loads(r[5])
-                        except:
-                            msg["expert_analyses"] = []
-                    messages.append(msg)
-                return messages
+                    rows = conn.execute(
+                        """
+                        SELECT id, role, content, sources, message_type, reasoning, eli_explanation
+                        FROM (
+                            SELECT id, role, content, sources, message_type, reasoning, eli_explanation, created_at
+                            FROM messages
+                            ORDER BY created_at DESC
+                            LIMIT ?
+                        ) recent_messages
+                        ORDER BY created_at ASC
+                        """,
+                        (safe_limit,),
+                    ).fetchall()
+
+                return [_build_history_message(r) for r in rows]
     except Exception as e:
         print(f"DB Error (get_messages): {e}")
         return []
+
+
+def get_message_details(session_id: str, message_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        with get_db() as conn:
+            with conn:
+                row = conn.execute(
+                    """
+                    SELECT id, role, content, sources, message_type, reasoning, eli_explanation
+                    FROM messages
+                    WHERE session_id = ? AND id = ?
+                    LIMIT 1
+                    """,
+                    (session_id, message_id),
+                ).fetchone()
+
+                if not row:
+                    return None
+
+                message = {
+                    "id": row[0],
+                    "role": row[1],
+                    "content": row[2],
+                    "sources": row[3].split(",") if row[3] else [],
+                    "consensus_used": row[4] == "moa_consensus",
+                    "eli_explanation": row[6],
+                }
+
+                if row[5]:
+                    try:
+                        message["expert_analyses"] = json.loads(row[5])
+                    except Exception:
+                        message["expert_analyses"] = []
+
+                return message
+    except Exception as e:
+        print(f"DB Error (get_message_details): {e}")
+        return None
 
 def delete_session(session_id: str):
     try:

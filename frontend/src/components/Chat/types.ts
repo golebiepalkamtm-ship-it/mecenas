@@ -18,8 +18,23 @@ export interface Model {
   active: boolean;
   provider: string;
   vision: boolean;
+  free: boolean;
   description?: string;
   model_id?: string;
+  context_length?: number;
+  pricing?: {
+    prompt?: string;
+    completion?: string;
+    request?: string;
+    image?: string;
+  };
+  architecture?: {
+    tokenizer?: string;
+    instruct_type?: string;
+    input_modalities?: string[];
+    output_modalities?: string[];
+  };
+  api_source?: string;
 }
 
 export interface BrandConfig {

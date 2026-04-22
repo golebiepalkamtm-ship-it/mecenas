@@ -13,13 +13,17 @@ logger = logging.getLogger("LexMindUtils")
 
 
 def format_history_for_openai(
-    history: list[dict[str, Any]], use_limit: int = 10
+    history: list[dict[str, Any]], use_limit: int = 10, model_id: str | None = None
 ) -> list[dict[str, Any]]:
     """Konwertuje historię czatu na format oczekiwany przez OpenAI API."""
+    from moa.config import is_vision_model
+
     # Sliding window
     history_len = len(history)
     start_idx = history_len - use_limit if history_len > use_limit else 0
     limited = history[start_idx:]
+
+    vision_ok = is_vision_model(model_id) if model_id else True
 
     formatted = []
     for msg in limited:
@@ -37,6 +41,15 @@ def format_history_for_openai(
                     content = parsed
             except json.JSONDecodeError:
                 pass
+
+        # Filtruj image_url z historii jeśli model nie wspiera vision
+        if not vision_ok and isinstance(content, list):
+            content = [c for c in content if c.get("type") != "image_url"]
+            if not content:
+                continue
+            # Jeśli został tylko 1 element tekstowy, spłaszcz do stringa
+            if len(content) == 1 and content[0].get("type") == "text":
+                content = content[0]["text"]
 
         if content:
             formatted.append({"role": role, "content": content})
@@ -70,9 +83,7 @@ async def process_attachments(
                     else att.content
                 )
                 file_bytes = base64.b64decode(pure_base64)
-                text, err = await asyncio.to_thread(
-                    process_document, file_bytes, att.name, att.type
-                )
+                text, err = await process_document(file_bytes, att.name, att.type)
                 if text:
                     print(
                         f"   [OCR SUCCESS] Wyekstrahowano tekst z obrazu {att.name} ({len(text)} znaków)"
@@ -99,9 +110,7 @@ async def process_attachments(
                     else att.content
                 )
                 file_bytes = base64.b64decode(pure_base64)
-                text, err = await asyncio.to_thread(
-                    process_document, file_bytes, att.name, att.type
-                )
+                text, err = await process_document(file_bytes, att.name, att.type)
                 if text:
                     print(
                         f"   [ATTACH SUCCESS] Wyekstrahowano tekst z {att.name} ({len(text)} znaków)"

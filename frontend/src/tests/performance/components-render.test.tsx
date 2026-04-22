@@ -87,7 +87,8 @@ describe('Komponenty - Testy wydajności renderowania', () => {
     navItems: [] as NavItem[],
     activeTab: 'chat' as Tab,
     onTabChange: vi.fn(),
-    onLogout: vi.fn()
+    onLogout: vi.fn(),
+    userRole: 'user'
   };
 
   // Testy poszczególnych komponentów

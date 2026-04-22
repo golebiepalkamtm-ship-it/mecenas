@@ -78,8 +78,8 @@ async def index_document_to_supabase(
             error = None
             print(f"   [Cloud-Engine] {filename} -> Używam przekazanego tekstu (skip OCR)")
         else:
-            extracted_text, error = await asyncio.to_thread(
-                process_document, file_content, filename, content_type
+            extracted_text, error = await process_document(
+                file_content, filename, content_type
             )
 
         if error or not extracted_text:

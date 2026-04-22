@@ -92,25 +92,29 @@ async def call_gemini_direct(
     history: Optional[List[Dict[str, str]]] = None,
     temperature: float = 0.1,
     max_tokens: int = 4000,
+    use_google_search: bool = True, # Domyślnie włączone dla Google Direct
 ) -> str:
     """
-    Bezpośrednie wywołanie Gemini via Google SDK z obsługą Context Caching.
+    Bezpośrednie wywołanie Gemini via Google SDK z obsługą Context Caching i Google Search.
     model_id powinien być w formacie 'models/gemini-1.5-pro' lub podobnym.
     """
     if not GOOGLE_API_KEY:
+        logger.error("   [GEMINI] Brak GOOGLE_API_KEY w konfiguracji!")
         raise ValueError("GOOGLE_API_KEY nie jest ustawiony.")
+    
+    logger.info(f"   [GEMINI] Wywołanie direct dla modelu: {model_id} (Search: {use_google_search})")
 
     # Normalizacja nazwy modelu (usuwamy 'google/' jeśli pochodzi z OpenRouter format)
     clean_model_id = model_id.split("/")[-1]
     if not clean_model_id.startswith("models/"):
         clean_model_id = f"models/{clean_model_id}"
 
+    # Konfiguracja narzędzi (Tools)
+    tools = []
+    if use_google_search:
+        tools.append(types.Tool(google_search_retrieval=types.GoogleSearchRetrieval()))
+
     # Próba uzyskania cache dla dużych treści
-    # W LexMind duże treści to RAG i Dokumenty, które są wstrzykiwane do user_prompt lub system_prompt.
-    # Dla MOA najlepiej cache'ować System Prompt + Dokumenty.
-    
-    # Decydujemy co cache'ować:
-    # Jeśli user_prompt jest bardzo duży, to on jest kandydatem.
     cache = await GeminiCacheManager.get_or_create_cache(
         model_name=clean_model_id,
         system_instruction=system_prompt,
@@ -121,20 +125,22 @@ async def call_gemini_direct(
         if not _gemini_client:
             raise ValueError("Klient Gemini nie jest zainicjalizowany.")
             
+        config = types.GenerateContentConfig(
+            temperature=temperature,
+            max_output_tokens=max_tokens,
+            tools=tools if tools else None,
+        )
+
         if cache:
             # Użycie cache - wysyłamy tylko krótkie zapytanie
+            config.cached_content = cache.name
             response = await _gemini_client.models.generate_content_async(
                 model=clean_model_id,
-                contents="Proszę o odpowiedź na podstawie załadowanego kontekstu.",
-                config=types.GenerateContentConfig(
-                    cached_content=cache.name,
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                )
+                contents="Proszę o odpowiedź na podstawie załadowanego kontekstu i wyszukiwarki Google.",
+                config=config
             )
         else:
             # Normalne wywołanie bez cache
-            # Konwersja historii na format Gemini
             gemini_contents = []
             
             # Dodaj system prompt jako pierwszy message
@@ -158,13 +164,21 @@ async def call_gemini_direct(
             response = await _gemini_client.models.generate_content_async(
                 model=clean_model_id,
                 contents=gemini_contents,
-                config=types.GenerateContentConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                )
+                config=config
             )
         
-        return response.text if response.text else ""
+        # Pobranie tekstu i ewentualnych źródeł z wyszukiwarki
+        output_text = response.text if response.text else ""
+        
+        # Opcjonalnie: Jeśli użyto Google Search, możemy dokleić źródła na końcu (uproszczone)
+        if use_google_search and hasattr(response, 'candidates') and response.candidates:
+            # Tu można by parsować grounding_metadata
+            pass
+
+        return output_text
+    except Exception as e:
+        logger.error(f"   [GEMINI ERR] Błąd podczas wywołania direct: {e}")
+        raise e
     except Exception as e:
         logger.error(f"   [GEMINI ERR] Błąd podczas wywołania direct: {e}")
         raise e

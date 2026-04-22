@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Brain, Search, FileText, Library, Gavel, Laptop } from "lucide-react";
+import { Search, FileText, Library, Gavel, Laptop } from "lucide-react";
 
 const FEATURES = [
   {

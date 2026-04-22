@@ -779,9 +779,10 @@ export const JudgmentsView: React.FC = () => {
   const nextPageHref = links.find((link) => link.rel === "next")?.href;
 
   return (
-    <div className="flex flex-col h-full bg-transparent overflow-hidden pt-0">
-      <div className="px-6 pb-8 pt-2 lg:px-8 lg:pb-8 lg:pt-3 border-b border-black/5 overflow-y-auto max-h-[48vh] custom-scrollbar">
-        <div className="max-w-6xl mx-auto space-y-6">
+    <>
+    <div className="flex flex-col h-full bg-transparent overflow-hidden pt-0 relative">
+      <div className="px-6 pb-4 pt-6 lg:px-8 lg:pb-4 lg:pt-8">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl glass-liquid-convex flex items-center justify-center text-black">
               <Gavel size={24} />
@@ -796,7 +797,7 @@ export const JudgmentsView: React.FC = () => {
             </div>
           </div>
 
-          <form onSubmit={(e) => void handleSearch(e)} className="space-y-4">
+          <form onSubmit={(e) => void handleSearch(e)} className="max-w-6xl w-full">
             <div className="relative group">
               <input
                 type="text"
@@ -817,8 +818,11 @@ export const JudgmentsView: React.FC = () => {
                 )}
               </button>
             </div>
+          </form>
+        </div>
 
-            <div className="flex flex-wrap items-center gap-3">
+        <div className="space-y-4 mt-6">
+          <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters((prev) => !prev)}
@@ -1231,7 +1235,6 @@ export const JudgmentsView: React.FC = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          </form>
 
           <AnimatePresence>
             {activeOptimizedQuery && (
@@ -1277,29 +1280,28 @@ export const JudgmentsView: React.FC = () => {
             </div>
           )}
 
-          <div className="max-w-4xl mx-auto space-y-4">
-            {nextPageHref && (
-              <div className="text-[10px] font-semibold text-black/35 break-all">next: {nextPageHref}</div>
-            )}
+          {nextPageHref && (
+            <div className="text-[10px] font-semibold text-black/35 break-all">next: {nextPageHref}</div>
+          )}
 
-            {results.length === 0 && !loading && (
-              <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center opacity-20 pointer-events-none">
-                <Gavel size={80} strokeWidth={1} className="mb-6" />
-                <p className="text-lg font-semibold">Skonfiguruj filtry i uruchom wyszukiwanie SAOS</p>
+          {results.length === 0 && !loading && (
+            <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center opacity-20 pointer-events-none">
+              <Gavel size={80} strokeWidth={1} className="mb-6" />
+              <p className="text-lg font-semibold">Skonfiguruj filtry i uruchom wyszukiwanie SAOS</p>
+            </div>
+          )}
+
+          {loading && (
+            <div className="h-full min-h-[300px] flex items-center justify-center">
+              <div className="glass-prestige rounded-2xl px-6 py-4 flex items-center gap-3 text-black/70 text-xs font-black uppercase tracking-[0.2em]">
+                <Loader2 size={16} className="animate-spin" />
+                Wyszukiwanie orzeczeń
               </div>
-            )}
+            </div>
+          )}
 
-            {loading && (
-              <div className="h-full min-h-[300px] flex items-center justify-center">
-                <div className="glass-prestige rounded-2xl px-6 py-4 flex items-center gap-3 text-black/70 text-xs font-black uppercase tracking-[0.2em]">
-                  <Loader2 size={16} className="animate-spin" />
-                  Wyszukiwanie orzeczeń
-                </div>
-              </div>
-            )}
-
-            <AnimatePresence mode="popLayout">
-              {results.map((item, idx) => {
+          <AnimatePresence mode="popLayout">
+            {results.map((item, idx) => {
                 const fallback = parseSourceFallback(item.source);
                 const courtName = item.courtName || fallback.courtName;
                 const caseNo = item.caseNumber || fallback.caseNumber;
@@ -1351,10 +1353,11 @@ export const JudgmentsView: React.FC = () => {
                 );
               })}
             </AnimatePresence>
-          </div>
         </div>
+      </div>
+    </div>
 
-        <AnimatePresence>
+    <AnimatePresence>
           {selectedJudgment && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -1447,7 +1450,7 @@ export const JudgmentsView: React.FC = () => {
                 )}
 
                 <div className="flex-1 overflow-y-auto p-5 lg:p-8 custom-scrollbar bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.8),_rgba(0,0,0,0.03))]">
-                  <div className="max-w-3xl mx-auto bg-white/80 border border-black/10 rounded-2xl p-6 lg:p-9 shadow-[0_10px_35px_rgba(0,0,0,0.12)] space-y-8">
+                  <div className="bg-white/80 border border-black/10 rounded-2xl p-6 lg:p-9 shadow-[0_10px_35px_rgba(0,0,0,0.12)] space-y-8">
                     <header className="space-y-4">
                       <span className="px-3 py-1 glass-prestige text-black/60 border-black/20 rounded-full text-[10px] font-black uppercase tracking-widest">
                         Szczegóły orzeczenia
@@ -1573,7 +1576,6 @@ export const JudgmentsView: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </div>
+    </>
   );
 };

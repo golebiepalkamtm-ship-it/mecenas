@@ -9,7 +9,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Message, ExpertAnalysis } from "../types";
+import type { Message, ExpertAnalysis, SourceReference } from "../types";
 import { getBrand } from "../constants";
 import Mermaid from "../../Shared/Mermaid";
 
@@ -231,10 +231,85 @@ const ELIExplanation = React.memo(({ content }: { content: string }) => {
   );
 });
 
+// ---------------------------------------------------------------------------
+// Pipeline Diagnosis — Detailed step-by-step breakdown
+// ---------------------------------------------------------------------------
+const MessageDiagnosis = React.memo(({ diagnostics }: { diagnostics: any[] }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="mt-4 rounded-xl border border-white/5 bg-black/20 overflow-hidden shadow-lg">
+      <button 
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-2.5 flex items-center justify-between text-left hover:bg-white/5 transition-colors group"
+      >
+        <div className="flex items-center gap-2">
+          <Activity size={12} className="text-white/40 group-hover:text-gold transition-colors" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 group-hover:text-white/60 transition-colors font-outfit">
+             SZCZEGÓŁOWA DIAGNOZA PROCESU
+          </span>
+        </div>
+        <ChevronDown size={14} className={cn("text-white/20 transition-transform", expanded && "rotate-180")} />
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-white/5 bg-black/10"
+          >
+            <div className="p-3 space-y-1.5">
+              {diagnostics.map((step, idx) => (
+                <div key={idx} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-white/2 border border-white/5">
+                  <div className="flex items-center gap-2.5">
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full shrink-0",
+                      step.status === 'ok' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" :
+                      step.status === 'warning' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]" :
+                      "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.4)]"
+                    )} />
+                    <div className="flex flex-col">
+                       <span className="text-[10px] font-bold text-white/70 uppercase tracking-tight">{step.step_name}</span>
+                       {step.details && <span className="text-[8px] text-white/30 font-medium">{step.details}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                     <span className="text-[9px] font-black font-mono text-white/40">{Math.round(step.latency_ms)}ms</span>
+                     <Zap size={8} className={cn(step.latency_ms < 500 ? "text-emerald-500" : "text-white/10")} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+});
+
 export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubbleProps) => {
   const isUser = msg.role === "user";
   const [showExperts, setShowExperts] = useState(false);
   const hasExperts = msg.expert_analyses && msg.expert_analyses.length > 0;
+
+  // Transform inline citations like [1] to markdown links
+  const formatContentWithCitations = (text: string, cited?: SourceReference[]) => {
+    let formatted = text;
+    if (cited && cited.length > 0) {
+      cited.forEach((ref) => {
+        const num = ref.ref_id.replace(/[\[\]]/g, ""); // Daje np. "1" z "[1]"
+        const regex = new RegExp(`\\[${num}\\]`, "g");
+        formatted = formatted.replace(regex, `[${ref.ref_id}](#cite-${num})`);
+      });
+    }
+    return formatted;
+  };
+
+  const displayContent = typeof msg.content === "string" 
+    ? formatContentWithCitations(msg.content, msg.cited_sources) 
+    : JSON.stringify(msg.content);
 
   return (
     <motion.div
@@ -321,12 +396,20 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
                       {children}
                     </code>
                   );
+                },
+                a({ href, children, ...props }) {
+                  if (href?.startsWith("#cite-")) {
+                    return (
+                      <a href={href} className="inline-flex items-center justify-center px-1 py-0.5 mx-0.5 text-[10px] font-black text-gold bg-gold/10 border border-gold/20 rounded hover:bg-gold hover:text-black transition-colors" title="Zobacz przypis źródłowy" {...props}>
+                        {children}
+                      </a>
+                    );
+                  }
+                  return <a href={href} className="text-gold underline hover:no-underline" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
                 }
               }}
             >
-              {typeof msg.content === "string"
-                ? msg.content
-                : JSON.stringify(msg.content)}
+              {displayContent}
             </ReactMarkdown>
           </div>
 
@@ -370,7 +453,55 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
             </div>
           )}
 
-          {/* Sources */}
+          {/* Inline Citations List (Libra-style) */}
+          {msg.cited_sources && msg.cited_sources.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-white/5 space-y-2.5">
+              <p className="text-[10px] font-black uppercase text-gold/60 tracking-[0.2em] flex items-center gap-1.5 font-outfit">
+                <FileText size={11} /> Przypisy źródłowe
+              </p>
+              <div className="flex flex-col gap-2">
+                {msg.cited_sources.map((src, i) => (
+                  <div key={`cite-${src.ref_id}-${i}`} id={`cite-${src.ref_id.replace(/[\[\]]/g, "")}`} className="group/cite flex gap-3 p-3 rounded-xl border border-white/5 bg-black/20 hover:bg-black/40 transition-colors">
+                    <div className="text-[10px] font-black text-gold bg-gold/10 px-1.5 py-0.5 rounded h-fit shrink-0 border border-gold/20">
+                      {src.ref_id}
+                    </div>
+                    <div className="flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-white/80 uppercase tracking-tighter truncate">
+                          {src.label}
+                        </span>
+                        <span className={cn(
+                          "text-[8px] font-black px-1.5 py-0.5 rounded uppercase",
+                          src.source_type === "judgment" ? "bg-red-500/20 text-red-400" : "bg-gold/20 text-gold"
+                        )}>
+                          {src.source_type === "judgment" ? "SAOS" : src.source_type === "law" ? "ELI" : "Baza Wiedzy"}
+                        </span>
+                      </div>
+                      {src.snippet && (
+                        <p className="text-[10px] leading-relaxed text-white/40 line-clamp-2">
+                          {src.snippet}
+                        </p>
+                      )}
+                      {(src.url || src.label) && (
+                        <div className="flex justify-end gap-2 mt-1">
+                          {src.url && (
+                            <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-[9px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-wider flex items-center gap-1 opacity-0 group-hover/cite:opacity-100 transition-opacity">
+                              Otwórz <Search size={8} />
+                            </a>
+                          )}
+                          <button onClick={() => onPreviewDoc?.(src.label)} className="text-[9px] font-bold text-gold hover:text-gold-light uppercase tracking-wider flex items-center gap-1 opacity-0 group-hover/cite:opacity-100 transition-opacity">
+                            W LexMind <FileText size={8} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Sources (Raw Context metadata) */}
           {msg.sources && msg.sources.length > 0 && (
             <div className="mt-4 pt-3 border-t border-white/10 space-y-2 glass-prestige rounded-xl p-3">
               <p className="text-[10px] font-black uppercase text-slate-300 tracking-[0.2em] flex items-center gap-1.5">
@@ -409,6 +540,11 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
 
           {/* Pipeline metadata */}
           <PipelineStats msg={msg} />
+
+          {/* Detailed Diagnosis */}
+          {msg.diagnostics && msg.diagnostics.length > 0 && (
+            <MessageDiagnosis diagnostics={msg.diagnostics} />
+          )}
 
           {/* Expert analyses toggle */}
           {hasExperts && (
