@@ -1,0 +1,44 @@
+.landing-portal-cta-shell {
+  display: inline-flex;
+}
+
+.landing-portal-cta {
+  position: relative;
+  border-width: 2px;
+  border-style: solid;
+  border-color: rgba(212, 175, 55, 0.35);
+  background: linear-gradient(
+    135deg,
+    rgba(212, 175, 55, 0.14) 0%,
+    rgba(212, 175, 55, 0.05) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  color: #f9fafb;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
+  will-change: box-shadow;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+
+.landing-portal-cta:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(212, 175, 55, 0.38) 0%,
+    rgba(212, 175, 55, 0.18) 50%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+  border-color: rgba(212, 175, 55, 0.85);
+}
+
+.landing-portal-cta--light {
+  background: linear-gradient(135deg, #ffffff 0%, #f3ead0 55%, #e8d9a8 100%);
+  color: #111827;
+  text-shadow: none;
+}
+
+.landing-portal-cta--light:hover {
+  background: linear-gradient(135deg, #ffffff 0%, #f8efd4 45%, #edd992 100%);
+}
+
+.landing-portal-cta--light .landing-portal-cta__icon {
+  color: #854d0e;
+}

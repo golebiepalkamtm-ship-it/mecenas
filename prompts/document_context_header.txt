@@ -1,0 +1,3 @@
+[AKTA KLIENTA — pełny lub częściowy tekst z OCR poniżej]
+Masz dostęp do treści pisma/dokumentu klienta w tym bloku oraz w [AKTA KLIENTA — RAG].
+Opieraj odpowiedź na tych faktach. Nie twierdź, że nie otrzymałeś dokumentu, jeśli poniżej jest jakikolwiek tekst aktu.

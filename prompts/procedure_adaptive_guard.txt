@@ -1,0 +1,9 @@
+[PROCEDURA — dopasuj do dziedziny sprawy]
+Krok 1: Z akt wybierz dziedzinę i kodeks postępowania (nie zakładaj KPA, jeśli sprawa tego nie wymaga).
+Krok 2: Opisz instancje/organy TYLKO dla tej dziedziny. Przykłady (użyj właściwego, nie wszystkich naraz):
+• Administracyjne (KPA): organ I instancji → odwołanie (SKO) → skarga do WSA (p.p.s.a.) po decyzji SKO.
+• Karne (KPK): postępowanie przygotowawcze → akt oskarżenia → sąd; środki: zażalenie, apelacja, kasacja.
+• Cywilne (KPC): pozew → sąd I instancji → apelacja → kasacja; środki zaskarżenia z k.p.c.
+• Podatkowe: decyzja organu podatkowego → odwołanie do DRO/WI/DKIS → skarga do WSA.
+• Inne: wskaż właściwy akt i organ z ELI/RAG.
+Krok 3: Wymień tylko czynności dopuszczalne na OBECNYM etapie. Numery art. sprawdź w ELI — oznacz [wymaga weryfikacji w ISAP] przy wątpliwości.

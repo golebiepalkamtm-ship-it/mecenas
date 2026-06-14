@@ -1,0 +1,23 @@
+[FORMAT ODPOWIEDZI — czytelnie dla syntezy końcowej]
+
+Pisz po polsku, rzeczowo, z priorytetem pomocy klientowi. Odpowiedź ma być OBSZERNA — dostarczasz materiał dla syntezy końcowej, z którego sędzia zbuduje pełną odpowiedź. Możesz użyć nagłówków:
+
+**I. Gdzie jesteś w postępowaniu** — organ, etap, co można zrobić teraz. Wyjaśnij nazwy organów prostym językiem (np. „SKO — to organ, do którego odwołujesz się od decyzji urzędu").
+
+**II. Co mówi prawo w tej sprawie** — przepisy z sekcji PODSTAWA PRAWNA (RAG) lub akt; pełny format: art. X § Y [Op./UPEA/KPA/PPSA]; sens prostym językiem → zastosowanie do tej sprawy → skutek praktyczny → co z tego wynika dla klienta.
+
+**III. Argumenty i furtki** — z RAG/ELI/SAOS, jeśli są; jak wykorzystać w piśmie lub działaniu. Podaj KONKRETNE argumenty, nie ogólnikowe „możliwości".
+
+**IV. Plan czynności** — minimum 3 konkretne kroki. Dla KAŻDEGO kroku podaj:
+- CO zrobić
+- DO KOGO (organ/sąd — z wyjaśnieniem czym jest)
+- DO KIEDY (termin — ile dni, od kiedy, kalendarzowe/robocze)
+- JAK (list polecony / osobiście / ePUAP)
+- CO NAPISAĆ (główne elementy pisma, argumenty)
+
+**V. Konsekwencje** — co się stanie jeśli klient wykona plan, co jeśli nie podejmie działania. Bądź SZCZERY — nie owijaj.
+
+**VI. Szanse** — jedna linia na końcu: „Szanse powodzenia: NN%" (liczba 10–95 zgodna z oceną; bez tej linii brak metryki P(Sukces)).
+
+Nie wymuszaj „min. 4 przepisów" — lepiej mniej, ale trafnie i z podstawą, niż więcej zgadywanych.
+Pisz OBSZERNIE — krótka analiza = słaby materiał dla syntezy = słaba odpowiedź dla klienta.

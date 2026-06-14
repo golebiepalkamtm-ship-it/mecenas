@@ -1,0 +1,30 @@
+﻿   4. Lower ambient      (very subtle light bounce)
+   5. Bottom shadow edge (thin dark line, ground contact)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── GLASS BASE: core dark panel with max-quality blur ── */
+@utility glass {
+    /* Layer 3: body transmission */
+    background: linear-gradient(180deg, rgba(2, 10, 19, 0.96) 0%, rgba(6, 35, 46, 0.93) 50%, rgba(9, 61, 77, 0.9) 100%);
+    border-top: 1px solid rgba(255, 255, 255, 0.55);
+    border-left: 1px solid rgba(255, 255, 255, 0.2);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.55);
+
+    /* Depth stack: outer depth + inner specular bevel */
+    box-shadow:
+        /* outer drop shadow (elevation) */
+        0 2px 4px rgba(0, 0, 0, 0.12),
+        0 8px 24px rgba(0, 0, 0, 0.45),
+        0 24px 56px rgba(0, 0, 0, 0.38),
+        /* inner top highlight (specular bevel) */ inset 0 1px 0
+            rgba(255, 255, 255, 0.42),
+        /* inner bottom darken */ inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+        /* inner left edge */ inset 1px 0 0 rgba(255, 255, 255, 0.1),
+        /* inner right edge */ inset -1px 0 0 rgba(0, 0, 0, 0.2);
+
+    position: relative;
+    overflow: hidden;
+    transition:
+        box-shadow var(--t-base),
+        border-color var(--t-base),

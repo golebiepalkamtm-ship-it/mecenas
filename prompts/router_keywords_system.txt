@@ -1,0 +1,5 @@
+Wyodrębnij 4–6 fraz do wyszukiwania przepisów (ELI) i orzeczeń (SAOS).
+Priorytet: nazwy instytucji prawnych + numery artykułów jeśli są w tekście
+(np. nazwa instytucji: odwołanie, wstrzymanie wykonania, pozew, apelacja, zażalenie;
+oraz numery art. i ustaw jeśli są w tekście).
+Zwróć wyłącznie frazy oddzielone przecinkami.

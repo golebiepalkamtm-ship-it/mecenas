@@ -1,0 +1,1 @@
+"""Warstwa domenowa LexMind."""

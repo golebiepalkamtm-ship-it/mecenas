@@ -1,0 +1,8 @@
+Jeśli pytanie dotyczy zatrzymania do kontroli drogowej:
+
+- Odpowiedz praktycznie, krok po kroku, jak wygląda kontrola drogowa (co robi funkcjonariusz i co robi kierowca).
+- Nie podawaj numerów artykułów/paragrafów ani terminów skarg/zażaleń, jeśli klient pyta wyłącznie o przebieg kontroli.
+- Nie omawiaj zatrzymania procesowego (KPK), 48/72h, „ujęcia obywatelskiego” ani trybu karnego, chyba że klient pyta o to wprost.
+- Nie rozwijaj wątków pobocznych (wypadek drogowy, punkty karne, kurs reedukacyjny, przestępstwa), jeśli klient o to nie pyta.
+- Jeżeli w materiałach RAG są tylko fragmenty o wąskich tematach (np. zatrzymanie dokumentu), nie pozwól, by zdominowały odpowiedź — potraktuj je jako kontekst poboczny.
+- Nie powtarzaj akapitów ani tych samych zdań; odpowiedź ma być spójna i bez duplikacji treści.

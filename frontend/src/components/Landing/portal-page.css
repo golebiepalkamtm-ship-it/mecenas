@@ -1,0 +1,414 @@
+/* Portal — mobile: kolumna; desktop (≥1024): logo lewo, formularz prawo */
+
+html.portal-active,
+html.portal-active body {
+  overflow: hidden;
+  height: 100%;
+}
+
+.portal-page,
+.portal-page.portal-scroll-root {
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.portal-page__main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.portal-page__brand-compact {
+  display: block;
+}
+
+.portal-page__brand-wide {
+  display: none;
+}
+
+.portal-page__brand {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: env(safe-area-inset-top, 0px) 1rem 0.35rem calc(1rem + env(safe-area-inset-left, 0px));
+  position: relative;
+  z-index: 15;
+}
+
+.portal-brand-compact {
+  justify-content: flex-start;
+  width: auto;
+  max-width: none;
+}
+
+.portal-brand-compact__logo {
+  width: 3.25rem;
+  height: 3.25rem;
+}
+
+.portal-brand-compact h1 {
+  font-size: 0.95rem;
+}
+
+.portal-brand-wide {
+  width: 100%;
+  max-width: min(480px, 44vw);
+}
+
+.portal-brand-wide__logo {
+  width: min(30vw, 340px);
+  height: min(30vw, 340px);
+  max-height: 46vh;
+  object-fit: contain;
+  object-position: left top;
+}
+
+.portal-page__form-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0.25rem 0.75rem 0.5rem;
+  position: relative;
+  z-index: 20;
+}
+
+.portal-page__gradient {
+  display: none;
+}
+
+.portal-page__ticker {
+  flex-shrink: 0;
+  border-top: 1px solid rgba(212, 175, 55, 0.45);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 25;
+}
+
+.portal-page__ticker-inner {
+  padding: 0.35rem 0;
+  overflow: hidden;
+}
+
+.portal-page__neural {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Formularz — spójna skala proporcjonalna */
+.portal-login-wrap {
+  --pl-radius: 1.5rem;
+  --pl-pad-x: 1.375rem;
+  --pl-pad-y: 1.375rem;
+  --pl-field-h: 2.75rem;
+  --pl-field-radius: 0.875rem;
+  --pl-gap: 0.75rem;
+  --pl-title: 0.9375rem;
+  --pl-shield: 2.75rem;
+  width: 100%;
+  max-width: 22.5rem;
+}
+
+.portal-login-wrap .portal-login-glow-outer {
+  inset: -1.75rem;
+  opacity: 0.85;
+}
+
+.portal-login-wrap .portal-login-glow-inner {
+  inset: -0.875rem;
+  opacity: 0.7;
+}
+
+.portal-login-card {
+  border-radius: var(--pl-radius);
+  width: 100%;
+}
+
+.portal-login-card-highlight {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.55) 20%,
+    rgba(255, 255, 255, 0.95) 50%,
+    rgba(255, 255, 255, 0.55) 80%,
+    transparent 100%
+  );
+}
+
+.portal-login-card-sheen {
+  height: 42%;
+  border-radius: var(--pl-radius) var(--pl-radius) 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.015) 55%, transparent 100%);
+}
+
+.portal-login-card-tint {
+  border-radius: var(--pl-radius);
+  background: linear-gradient(
+    135deg,
+    rgba(180, 220, 255, 0.08) 0%,
+    transparent 52%,
+    rgba(255, 200, 120, 0.04) 100%
+  );
+  mix-blend-mode: screen;
+}
+
+.portal-login-pad {
+  padding: var(--pl-pad-y) var(--pl-pad-x);
+}
+
+.portal-login-hero {
+  margin-bottom: calc(var(--pl-gap) + 0.25rem);
+}
+
+.portal-login-shield {
+  width: var(--pl-shield);
+  height: var(--pl-shield);
+  margin: 0 auto 0.5rem;
+  border-radius: calc(var(--pl-field-radius) + 0.125rem);
+}
+
+.portal-login-shield svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.portal-login-title {
+  font-size: var(--pl-title);
+  letter-spacing: 0.05em;
+  line-height: 1.15;
+}
+
+.portal-login-sub {
+  margin-top: 0.5rem;
+  gap: 0.5rem;
+}
+
+.portal-login-sub .sub-line {
+  width: 1.75rem;
+}
+
+.portal-login-sub-label {
+  font-size: 0.5625rem;
+  letter-spacing: 0.32em;
+  color: rgba(212, 175, 55, 0.75);
+}
+
+.portal-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--pl-gap);
+}
+
+.portal-login-field {
+  border-radius: var(--pl-field-radius);
+  min-height: var(--pl-field-h);
+}
+
+.portal-login-field .portal-login-field-icon {
+  left: 0.875rem;
+}
+
+.portal-login-input {
+  height: var(--pl-field-h) !important;
+  padding: 0 2.5rem 0 2.625rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.2 !important;
+}
+
+.portal-login-submit {
+  height: var(--pl-field-h);
+  border-radius: var(--pl-field-radius);
+  margin-top: 0.125rem;
+}
+
+.portal-login-submit-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.28em;
+  color: rgba(212, 175, 55, 0.95);
+}
+
+.portal-login-toggle {
+  padding-top: calc(var(--pl-gap) * 0.75);
+}
+
+.portal-login-toggle-btn {
+  font-size: 0.5625rem;
+  letter-spacing: 0.22em;
+  line-height: 1.4;
+  padding: 0.35rem 0;
+}
+
+.portal-login-extras {
+  margin-top: var(--pl-gap);
+  gap: 0.5rem;
+}
+
+.portal-login-extras-badge {
+  font-size: 0.5rem;
+  letter-spacing: 0.28em;
+  color: rgba(212, 175, 55, 0.7);
+}
+
+.portal-login-error {
+  border-radius: var(--pl-field-radius);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+}
+
+/* Desktop — siatka: logo lewo | formularz prawo */
+@media (min-width: 900px) {
+  .portal-page__main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, min(360px, 38vw));
+    grid-template-rows: 1fr;
+    align-items: stretch;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .portal-page__form-wrap {
+    grid-column: 2;
+    grid-row: 1;
+    position: relative;
+    flex: none;
+    width: 100%;
+    max-width: none;
+    justify-self: stretch;
+    align-self: center;
+    align-items: center;
+    justify-content: center;
+    padding: calc(2rem + env(safe-area-inset-top, 0px)) 2rem 1.25rem 1rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .portal-login-wrap {
+    max-width: 23rem;
+  }
+
+  .portal-page__gradient {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: linear-gradient(to left, rgba(9, 61, 77, 0.45) 0%, transparent 100%);
+  }
+
+  .portal-page__form-wrap > .portal-login-outer {
+    position: relative;
+    z-index: 1;
+    transform: none;
+    transform-origin: center center;
+    margin-left: auto;
+    margin-right: 0;
+  }
+}
+
+/* Laptop niski 1366×768 */
+@media (min-width: 900px) and (max-height: 820px) {
+  .portal-page__main {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, min(320px, 42vw));
+  }
+
+  .portal-page__form-wrap {
+    padding: calc(1.75rem + env(safe-area-inset-top, 0px)) 1.5rem 0.75rem 0.5rem;
+  }
+
+  .portal-login-wrap {
+    --pl-radius: 1.375rem;
+    --pl-pad-x: 1.125rem;
+    --pl-pad-y: 1.125rem;
+    --pl-field-h: 2.5rem;
+    --pl-gap: 0.625rem;
+    --pl-title: 0.8125rem;
+    --pl-shield: 2.375rem;
+    max-width: 20rem;
+  }
+
+  .portal-page__form-wrap > .portal-login-outer {
+    transform: none;
+  }
+
+  .portal-login-shield svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .portal-login-sub,
+  .portal-login-extras {
+    display: none;
+  }
+
+  .portal-page__ticker-inner {
+    padding: 0.25rem 0;
+  }
+
+  .portal-page__ticker .ticker-text {
+    font-size: 7px;
+    letter-spacing: 0.2em;
+  }
+}
+
+/* Duży monitor */
+@media (min-width: 1536px) and (min-height: 820px) {
+  .portal-page__main {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, min(380px, 32vw));
+  }
+
+  .portal-page__form-wrap {
+    padding: 3.5rem 2.25rem 2rem 1rem;
+  }
+
+  .portal-login-wrap {
+    --pl-radius: 1.75rem;
+    --pl-pad-x: 1.625rem;
+    --pl-pad-y: 1.625rem;
+    --pl-field-h: 3rem;
+    --pl-gap: 0.875rem;
+    --pl-title: 1rem;
+    --pl-shield: 3rem;
+    max-width: 23.5rem;
+  }
+
+  .portal-login-shield svg {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .portal-login-hero {
+    margin-bottom: 1.25rem;
+  }
+
+  .portal-login-sub {
+    display: flex;
+  }
+
+  .portal-login-extras {
+    display: flex;
+  }
+}
+
+/* Telefon — tylko kompakt u góry */
+@media (max-width: 899px) {
+  .portal-login-wrap {
+    max-width: 300px;
+  }
+}

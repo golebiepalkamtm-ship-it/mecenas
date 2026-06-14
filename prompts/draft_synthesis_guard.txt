@@ -1,0 +1,8 @@
+[FORMAT PISMA — obowiązkowy]
+1. Miejscowość, data
+2. Dane stron i organ/sąd
+3. Tytuł pisma
+4. Wnioski / petitum (numeracja)
+5. Uzasadnienie (krótkie akapity, art. + fakt)
+6. Podpis / załączniki (lista)
+Styl formalny, bez streszczenia całego aktu organu.

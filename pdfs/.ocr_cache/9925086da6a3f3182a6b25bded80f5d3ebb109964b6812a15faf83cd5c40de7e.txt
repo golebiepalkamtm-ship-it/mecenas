@@ -1,0 +1,91 @@
+Oto wyekstrahowany tekst oraz jego opis:
+
+**Wyekstrahowany tekst:**
+
+4327-0.Pa.5.2026
+
+Starostwo Powiatowe w Lubaniu
+2026-03-09 09:38 24
+3096 2026
+470127
+bio.powiat.luban.pl
+
+STAROSTWO POWIATOWE
+W LUBANIU
+
+06. 03. 2026
+Wpł.
+Pan
+Zal.
+podpis
+Starosta Lubański
+
+**WNIOSEK**
+**Prokuratora Rejonowego w Lubaniu**
+**o wszczęcie postępowania administracyjnego w przedmiocie skierowania**
+**na badanie lekarskie**
+
+W oparciu o przepis art. 182 kpa i art. 99 ust. 1 pkt 2 i ust. 2 pkt 1 a oraz art. 105
+ust. 5 ustawy z dnia 5 stycznia 2011r. o kierujących pojazdami (t.j. Dz. U. z 2025r.,
+poz.1226) oraz § 5 ust. 1 pkt 1 Rozporządzenia Ministra Zdrowia z dnia 03 grudnia
+2021r. w sprawie kursu reedukacyjnego w zakresie problematyki przeciwalkoholowej
+i przeciwdziałania narkomanii oraz szczegółowych warunków i trybu kierowania na
+badania lekarskie lub badania psychologiczne w zakresie psychologii transportu (t.j. Dz.
+U. z 2023r., Nr 1629)
+
+**wnoszę o:**
+
+1/wszczęcie postępowania administracyjnego w przedmiocie skierowania na
+badanie lekarskie **Marcina Pałka, PESEL: 88051210597**, zam. 59-800 Lubań, ul.
+Stawowa 5 posiadającego prawo jazdy kat. B, nr 00362120210 wydane przez Starostę
+Lubańskiego w dniu 16.04.2012r.
+
+2/powiadomienie Prokuratury Rejonowej w Lubaniu o treści podjętej decyzji.
+
+**UZASADNIENIE**
+
+Prokuratura Rejonowa w Lubaniu prowadzi postępowanie o sygn. 4327-
+517.2025 w sprawie p-ko Marcinowi Pałka podejrzanemu o czyn z art. 62 ust. 1
+przeciwdziałaniu narkomanii. W toku tego postępowania ustalono, iż wymieniony
+da prawo jazdy kat. B. Nadto z opinii biegłych uzyskanej w tej sprawie wynika,
+ozpoznano u niego zespół uzależnienia mieszanego (F19.2,ICD-10).
+
+---
+
+**Dokładny opis wyekstrahowanego tekstu:**
+
+Dokument jest wnioskiem Prokuratora Rejonowego w Lubaniu do Starosty Lubańskiego o wszczęcie postępowania administracyjnego w przedmiocie skierowania na badanie lekarskie.
+
+**Nagłówek/Informacje administracyjne (lewa górna strona):**
+*   Numer sprawy: 4327-0.Pa.5.2026
+*   Informacje ze Starostwa Powiatowego w Lubaniu:
+    *   Data i czas: 2026-03-09 09:38 24
+    *   Numer: 3096 2026
+    *   Kod kreskowy z numerem: 470127
+    *   Adres e-mail: bio.powiat.luban.pl
+
+**Nagłówek/Informacje administracyjne (prawa górna strona):**
+*   Pieczęć: STAROSTWO POWIATOWE W LUBANIU
+*   Data wpływu: 06. 03. 2026
+*   Podpis: Nieczytelny podpis nad tekstem "Starosta Lubański"
+*   Adresat: Pan Starosta Lubański
+*   Pola do wypełnienia: Wpł., Zal.
+
+**Tytuł dokumentu:**
+*   WNIOSEK
+*   Prokuratora Rejonowego w Lubaniu
+*   o wszczęcie postępowania administracyjnego w przedmiocie skierowania na badanie lekarskie
+
+**Podstawa prawna wniosku:**
+*   Art. 182 kpa
+*   Art. 99 ust. 1 pkt 2 i ust. 2 pkt 1 a ustawy z dnia 5 stycznia 2011r. o kierujących pojazdami (t.j. Dz. U. z 2025r., poz.1226)
+*   § 5 ust. 1 pkt 1 Rozporządzenia Ministra Zdrowia z dnia 03 grudnia 2021r. w sprawie kursu reedukacyjnego w zakresie problematyki przeciwalkoholowej i przeciwdziałania narkomanii oraz szczegółowych warunków i trybu kierowania na badania lekarskie lub badania psychologiczne w zakresie psychologii transportu (t.j. Dz. U. z 2023r., Nr 1629)
+
+**Treść wniosku ("wnoszę o:"):**
+1.  Wszczęcie postępowania administracyjnego w przedmiocie skierowania na badanie lekarskie **Marcina Pałka**, PESEL: **88051210597**, zamieszkałego w 59-800 Lubań, ul. Stawowa 5. Posiada prawo jazdy kat. B, nr **00362120210**, wydane przez Starostę Lubańskiego w dniu **16.04.2012r.**
+2.  Powiadomienie Prokuratury Rejonowej w Lubaniu o treści podjętej decyzji.
+
+**Uzasadnienie ("UZASADNIENIE"):**
+*   Prokuratura Rejonowa w Lubaniu prowadzi postępowanie o sygn. **4327-517.2025** przeciwko **Marcinowi Pałka** podejrzanemu o czyn z art. **62 ust. 1** ustawy o przeciwdziałaniu narkomanii.
+*   W toku postępowania ustalono, że wymieniony posiada prawo jazdy kat. B.
+*   Z opinii biegłych wynika, że u Marcina Pałka rozpoznano zespół uzależnienia mieszanego (F19.2, ICD-10).

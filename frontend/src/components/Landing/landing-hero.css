@@ -1,0 +1,195 @@
+/* Hero — góra nie pod navbar, dół bez ucinania */
+
+:root {
+  --landing-nav-h: 4.75rem;
+  --landing-hero-push: 4.25rem;
+  --landing-hero-inner-gap: 2.25rem;
+  --landing-brand-offset: 1.5rem;
+  --landing-nav-top-offset: 0.65rem;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --landing-nav-h: 5.75rem;
+    --landing-brand-offset: 1.75rem;
+    --landing-nav-top-offset: 0.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --landing-nav-h: 6.25rem;
+    --landing-brand-offset: 2rem;
+    --landing-nav-top-offset: 0.85rem;
+  }
+}
+
+/* Owijka: obcina logo (scale) i chowa cały blok poza ekran */
+.landing-nav-shell {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 200;
+  padding-top: calc(env(safe-area-inset-top, 0px) + var(--landing-nav-top-offset));
+  overflow: hidden;
+  height: calc(var(--landing-nav-h) + var(--landing-brand-offset) + 7.5rem);
+  max-height: 48vh;
+  transform: translate3d(0, 0, 0);
+  transform-origin: top center;
+  transition:
+    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.35s ease,
+    backdrop-filter 0.35s ease;
+}
+
+@media (min-width: 1024px) {
+  .landing-nav-shell {
+    height: calc(var(--landing-nav-h) + var(--landing-brand-offset) + 10rem);
+  }
+}
+
+@media (min-width: 1536px) {
+  .landing-nav-shell {
+    height: calc(var(--landing-nav-h) + var(--landing-brand-offset) + 13rem);
+  }
+}
+
+.landing-nav-shell.navbar-scrolled {
+  background-color: rgba(5, 5, 5, 0.55);
+  backdrop-filter: blur(12px);
+}
+
+.landing-nav-shell.navbar-hidden {
+  transform: translate3d(0, calc(-100% - env(safe-area-inset-top, 0px) - var(--landing-nav-top-offset)), 0);
+  pointer-events: none !important;
+}
+
+/* Logo + napis LexMind — w dół (margin-top, bez konfliktu ze scale) */
+.landing-nav-brand {
+  margin-top: var(--landing-brand-offset);
+}
+
+.landing-hero-section {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: visible;
+  min-height: 100dvh;
+  box-sizing: border-box;
+  /* Treść zaczyna się POD fixed navbar — tu było ucinanie góry */
+  padding-top: calc(
+    var(--landing-nav-h) + env(safe-area-inset-top, 0px) + var(--landing-nav-top-offset) +
+      var(--landing-hero-push)
+  ) !important;
+}
+
+.landing-hero-section .landing-hero__bg-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  will-change: transform;
+}
+
+.landing-hero-section .landing-hero__bg-wrap img {
+  width: 100%;
+  height: 108%;
+  object-fit: cover;
+  object-position: center 20%;
+}
+
+.landing-hero-section .landing-hero__inner {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 40rem;
+  margin-top: var(--landing-hero-inner-gap);
+  margin-left: 0;
+  margin-right: auto;
+  padding-bottom: 1rem;
+  overflow: visible;
+  text-align: left;
+}
+
+.landing-hero-section .hero-badges-wrap {
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+/* Badge’y: jeden wiersz, wyśrodkowane, większe odstępy (clamp = mieszczą się na wąskim ekranie) */
+.landing-hero-section .hero-badges-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+  padding-inline: clamp(0.5rem, 2vw, 2rem);
+  gap: clamp(1.5rem, 11vw, 15rem);
+}
+
+.landing-hero-section .hero-lead,
+.landing-hero-section .hero-title,
+.landing-hero-section .hero-cta-block {
+  overflow: visible;
+}
+
+.landing-hero-section .hero-title .char {
+  overflow: visible;
+}
+
+@media (min-width: 640px) {
+  .landing-hero-section {
+    padding-bottom: 6.5rem !important;
+  }
+
+  .landing-hero-section .hero-badges-wrap {
+    position: absolute;
+    bottom: 2rem;
+    left: 0;
+    right: 0;
+  }
+}
+
+@media (max-height: 820px) {
+  :root {
+    --landing-nav-h: 5.5rem;
+    --landing-brand-offset: 1rem;
+  }
+
+  .landing-hero-section {
+    padding-top: calc(
+    var(--landing-nav-h) + env(safe-area-inset-top, 0px) + var(--landing-nav-top-offset) +
+      var(--landing-hero-push)
+  ) !important;
+    padding-bottom: 2rem !important;
+  }
+
+  .landing-hero-section .hero-lead {
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+    display: block;
+    overflow: visible;
+    -webkit-line-clamp: unset;
+  }
+
+  .landing-hero-section .hero-badges-wrap {
+    position: relative !important;
+    bottom: auto !important;
+    margin-top: 1.5rem !important;
+  }
+
+  @media (min-width: 640px) {
+    .landing-hero-section {
+      padding-bottom: 2.5rem !important;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-section .landing-hero__bg-wrap {
+    will-change: auto;
+  }
+}

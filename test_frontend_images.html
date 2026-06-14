@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Obrazów w Czacie</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .message {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 16px;
+            margin: 12px 0;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .user-message {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        .assistant-message {
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+        .attachments {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .attachment {
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(255,215,0,0.3);
+            max-width: 300px;
+            background: rgba(255,255,255,0.05);
+        }
+        .attachment img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .file-attachment {
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        input, button {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 4px;
+        }
+        button {
+            background: rgba(59, 130, 246, 0.3);
+            cursor: pointer;
+        }
+        button:hover {
+            background: rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Wyświetlania Obrazów w Czacie</h1>
+    
+    <div>
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <br>
+        <input type="text" id="messageInput" placeholder="Wiadomość..." value="Test wiadomości ze zdjęciem">
+        <br>
+        <button onclick="sendMessage()">Wyślij wiadomość</button>
+    </div>
+
+    <div id="chatContainer"></div>
+
+    <script>
+        let messages = [];
+
+        function readFileAsDataURL(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderMessage(msg) {
+            const container = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${msg.role}-message`;
+            
+            let content = `<div><strong>${msg.role}:</strong> ${msg.content}</div>`;
+            
+            if (msg.attachments && msg.attachments.length > 0) {
+                content += '<div class="attachments">';
+                msg.attachments.forEach(att => {
+                    if (att.type.startsWith('image/')) {
+                        content += `
+                            <div class="attachment">
+                                <img src="${att.content.startsWith('data:') ? att.content : `data:${att.type};base64,${att.content}`}" alt="${att.name}">
+                            </div>
+                        `;
+                    } else {
+                        content += `
+                            <div class="attachment file-attachment">
+                                📄 ${att.name}
+                            </div>
+                        `;
+                    }
+                });
+                content += '</div>';
+            }
+            
+            messageDiv.innerHTML = content;
+            container.appendChild(messageDiv);
+        }
+
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const fileInput = document.getElementById('fileInput');
+            const message = messageInput.value;
+            
+            const attachments = [];
+            for (const file of fileInput.files) {
+                const content = await readFileAsDataURL(file);
+                attachments.push({
+                    name: file.name,
+                    type: file.type,
+                    content: content
+                });
+            }
+            
+            const userMessage = {
+                role: 'user',
+                content: message,
+                attachments: attachments
+            };
+            
+            messages.push(userMessage);
+            renderMessage(userMessage);
+            
+            // Wyślij do backend
+            try {
+                const response = await fetch('http://localhost:8003/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        attachments: attachments
+                    })
+                });
+                
+                const result = await response.json();
+                
+                const assistantMessage = {
+                    role: 'assistant',
+                    content: result.content || 'Błąd odpowiedzi',
+                    sources: result.sources || []
+                };
+                
+                messages.push(assistantMessage);
+                renderMessage(assistantMessage);
+                
+            } catch (error) {
+                console.error('Błąd:', error);
+                const errorMessage = {
+                    role: 'assistant',
+                    content: `Błąd: ${error.message}`
+                };
+                messages.push(errorMessage);
+                renderMessage(errorMessage);
+            }
+            
+            // Wyczyść pola
+            messageInput.value = '';
+            fileInput.value = '';
+        }
+
+        // Test z przykładowym obrazem
+        async function testWithSampleImage() {
+            const sampleImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+            
+            const testMessage = {
+                role: 'user',
+                content: 'Test z przykładowym obrazem',
+                attachments: [{
+                    name: 'test.png',
+                    type: 'image/png',
+                    content: sampleImage
+                }]
+            };
+            
+            messages.push(testMessage);
+            renderMessage(testMessage);
+        }
+
+        // Uruchom test po załadowaniu
+        window.onload = () => {
+            testWithSampleImage();
+        };
+    </script>
+</body>
+</html>

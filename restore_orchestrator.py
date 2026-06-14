@@ -1,0 +1,1 @@
+# Tymczasowy skrypt usunięty

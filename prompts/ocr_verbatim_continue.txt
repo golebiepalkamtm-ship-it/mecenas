@@ -1,0 +1,6 @@
+Transkrypcja została przerwana z powodu limitu długości odpowiedzi.
+
+Kontynuuj DOSŁOWNĄ transkrypcję dokładnie od miejsca przerwania (ostatni znak poprzedniej części).
+- NIE powtarzaj już przepisanego tekstu.
+- NIE dodawaj komentarzy.
+- Przepisz resztę dokumentu do samego końca, znak po znaku.

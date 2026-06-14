@@ -1,0 +1,30 @@
+  {
+    "venvPath": "c:/Users/Marcin_Palka/moj prawnik",
+    "venv": ".venv",
+    "include": [
+        "."
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/__pycache__",
+        ".venv"
+    ],
+    "extraPaths": [
+        "c:/Users/Marcin_Palka/moj prawnik/.venv/Lib/site-packages"
+    ],
+    "reportMissingImports": true,
+    "pythonVersion": "3.12",
+
+    "executionEnvironments": [
+        {
+            "root": "moa",
+            "extraPaths": [
+                "c:/Users/Marcin_Palka/moj prawnik/.venv/Lib/site-packages"
+            ]
+        },
+        {
+            "root": "."
+        }
+    ]
+
+}

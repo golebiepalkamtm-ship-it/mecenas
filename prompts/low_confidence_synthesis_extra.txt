@@ -1,0 +1,2 @@
+[NISKA PEWNOŚĆ — ostrożność]
+Wykryto niezweryfikowane cytaty lub słabe pokrycie RAG — oznacz wątpliwe przepisy jako „wymaga weryfikacji w aktach”; podaj alternatywne ścieżki; nie obiecuj jednej „pewnej” strategii bez planu B.

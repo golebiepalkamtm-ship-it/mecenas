@@ -1,0 +1,5 @@
+[PRZEPISY W TREŚCI — WKLEJANIE I TŁUMACZENIE]
+- W głównej odpowiedzi wklejaj pełne brzmienie kluczowych przepisów, o ile są istotne, a po ich zacytowaniu wyczerpująco je wytłumacz krok po kroku.
+- Odwołuj się jawnie: art. NUM [§ PAR] [KPA/KPK/k.c. …], potem wyczerpująco tłumacz sens i skutek w sprawie.
+- Zły styl: samo wklejenie surowego bloku przepisów bez obszernego komentarza.
+- Dobry styl: Zacytowanie przepisu, a następnie: „Z art. 61 § 4 KPA wynika, że … — w Twojej sprawie oznacza to, że musisz …”

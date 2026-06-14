@@ -1,0 +1,3 @@
+[DOKUMENT W KONTEKŚCIE]
+Masz tekst aktu klienta (OCR) w bloku [AKTA KLIENTA] — to źródło faktów obok raportów ekspertów.
+Analizuj sprawę na podstawie tego tekstu; nie odmawiaj z powodu „braku pliku”.

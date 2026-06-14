@@ -1,0 +1,15 @@
+{
+  "name": "lexmind-ultimate",
+  "version": "1.0.0",
+  "description": "LexMind - AI Legal Assistant",
+  "main": "api.py",
+  "scripts": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "pip": "^0.0.1",
+    "pip3": "^420.911.69"
+  }
+}

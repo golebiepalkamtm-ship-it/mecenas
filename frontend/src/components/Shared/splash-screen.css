@@ -1,0 +1,380 @@
+/* Splash — duże logo + napis (jak oryginał, skalowane do viewport) */
+
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  height: 100dvh;
+  max-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #000;
+}
+
+.splash-screen__bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.splash-screen__bg-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 74% 58% at 50% 36%,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.025) 42%,
+    rgba(0, 0, 0, 0) 68%
+  );
+}
+
+.splash-screen__bg-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(0, 0, 0, 0) 32%,
+    rgba(0, 0, 0, 0.38) 72%,
+    rgba(0, 0, 0, 0.72) 100%
+  );
+}
+
+.splash-screen__bg-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.05) 0px,
+      rgba(255, 255, 255, 0.05) 1px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0) 6px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 1px,
+      rgba(0, 0, 0, 0) 2px,
+      rgba(0, 0, 0, 0) 10px
+    );
+  mix-blend-mode: soft-light;
+  filter: contrast(110%) brightness(88%);
+  animation: splashGrainMove 7s steps(10) infinite;
+}
+
+.splash-screen__stack {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.35rem;
+  padding: 0 0.75rem 2rem;
+  width: 100%;
+  max-width: 100%;
+  pointer-events: none;
+  user-select: none;
+  transform: translateY(-12vh);
+}
+
+/* Logo + napis — jedna zwarta całość na środku */
+.splash-screen__brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  gap: 0;
+}
+
+.splash-screen__logo-wrap {
+  perspective: 900px;
+  transform-style: preserve-3d;
+  flex-shrink: 0;
+  margin: 0 0 -5.5vmin 0;
+}
+
+.splash-screen__logo {
+  width: min(58vmin, 520px);
+  height: min(58vmin, 520px);
+  object-fit: contain;
+  display: block;
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  will-change: transform, opacity, filter;
+  animation: splashLogoFromDepth 2.1s cubic-bezier(0.16, 1, 0.3, 1) forwards 2.25s;
+  opacity: 0;
+  filter: blur(14px) drop-shadow(0 0 12px rgba(212, 175, 55, 0.12));
+}
+
+.splash-screen__wordmark-wide {
+  display: block;
+  width: min(98vw, 1040px);
+  max-width: 100%;
+  height: auto;
+  margin: -6vmin 0 0 0;
+  padding: 0;
+  opacity: 0;
+  animation: splashFadeUp 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.35s;
+  filter: drop-shadow(0 0 14px rgba(0, 0, 0, 0.85));
+  flex-shrink: 0;
+}
+
+.splash-screen__wordmark-compact {
+  display: none;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-weight: 900;
+  font-style: italic;
+  font-size: clamp(2rem, 8vmin, 3.5rem);
+  letter-spacing: -0.02em;
+  color: #f3f4f6;
+  line-height: 1.05;
+  opacity: 0;
+  animation: splashFadeUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards 0.35s;
+  margin: -4vmin 0 0 0;
+}
+
+.splash-screen__wordmark-compact .accent {
+  color: #d4af37;
+}
+
+.splash-screen__line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  opacity: 0;
+  animation: splashFadeBlur 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-screen__line--tag {
+  animation-delay: 1.05s;
+  margin-top: 0.2rem;
+}
+
+.splash-screen__line--load {
+  animation-delay: 1.2s;
+  margin-top: 0.15rem;
+}
+
+.splash-screen__line p {
+  font-size: clamp(0.7rem, 1.4vmin, 0.95rem);
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  font-weight: 800;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+.splash-screen__line--load p {
+  font-weight: 500;
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.48);
+  letter-spacing: 0.38em;
+}
+
+.splash-screen__divider {
+  height: 1px;
+  width: 2.5rem;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.splash-progress {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  width: min(480px, 92vw);
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  z-index: 20;
+}
+
+.splash-progress__inner {
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  padding: 0.75rem 1.1rem;
+  overflow: hidden;
+}
+
+.splash-progress__labels {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  font-weight: 800;
+}
+
+.splash-progress__labels span:first-child {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.splash-progress__labels span:last-child {
+  color: rgba(255, 255, 255, 0.42);
+  font-variant-numeric: tabular-nums;
+}
+
+.splash-progress__track {
+  margin-top: 0.65rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  position: relative;
+}
+
+/* 1366×768 i podobne — nadal duże */
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen__logo {
+    animation: splashFadeUp 0.7s ease forwards 1.4s;
+    filter: drop-shadow(0 0 72px rgba(212, 175, 55, 0.55));
+  }
+}
+
+@media (max-height: 820px) {
+  .splash-screen__stack {
+    padding-bottom: 2rem;
+    transform: translateY(-10vh);
+  }
+
+  .splash-screen__logo-wrap {
+    margin-bottom: -5vmin;
+  }
+
+  .splash-screen__wordmark-wide {
+    margin-top: -5.5vmin !important;
+  }
+
+  .splash-screen__logo {
+    width: min(54vmin, 480px) !important;
+    height: min(54vmin, 480px) !important;
+  }
+
+  .splash-screen__wordmark-wide {
+    width: min(98vw, 900px) !important;
+  }
+
+  .splash-screen__line p {
+    font-size: clamp(0.68rem, 1.35vmin, 0.88rem) !important;
+    letter-spacing: 0.4em !important;
+  }
+
+  .splash-screen__divider {
+    width: 2.25rem;
+  }
+}
+
+/* Tylko bardzo niski ekran */
+@media (max-height: 620px) {
+  .splash-screen__stack {
+    transform: translateY(-8vh);
+  }
+
+  .splash-screen__logo {
+    width: min(48vmin, 320px) !important;
+    height: min(48vmin, 320px) !important;
+  }
+
+  .splash-screen__wordmark-wide {
+    width: min(96vw, 640px) !important;
+  }
+
+  .splash-screen__line--load {
+    display: none;
+  }
+}
+
+@media (max-height: 520px) {
+  .splash-screen__stack {
+    transform: translateY(-6vh);
+  }
+
+  .splash-screen__wordmark-wide {
+    display: none;
+  }
+
+  .splash-screen__wordmark-compact {
+    display: block;
+  }
+
+  .splash-screen__logo {
+    width: min(42vmin, 240px) !important;
+    height: min(42vmin, 240px) !important;
+  }
+}
+
+@keyframes splashLogoFromDepth {
+  0% {
+    opacity: 0;
+    transform: translateZ(-520px) scale(0.14);
+    filter: blur(18px) brightness(1.35) drop-shadow(0 0 8px rgba(212, 175, 55, 0.08));
+  }
+  45% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 1;
+    transform: translateZ(0) scale(1);
+    filter: blur(0) brightness(1) drop-shadow(0 0 72px rgba(212, 175, 55, 0.55));
+  }
+}
+
+@keyframes splashFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes splashFadeBlur {
+  from {
+    opacity: 0;
+    filter: blur(12px);
+    letter-spacing: 0.4em;
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    letter-spacing: inherit;
+  }
+}
+
+@keyframes splashGrainMove {
+  0% {
+    transform: translate3d(-2%, -1%, 0);
+  }
+  20% {
+    transform: translate3d(2%, -2%, 0);
+  }
+  40% {
+    transform: translate3d(-3%, 2%, 0);
+  }
+  60% {
+    transform: translate3d(3%, 3%, 0);
+  }
+  80% {
+    transform: translate3d(-1%, 2%, 0);
+  }
+  100% {
+    transform: translate3d(2%, -1%, 0);
+  }
+}
