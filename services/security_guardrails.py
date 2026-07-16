@@ -46,5 +46,9 @@ class SecurityGuardrails:
     def sanitize_outbound_text(cls, text: str) -> Tuple[str, bool]:
         original = text or ""
         masked = mask_pii(original)
-        return masked, masked != original
-
+        masked2 = re.sub(
+            r"(?i)\bpesel\b[^0-9]{0,24}(\d{11})\b",
+            lambda m: m.group(0).replace(m.group(1), "[PESEL]"),
+            masked,
+        )
+        return masked2, masked2 != original

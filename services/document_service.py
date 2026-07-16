@@ -23,6 +23,7 @@ async def index_document_to_supabase(
     source_type: Optional[str] = None,
     act_terms: Optional[list[str]] = None,
     force_reindex: bool = False,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Indeksowanie dokumentu do Supabase (V2)."""
     table_name = "knowledge_base_legal" if category == "rag_legal" else "knowledge_base_user"
@@ -82,6 +83,8 @@ async def index_document_to_supabase(
             "source_type": resolved_source_type,
             "act_terms": resolved_act_terms,
         }
+        if session_id:
+            base_metadata["session_id"] = session_id
         raw_chunks = chunk_document(
             extracted_text,
             chunk_size=1500,
@@ -107,12 +110,15 @@ async def index_document_to_supabase(
             }
 
             if force_reindex:
+                del_params = {
+                    "metadata->>source_file_hash": f"eq.{source_file_hash}",
+                }
+                if category == "rag_user" and session_id:
+                    del_params["metadata->>session_id"] = f"eq.{session_id}"
                 del_res = await client.delete(
                     f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table_name}",
                     headers=supabase_headers,
-                    params={
-                        "metadata->>source_file_hash": f"eq.{source_file_hash}",
-                    },
+                    params=del_params,
                 )
                 if del_res.status_code not in (200, 204):
                     return {
@@ -120,14 +126,18 @@ async def index_document_to_supabase(
                         "error": f"Nie udało się usunąć poprzednich rekordów (HTTP {del_res.status_code}): {(del_res.text or '')[:300]}",
                     }
 
+            dup_params = {
+                "select": "id",
+                "limit": "1",
+                "metadata->>source_file_hash": f"eq.{source_file_hash}",
+            }
+            if category == "rag_user" and session_id:
+                dup_params["metadata->>session_id"] = f"eq.{session_id}"
+
             dup_src = await client.get(
                 f"{SUPABASE_URL.rstrip('/')}/rest/v1/{table_name}",
                 headers=supabase_headers,
-                params={
-                    "select": "id",
-                    "limit": "1",
-                    "metadata->>source_file_hash": f"eq.{source_file_hash}",
-                },
+                params=dup_params,
             )
             if dup_src.status_code == 200 and dup_src.json():
                 return {
@@ -167,6 +177,7 @@ async def index_document_to_supabase(
                         "legal_rank_label": legal_rank_label,
                         "source_type": resolved_source_type,
                         "act_terms": resolved_act_terms,
+                        "session_id": session_id,
                     },
                     "embedding": embeddings[-1],
                     "source_type": resolved_source_type,

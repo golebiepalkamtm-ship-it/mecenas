@@ -17,6 +17,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
 
+from services.retrieval.types import get_retrieval_title
+
 logger = logging.getLogger(__name__)
 
 # --- Regex do ekstrakcji artykułów z tekstu RAG ---
@@ -129,7 +131,7 @@ class ValidArticlesCache:
                 continue
             for row in batch:
                 content = row.get("content") or ""
-                title = row.get("title") or row.get("tytul") or ""
+                title = get_retrieval_title(row)
                 blob = f"{title} {content}"
                 corpus_parts.append(blob)
                 all_keys.update(extract_article_keys_from_text(blob))

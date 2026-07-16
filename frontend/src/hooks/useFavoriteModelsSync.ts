@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { API_BASE } from '../config';
 import { supabase } from '../utils/supabaseClient';
 import { useChatSettingsStore } from '../store/useChatSettingsStore';
-import { dedupeModelIds, MAX_MOA_ACTIVE_MODELS } from '../utils/modelSelection';
+import { dedupeModelIds } from '../utils/modelSelection';
 
 function parseFavoriteIds(raw: unknown): string[] {
   if (!raw) return [];

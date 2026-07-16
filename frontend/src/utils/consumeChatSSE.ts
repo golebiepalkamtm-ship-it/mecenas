@@ -1,8 +1,10 @@
 /** Wspólny parser SSE (czat + sala rozprawy). */
 
+import type { ChatStreamEvent } from '../types/chatContract';
+
 export async function consumeChatSSE(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  onEvent: (payload: Record<string, unknown>) => void,
+  onEvent: (payload: ChatStreamEvent) => void,
 ): Promise<void> {
   const decoder = new TextDecoder();
   let buffer = '';
@@ -23,7 +25,7 @@ export async function consumeChatSSE(
         const dataStr = line.slice(6).trim();
         if (!dataStr || dataStr === '[DONE]') continue;
         try {
-          onEvent(JSON.parse(dataStr) as Record<string, unknown>);
+          onEvent(JSON.parse(dataStr) as ChatStreamEvent);
         } catch {
           /* ignore malformed */
         }

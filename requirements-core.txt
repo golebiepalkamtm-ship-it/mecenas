@@ -1,0 +1,54 @@
+# LexMind AI — Core Dependencies
+# Profile: CORE (minimal viable setup)
+# Install: pip install -r requirements-core.txt
+# ===============================================================
+
+# --- LangChain v1 Core ---
+langchain>=1.2.0
+langchain-core>=1.2.0
+langchain-community>=0.4.0
+langchain-text-splitters>=1.1.0
+langgraph
+
+# --- Model Providers & API Integration ---
+langchain-openai>=0.3.0
+openai>=1.50.0
+
+# --- MCP (Model Context Protocol) ---
+langchain-mcp-adapters>=0.2.2
+mcp>=1.26.0
+fastmcp>=3.1.0
+
+# --- Agents (AI orchestration) ---
+crewai>=0.11.0
+crewai-tools>=0.0.1
+
+# --- Vector Store & Embeddings ---
+sentence-transformers>=2.7.0
+
+# --- Document Parsing (lightweight) ---
+pypdf>=5.0.0
+python-docx>=1.1.0
+docxtpl>=0.19.0
+docling>=2.8.0
+docling-core>=2.8.0
+pillow>=10.2.0
+
+# --- Web Framework ---
+fastapi>=0.115.0
+uvicorn>=0.32.0
+pydantic>=2.9.0
+pydantic-settings>=2.6.0
+tenacity>=9.0.0
+python-multipart>=0.0.22
+
+# --- Database & Config ---
+python-dotenv>=1.0.1
+
+# --- HTTP Clients ---
+requests>=2.32.0
+httpx>=0.27.0
+aiohttp>=3.10.0
+
+# --- Optional integrations ---
+marker-pdf  # PDF extraction

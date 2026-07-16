@@ -1,4 +1,5 @@
 """Klient LLM z retry (tenacity) i łańcuchem modeli zapasowych."""
+
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +8,7 @@ from typing import Any, Callable, Optional, Tuple
 
 from tenacity import (
     AsyncRetrying,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
@@ -32,6 +33,26 @@ def format_call_error(exc: BaseException) -> str:
     return msg if msg else repr(exc)
 
 
+def is_transient_error(exc: BaseException) -> bool:
+    """Weryfikuje, czy błąd jest przejściowy (np. błąd sieci, 429, 5xx) i warto ponowić próbę."""
+    try:
+        import openai
+        if isinstance(exc, openai.APIStatusError):
+            # 400 (Bad request), 401 (Auth error), 402 (Insufficient credits), 403 (Permission), 404 (Not found)
+            # Te błędy są permanentne dla danej konfiguracji/modelu/konta i nie powinny być ponawiane.
+            if exc.status_code in [400, 401, 402, 403, 404]:
+                return False
+    except ImportError:
+        pass
+
+    # Przekroczenie czasu (asyncio.TimeoutError) i błędy sieciowe (ConnectionError, itp.) są przejściowe.
+    if isinstance(exc, (asyncio.TimeoutError, TimeoutError, ConnectionError)):
+        return True
+
+    # Inne wyjątki domyślnie ponawiamy
+    return True
+
+
 class LLMClientService:
     def __init__(
         self,
@@ -50,10 +71,11 @@ class LLMClientService:
             return self._explicit_fallbacks
         try:
             from moa.config import get_admin_models
+
             admin_models = get_admin_models()
             if admin_models:
                 # Bierzemy 3 pierwsze modele zatwierdzone przez admina jako zapasowe
-                return admin_models[:3]
+                return [m for m in admin_models[:3] if isinstance(m, str)]
         except Exception as e:
             logger.warning("Błąd pobierania modeli administratora: %s", e)
         return list(settings.fallback_models)
@@ -65,8 +87,9 @@ class LLMClientService:
             return model_id
         try:
             from moa.config import get_admin_models
+
             admin_models = get_admin_models()
-            if admin_models:
+            if admin_models and isinstance(admin_models[0], str):
                 return admin_models[0]
         except Exception:
             pass
@@ -86,18 +109,18 @@ class LLMClientService:
         """Pojedynczy model z exponential backoff (tenacity)."""
         model_id = self._resolve(model_id)
         max_tokens = effective_max_tokens(model_id, max_tokens)
-        call_timeout = float(timeout or settings.llm_timeout_primary)
+        call_timeout = timeout or settings.llm_timeout_primary
         attempts = max(1, settings.llm_retry_attempts)
 
         async for attempt in AsyncRetrying(
             stop=stop_after_attempt(attempts),
             wait=wait_exponential(multiplier=1, min=2, max=10),
-            retry=retry_if_exception_type(Exception),
+            retry=retry_if_exception(is_transient_error),
             reraise=True,
         ):
             with attempt:
                 try:
-                    kwargs = {
+                    kwargs: dict[str, Any] = {
                         "model": model_id,
                         "messages": messages,
                         "max_tokens": max_tokens,
@@ -106,25 +129,35 @@ class LLMClientService:
                     if response_format:
                         # Jeśli model to o1/o3/gpt-4o i nowsze, stosujemy structured outputs przez parse (albo response_format)
                         import pydantic
-                        if isinstance(response_format, type) and issubclass(response_format, pydantic.BaseModel):
+
+                        if isinstance(response_format, type) and issubclass(
+                            response_format, pydantic.BaseModel
+                        ):
                             # openai-python sdk 1.40+ używa `response_format=PydanticModel` w beta.chat.completions.parse lub bezpośrednio.
                             # Standardowa paczka OpenAI pozwala to przekazać do response_format, jesli włączymy `strict: true`.
                             try:
                                 completion = await asyncio.wait_for(
                                     self._client.beta.chat.completions.parse(
-                                        **kwargs,
-                                        response_format=response_format
+                                        **kwargs, response_format=response_format
                                     ),
                                     timeout=max(call_timeout, 20.0),
                                 )
                                 content = completion.choices[0].message.content or ""
-                                _log_model_response(model_id, content, log_context)
-                                return content.strip(), model_id
+                                result = content.strip()
+                                if not result:
+                                    raise ValueError("Model zwrócił pustą odpowiedź (parse format).")
+                                _log_model_response(model_id, result, log_context)
+                                return result, model_id
                             except AttributeError:
                                 # Fallback do starszego SDK / innych dostawców (Gemini/OpenRouter) gdzie zrobimy {"type": "json_object"}
                                 kwargs["response_format"] = {"type": "json_object"}
                                 # Dodajemy informację do prompta
-                                messages.append({"role": "system", "content": f"Zwróć wynik jako poprawny JSON zgodny ze strukturą: {response_format.model_json_schema()}"})
+                                messages.append(
+                                    {
+                                        "role": "system",
+                                        "content": f"Zwróć wynik jako poprawny JSON zgodny ze strukturą: {response_format.model_json_schema()}",
+                                    }
+                                )
 
                     completion = await asyncio.wait_for(
                         self._client.chat.completions.create(**kwargs),
@@ -132,6 +165,8 @@ class LLMClientService:
                     )
                     content = completion.choices[0].message.content or ""
                     result = content.strip()
+                    if not result:
+                        raise ValueError("Model zwrócił pustą odpowiedź.")
                     _log_model_response(model_id, result, log_context)
                     return result, model_id
                 except Exception as exc:
@@ -158,7 +193,7 @@ class LLMClientService:
     ) -> Tuple[str, str]:
         """Model główny (z retry) → modele zapasowe."""
         model_id = self._resolve(model_id)
-        primary_timeout = max(float(timeout), 20.0)
+        primary_timeout = max(timeout, 20.0)
         fallback_timeout = max(primary_timeout, settings.llm_timeout_fallback)
 
         try:
@@ -173,7 +208,9 @@ class LLMClientService:
             )
         except Exception as primary_err:
             err_detail = format_call_error(primary_err)
-            logger.warning("[llm] primary_failed model=%s error=%s", model_id, err_detail)
+            logger.warning(
+                "[llm] primary_failed model=%s error=%s", model_id, err_detail
+            )
             if status_callback:
                 if isinstance(primary_err, (asyncio.TimeoutError, TimeoutError)):
                     await status_callback(
@@ -206,7 +243,9 @@ class LLMClientService:
                         response_format=response_format,
                     )
                     if status_callback:
-                        await status_callback(f"Pomyślnie przełączono na model zapasowy {used}.")
+                        await status_callback(
+                            f"Pomyślnie przełączono na model zapasowy {used}."
+                        )
                     return result, used
                 except Exception as fb_err:
                     last_err = fb_err
@@ -216,7 +255,9 @@ class LLMClientService:
                         format_call_error(fb_err)[:120],
                     )
                     if status_callback:
-                        await status_callback(f"Model zapasowy {fb_model} również nie odpowiada.")
+                        await status_callback(
+                            f"Model zapasowy {fb_model} również nie odpowiada."
+                        )
                     continue
 
             raise RuntimeError(
@@ -237,7 +278,7 @@ class LLMClientService:
         """Strumień — bez tenacity na streamie; fallback na kolejny model."""
         model_id = self._resolve(model_id)
         max_tokens = effective_max_tokens(model_id, max_tokens)
-        primary_timeout = max(float(timeout), settings.llm_stream_timeout_primary)
+        primary_timeout = max(timeout, settings.llm_stream_timeout_primary)
         fallback_timeout = max(primary_timeout, settings.llm_stream_timeout_fallback)
 
         try:
@@ -251,12 +292,14 @@ class LLMClientService:
                 ),
                 timeout=primary_timeout,
             )
-            
+
             try:
-                first_chunk = await asyncio.wait_for(raw_stream.__anext__(), timeout=15.0)
+                first_chunk = await asyncio.wait_for(
+                    raw_stream.__anext__(), timeout=15.0
+                )
             except StopAsyncIteration:
                 raise RuntimeError("Strumień zwrócił 0 elementów (pusta odpowiedź).")
-                
+
             async def wrapped_stream():
                 yield first_chunk
                 async for chunk in raw_stream:
@@ -265,7 +308,11 @@ class LLMClientService:
             logger.info("[llm] stream_started model=%s", model_id)
             return wrapped_stream(), model_id
         except Exception as exc:
-            logger.warning("[llm] stream_primary_failed model=%s error=%s", model_id, format_call_error(exc))
+            logger.warning(
+                "[llm] stream_primary_failed model=%s error=%s",
+                model_id,
+                format_call_error(exc),
+            )
             if status_callback:
                 await status_callback(
                     f"Główny model {model_id} nie odpowiada. Przełączanie na darmowy strumień zapasowy..."
@@ -290,12 +337,14 @@ class LLMClientService:
                         ),
                         timeout=fallback_timeout,
                     )
-                    
+
                     try:
-                        fb_first_chunk = await asyncio.wait_for(fb_raw_stream.__anext__(), timeout=15.0)
+                        fb_first_chunk = await asyncio.wait_for(
+                            fb_raw_stream.__anext__(), timeout=15.0
+                        )
                     except StopAsyncIteration:
                         raise RuntimeError("Strumień zapasowy zwrócił 0 elementów.")
-                        
+
                     async def fb_wrapped_stream():
                         yield fb_first_chunk
                         async for chunk in fb_raw_stream:
@@ -303,7 +352,9 @@ class LLMClientService:
 
                     logger.info("[llm] stream_started model=%s (fallback)", fb_model)
                     if status_callback:
-                        await status_callback(f"Uruchomiono darmowy strumień zapasowy z {fb_model}.")
+                        await status_callback(
+                            f"Uruchomiono darmowy strumień zapasowy z {fb_model}."
+                        )
                     return fb_wrapped_stream(), fb_model
                 except Exception as fb_err:
                     logger.warning(
@@ -312,7 +363,9 @@ class LLMClientService:
                         format_call_error(fb_err)[:120],
                     )
                     if status_callback:
-                        await status_callback(f"Strumień zapasowy {fb_model} również zawiódł.")
+                        await status_callback(
+                            f"Strumień zapasowy {fb_model} również zawiódł."
+                        )
                     continue
 
             raise RuntimeError(
@@ -320,7 +373,9 @@ class LLMClientService:
             ) from exc
 
 
-def _log_model_response(model_id: str, text: str, context: str = "", max_preview: int = 600) -> None:
+def _log_model_response(
+    model_id: str, text: str, context: str = "", max_preview: int = 600
+) -> None:
     label = f"[MODEL {context}]" if context else "[MODEL]"
     body = (text or "").strip()
     if not body:
@@ -334,5 +389,7 @@ def _log_model_response(model_id: str, text: str, context: str = "", max_preview
         model_id,
         len(body),
         "\n".join(f"   | {line}" for line in snippet.splitlines()),
-        f"\n   | ... (+{len(safe_body) - max_preview} znaków)" if len(safe_body) > max_preview else "",
+        f"\n   | ... (+{len(safe_body) - max_preview} znaków)"
+        if len(safe_body) > max_preview
+        else "",
     )

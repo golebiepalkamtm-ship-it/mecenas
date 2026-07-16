@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useChatExecutionState } from './chatSettingsSelectors';
 import { useChatSettingsStore } from '../store/useChatSettingsStore';
 import type {
   Attachment,
@@ -9,7 +10,8 @@ import type {
   ChatMessage,
   SourceReference,
 } from '../types/chat';
-import { API_BASE } from '../config';
+import type { ChatStreamEvent } from '../types/chatContract';
+import { apiGetJson, apiPostStream } from '../services/apiClient';
 import { buildChatPayload } from '../services/chatPayloadFactory';
 import { consumeChatSSE } from '../utils/consumeChatSSE';
 
@@ -112,7 +114,8 @@ export const useChatMutation = () => {
     selectedExperts,
     selectedJudge,
     mode,
-  } = useChatSettingsStore();
+    setModelLatencies,
+  } = useChatExecutionState();
 
   // Ref to hold the current abort controller to allow stopping generation
   const abortControllerRef = { current: null as AbortController | null };
@@ -137,8 +140,10 @@ export const useChatMutation = () => {
       // MANDATORY: Check status and latency of all models BEFORE sending
       let currentLatencies = useChatSettingsStore.getState().modelLatencies;
       try {
-        const healthRes = await fetch(`${API_BASE}/health/free-models`, { signal: controller.signal });
-        const healthData = await healthRes.json();
+        const healthData = await apiGetJson<{
+          success?: boolean;
+          models?: Array<{ id: string; latency_ms: number }>;
+        }>('/health/free-models', { signal: controller.signal });
         if (healthData.success && healthData.models) {
           const newMap: Record<string, number> = {};
           healthData.models.forEach((m: { id: string; latency_ms: number }) => {
@@ -146,7 +151,7 @@ export const useChatMutation = () => {
           });
           currentLatencies = newMap;
           // Update store globally
-          useChatSettingsStore.getState().setModelLatencies(newMap);
+          setModelLatencies(newMap);
         }
       } catch (e) {
         console.warn("[CHAT] Quick health check failed, using cached values:", e);
@@ -187,19 +192,9 @@ export const useChatMutation = () => {
       let currentMetadata: ChatMetadata = {};
 
       try {
-        const response = await fetch(`${API_BASE}/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
+        const response = await apiPostStream('/chat', payload, {
           signal: controller.signal,
         });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Błąd serwera: ${response.status} - ${errorText}`);
-        }
 
         const reader = response.body?.getReader();
 
@@ -208,8 +203,8 @@ export const useChatMutation = () => {
         }
 
         try {
-          await consumeChatSSE(reader, (chunkData) => {
-            const chunkType = chunkData.type as string | undefined;
+          await consumeChatSSE(reader, (chunkData: ChatStreamEvent) => {
+            const chunkType = chunkData.type;
 
             if (chunkType === 'error') {
               const errText = String(chunkData.text ?? 'Nieznany błąd strumienia');
@@ -217,7 +212,14 @@ export const useChatMutation = () => {
             }
 
             if (chunkType === 'metadata' || chunkType === 'final_metadata') {
-              currentMetadata = { ...currentMetadata, ...chunkData };
+              const { urgency_alerts, ...restChunkData } = chunkData;
+              const normalizedChunkData: ChatMetadata = {
+                ...restChunkData,
+                ...(urgency_alerts !== undefined
+                  ? { urgency_alerts: normalizeUrgencyAlerts(urgency_alerts) }
+                  : {}),
+              };
+              currentMetadata = { ...currentMetadata, ...normalizedChunkData };
               onMetadata?.(currentMetadata);
               if (chunkType === 'final_metadata' && typeof chunkData.final_answer === 'string') {
                 const finalAnswer = chunkData.final_answer;

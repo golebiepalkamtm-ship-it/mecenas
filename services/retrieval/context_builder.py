@@ -19,6 +19,13 @@ from services.utils import run_with_status_stream
 from services.llm_service import chunk_document
 from services.context_packer import pack_combined_context, should_use_long_context_path, long_context_expert_chunk_note
 from services.formatters import format_kb_blocks, format_external_blocks
+from services.history_blocks import conversation_history_block
+from services.legal_basis_blocks import format_expert_legal_basis
+from services.llm_gateway import call_with_fallback
+from services.pii_mask import mask_pii
+from services.query_keywords import extract_fallback_keywords
+from services.rerank_facade import rerank_kb_mixed, rerank_saos_eli
+from services.retrieval.types import get_retrieval_title
 from services.valid_articles_cache import ValidArticlesCache
 
 logger = logging.getLogger(__name__)
@@ -46,15 +53,14 @@ class RetrievalContext:
 
 class ContextBuilder:
     """
-    Agreguje logikę pobierania wiedzy prawniczej (RAG, SAOS, ELI, Notatki) 
-    oraz formowania kontekstu przed przekazaniem go Sędziemu i Ekspertom.
+    Zajmuje się logiką docinania tekstów ustaw/orzeczeń pod okno LLMa
+    oraz formowania kontekstu przed przekazaniem go Głównemu Adwokatowi i Ekspertom.
     """
-    def __init__(self, orchestrator_ref):
-        self.orchestrator = orchestrator_ref
-        self.CHUNK_SIZE_CHARS = self.orchestrator.CHUNK_SIZE_CHARS
-        self.CHUNK_OVERLAP_CHARS = self.orchestrator.CHUNK_OVERLAP_CHARS
-        self.DOCUMENT_CONTEXT_CHARS = self.orchestrator.DOCUMENT_CONTEXT_CHARS
-        self.DOCUMENT_CONTEXT_HEADER = self.orchestrator.DOCUMENT_CONTEXT_HEADER
+    def __init__(self, _orchestrator_ref=None):
+        self.CHUNK_SIZE_CHARS = settings.chunk_size_chars
+        self.CHUNK_OVERLAP_CHARS = settings.chunk_overlap_chars
+        self.DOCUMENT_CONTEXT_CHARS = settings.document_context_chars
+        self.DOCUMENT_CONTEXT_HEADER = load_prompt("document_context_header")
 
     async def build_context_stream(
         self,
@@ -95,9 +101,7 @@ class ContextBuilder:
             "message": f"[Etap 6] RAG: baza wiedzy{(' + ' + ext) if ext else ''}...",
         }
         
-        keywords = self.orchestrator._extract_fallback_keywords(
-            zanonimizowany_tekst, query_for_retrieval[:4000]
-        )
+        keywords = extract_fallback_keywords(zanonimizowany_tekst, query_for_retrieval[:4000])
         planner_act_terms: List[str] = []
         mapped: Dict[str, Any] = {}
         skip_expert_debate = False
@@ -116,8 +120,7 @@ class ContextBuilder:
                 timeout: float = 20.0,
                 **_,
             ):
-                return await self.orchestrator._call_with_fallback(
-                    client,
+                return await call_with_fallback(
                     model_id,
                     messages,
                     max_tokens=max_tokens,
@@ -162,8 +165,7 @@ class ContextBuilder:
             try:
                 kw_text = None
                 async for event in run_with_status_stream(
-                    self.orchestrator._call_with_fallback(
-                        client,
+                    call_with_fallback(
                         primary_model,
                         [
                             {"role": "system", "content": system_router_prompt},
@@ -354,7 +356,7 @@ class ContextBuilder:
             def _is_disallowed_traffic_row(row: Dict[str, Any]) -> bool:
                 meta = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
                 filename = str((meta or {}).get("filename") or "").lower()
-                title = str(row.get("title") or row.get("tytul") or "").lower()
+                title = get_retrieval_title(row).lower()
                 blob = f"{filename} {title}"
                 return (
                     "kodeks_postepowania_karnego" in blob
@@ -372,10 +374,10 @@ class ContextBuilder:
         yield {"type": "metadata", "message": "[Etap 7] Reranker: sortowanie fragmentów RAG po trafności..."}
         _t_stage7 = time.perf_counter()
 
-        reranked_legal, reranked_user = await self.orchestrator._rerank_kb_mixed(
+        reranked_legal, reranked_user = await rerank_kb_mixed(
             legal_res, user_res, query_for_retrieval[:4000]
         )
-        saos_results, eli_results = await self.orchestrator._rerank_saos_eli(
+        saos_results, eli_results = await rerank_saos_eli(
             saos_results, eli_results, query_for_retrieval[:4000]
         )
         rerank_method = (
@@ -437,7 +439,7 @@ class ContextBuilder:
                 logger.debug("[INV] graph persist: %s", e)
 
         rag_legal_content = format_kb_blocks(reranked_legal, prefix="RAG")
-        rag_user_content = self.orchestrator._mask_pii("\n".join([r.get("content", "") for r in reranked_user]))
+        rag_user_content = mask_pii("\n".join([r.get("content", "") for r in reranked_user]))
 
         full_doc = (zanonimizowany_tekst or "").strip()
         use_long_ctx = should_use_long_context_path(full_doc)
@@ -481,13 +483,12 @@ class ContextBuilder:
                 "rag_user_chars": len(rag_user_content or ""),
             },
         )
-        history_prefix = self.orchestrator._conversation_history_block(zanonimizowana_historia)
+        history_prefix = conversation_history_block(zanonimizowana_historia)
 
         from services.procedural_runner import build_procedural_context_block
 
         async def _proc_llm(mid, messages, max_tokens=900, temperature=0.1, timeout=50.0):
-            return await self.orchestrator._call_with_fallback(
-                client,
+            return await call_with_fallback(
                 mid,
                 messages,
                 max_tokens=max_tokens,
@@ -508,9 +509,7 @@ class ContextBuilder:
 
         saos_block = format_external_blocks(saos_results, prefix="SAOS")
         eli_block = format_external_blocks(eli_results, prefix="ELI")
-        legal_basis_block = self.orchestrator._format_expert_legal_basis(
-            rag_legal_content, saos_block, eli_block
-        )
+        legal_basis_block = format_expert_legal_basis(rag_legal_content, saos_block, eli_block)
         if legal_basis_block.strip():
             yield {
                 "type": "metadata",

@@ -4,6 +4,11 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from services.legal_rank import annotate_with_legal_rank
+from services.retrieval.types import (
+    RetrievalItem,
+    get_retrieval_score,
+    get_retrieval_source,
+)
 
 
 def _trim(text: str, max_len: int) -> str:
@@ -104,74 +109,73 @@ def pack_combined_context(
 
 
 def normalize_external_result(
-    row: Dict[str, Any],
+    row: RetrievalItem,
     source_type: str,
-) -> Dict[str, Any]:
+) -> RetrievalItem:
     """Ujednolica SAOS/ELI do formatu rerankera."""
     content = row.get("content") or ""
-    source = (
-        row.get("source")
-        or row.get("sygnatura")
-        or row.get("tytul")
-        or row.get("title")
-        or source_type
-    )
-    score = row.get("similarity") or row.get("score") or row.get("rrf_score") or 0.0
+    source = get_retrieval_source(row) or source_type
+    score = get_retrieval_score(row)
     out = dict(row)
     out["content"] = content
     out["source"] = str(source)
     out["source_type"] = source_type
-    out.setdefault("similarity", score)
+    out["score"] = score
+    out["similarity"] = score
     return out
 
 
 def format_external_blocks(
-    rows: List[Dict[str, Any]],
+    rows: List[RetrievalItem],
     *,
     prefix: str,
 ) -> str:
     if not rows:
         return ""
-    prepared: List[Dict[str, Any]] = []
+    prepared: List[RetrievalItem] = []
     for r in rows:
         if isinstance(r, dict):
             prepared.append(annotate_with_legal_rank(r, default_source_type=prefix))
     if not prepared:
         return ""
-    return "\n\n".join(
-        (
-            f"Źródło: {r.get('source', prefix)}"
-            + (f" | Ranga: {r.get('legal_rank_label')}" if r.get("legal_rank_label") else "")
-            + f"\n{r.get('content', '')}"
-        )
-        for r in prepared
-    )
+        
+    out_parts: List[str] = []
+    for r in prepared:
+        metadata = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+        year_str = metadata.get("year", "") or metadata.get("judgmentDate", "") or metadata.get("date", "")
+        
+        header = f"Źródło: {r.get('source', prefix)}"
+        if r.get("legal_rank_label"):
+            header += f" | Ranga: {r.get('legal_rank_label')}"
+        if year_str:
+            header += f" | Data/Rok: {year_str}"
+            
+        out_parts.append(f"{header}\n{r.get('content', '')}")
+        
+    return "\n\n".join(out_parts)
 
 
 def format_kb_blocks(
-    rows: List[Dict[str, Any]],
+    rows: List[RetrievalItem],
     *,
     prefix: str = "KB",
     max_content_chars: int = 3200,
 ) -> str:
     if not rows:
         return ""
-    prepared: List[Dict[str, Any]] = []
+    prepared: List[RetrievalItem] = []
     for r in rows:
         if isinstance(r, dict):
             prepared.append(annotate_with_legal_rank(r, default_source_type=prefix))
     if not prepared:
         return ""
 
-    def _score_key(item: Dict[str, Any]):
+    def _score_key(item: RetrievalItem):
         try:
             rs = float(item.get("rerank_score") or 0.0)
         except Exception:
             rs = 0.0
-        try:
-            sim = float(item.get("similarity") or item.get("score") or item.get("rrf_score") or 0.0)
-        except Exception:
-            sim = 0.0
+        sim = get_retrieval_score(item)
         try:
             lr = int(item.get("legal_rank") or 0)
         except Exception:
@@ -183,10 +187,15 @@ def format_kb_blocks(
     for r in ordered:
         metadata = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
         filename = metadata.get("filename") if isinstance(metadata, dict) else None
-        source = r.get("source") or filename or prefix
+        source = get_retrieval_source(r) or filename or prefix
         header = f"Źródło: {source}"
         if r.get("legal_rank_label"):
             header += f" | Ranga: {r.get('legal_rank_label')}"
+            
+        year_str = metadata.get("year", "") or metadata.get("judgmentDate", "") or metadata.get("date", "")
+        if year_str:
+            header += f" | Data/Rok: {year_str}"
+            
         content = (r.get("content") or "").strip()
         if max_content_chars and len(content) > max_content_chars:
             content = content[: max_content_chars - 40] + "\n[… skrócono …]\n"

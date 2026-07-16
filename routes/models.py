@@ -23,6 +23,9 @@ from moa.config import (
 )
 import os
 
+from schemas.response_models import FilteredModelsResponse, SelectedModelsResponse, AvailableModelsResponse, GenericSuccessResponse, AdminSelectedModelsResponse, ModelMetadata
+from typing import List
+
 router = APIRouter()
 
 def _is_google_native_model_id(model_id: str) -> bool:
@@ -147,7 +150,7 @@ async def check_models_health_bulk(req: BulkPingRequest):
 
 import json
 
-CACHE_FILE = "models_cache.json"
+CACHE_FILE = "cache/models_cache.json"
 
 
 def load_persistent_cache():
@@ -175,9 +178,7 @@ OPENROUTER_MODELS_CACHE: dict = {"data": _init_data, "timestamp": _init_ts}
 OPENROUTER_MODELS_CACHE_TTL = 3600 * 24  # 24 hours persistent cache for stability
 
 
-@router.get("")
-@router.get("/")
-@router.get("/all")
+@router.get("", response_model=List[ModelMetadata])
 async def get_all_models(provider: str = "openrouter"):
     if not OPENROUTER_API_KEY:
         raise HTTPException(status_code=401, detail="OpenRouter API Key is missing")
@@ -255,7 +256,7 @@ class CustomModelsRequest(BaseModel):
     provider: str  # 'openrouter', 'google', 'openai'
 
 
-@router.post("/fetch-custom")
+@router.post("/fetch-custom", response_model=List[ModelMetadata])
 async def fetch_custom_models(req: CustomModelsRequest):
     """Pobiera listę modeli dostępnych dla konkretnego klucza API użytkownika."""
     now = time.time()
@@ -432,7 +433,7 @@ def _filter_models(
     return filtered
 
 
-@router.get("/admin")
+@router.get("/admin", response_model=List[ModelMetadata])
 async def get_admin_models_endpoint(
     output_modalities: str = "text",
     supported_parameters: Optional[str] = None,
@@ -473,7 +474,7 @@ async def get_admin_models_endpoint(
         return []
 
 
-@router.get("/filtered")
+@router.get("/filtered", response_model=FilteredModelsResponse)
 async def get_filtered_models(
     output_modalities: str = "text",
     supported_parameters: Optional[str] = None,
@@ -530,7 +531,7 @@ class AdminModelSelection(BaseModel):
     selected_model_ids: list[str]
 
 
-@router.get("/admin/selected")
+@router.get("/admin/selected", response_model=AdminSelectedModelsResponse)
 async def get_admin_selected_models():
     """Get models currently selected by admin for users."""
     from moa.config import get_admin_models as get_admin_models_config
@@ -561,7 +562,7 @@ async def _validate_admin_models(model_ids: list[str]) -> list[dict]:
     return valid_models
 
 
-@router.post("/admin/select")
+@router.post("/admin/select", response_model=GenericSuccessResponse)
 async def set_admin_selected_models(req: AdminModelSelection):
     """Admin selects models available for users."""
     # Validate that selected models exist in available models
@@ -584,21 +585,21 @@ class UserModelSelection(BaseModel):
     user_id: str = "default"
 
 
-@router.get("/profile/available")
+@router.get("/profile/available", response_model=AvailableModelsResponse)
 async def get_available_models_for_profile(user_id: str = "default"):
     """Get models available for user (admin-selected)."""
     available_models = get_available_models_for_user(user_id)
     return {"available_models": available_models}
 
 
-@router.get("/profile/selected")
+@router.get("/profile/selected", response_model=SelectedModelsResponse)
 async def get_user_selected_models(user_id: str = "default"):
     """Get models selected by user in their profile."""
     user_models = get_user_profile_models(user_id)
     return {"selected_models": user_models}
 
 
-@router.post("/profile/select")
+@router.post("/profile/select", response_model=GenericSuccessResponse)
 async def set_user_selected_models(req: UserModelSelection):
     """User selects models from available ones."""
     # Validate that selected models are in admin-approved list
@@ -619,7 +620,42 @@ async def set_user_selected_models(req: UserModelSelection):
         raise HTTPException(status_code=500, detail="Failed to save user selection")
 
 
+class ModelAssignmentsUpdateRequest(BaseModel):
+    assignments: Dict[str, str]
+
+
+@router.get("/assigned")
+async def get_assigned_models():
+    """Pobiera aktualnie przypisane modele dla każdej funkcji systemowej."""
+    from database import get_setting
+    return {
+        "embedding": get_setting("assigned_model_embedding", "openai/text-embedding-3-small"),
+        "ocr": get_setting("assigned_model_ocr", "google/gemini-2.5-flash"),
+        "judge": get_setting("assigned_model_judge", "deepseek/deepseek-r1"),
+        "drafter": get_setting("assigned_model_drafter", "anthropic/claude-3.5-sonnet"),
+        "fast": get_setting("assigned_model_fast", "google/gemini-2.5-flash-lite"),
+        "long_context": get_setting("assigned_model_long_context", "google/gemini-2.5-pro"),
+        "query_planner": get_setting("assigned_model_query_planner", "google/gemini-2.5-flash-lite"),
+        "retrieval": get_setting("assigned_model_retrieval", "google/gemini-2.5-flash-lite"),
+    }
+
+
+@router.post("/assign", response_model=GenericSuccessResponse)
+async def update_model_assignments(req: ModelAssignmentsUpdateRequest):
+    """Zapisuje nowe przypisania modeli dla poszczególnych funkcji systemowych."""
+    from database import set_setting
+    valid_functions = {
+        "embedding", "ocr", "judge", "drafter",
+        "fast", "long_context", "query_planner", "retrieval"
+    }
+    for func_id, model_id in req.assignments.items():
+        if func_id in valid_functions:
+            set_setting(f"assigned_model_{func_id}", model_id)
+    return {"success": True}
+
+
 # ---------------------------------------------------------------------------
+
 # Chat Model Selection (with latency check)
 # ---------------------------------------------------------------------------
 
@@ -629,7 +665,7 @@ class ChatModelRequest(BaseModel):
     model_latencies: Optional[Dict[str, float]] = None
 
 
-@router.post("/chat/available")
+@router.post("/chat/available", response_model=AvailableModelsResponse)
 async def get_chat_available_models(req: ChatModelRequest):
     """Get user-selected models sorted by speed and availability for chat."""
     user_models = get_user_profile_models(req.user_id)

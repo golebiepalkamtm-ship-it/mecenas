@@ -207,6 +207,12 @@ const LegalInvestigationPanel = React.memo(({ msg }: { msg: Message }) => {
 interface MessageBubbleProps {
   msg: Message;
   onPreviewDoc?: (name: string, content?: string) => void;
+  isLast?: boolean;
+  isStreaming?: boolean;
+  activePhaseIndex?: number;
+  currentStatus?: string;
+  messagesLoaded?: boolean;
+  onShowKnowledgeBase?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -317,6 +323,41 @@ const MessageDiagnosis = React.memo(({ diagnostics }: { diagnostics: DiagnosisSt
     </div>
   );
 });
+// ---------------------------------------------------------------------------
+// Citation Link Wrapper — manages open state for inline citations
+// ---------------------------------------------------------------------------
+const CitationLinkWrapper = React.memo(({ 
+  source, 
+  refNum, 
+  children, 
+  ...props 
+}: { 
+  source?: any; 
+  refNum: string; 
+  children: React.ReactNode; 
+  [key: string]: any;
+}) => {
+  const [open, setOpen] = React.useState(false);
+  const handleToggle = React.useCallback(() => setOpen(v => !v), []);
+
+  return (
+    <span className="inline-flex flex-wrap items-baseline not-prose max-w-full align-baseline">
+      <a
+        href={`#cite-${refNum}`}
+        className="inline text-gold-primary font-semibold underline decoration-gold-primary/40 underline-offset-2 hover:decoration-gold-primary cursor-pointer"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(v => !v);
+        }}
+        {...props}
+      >
+        {children}
+      </a>
+      <InlineStatuteCitation source={source} refNum={refNum} isOpen={open} onToggle={handleToggle} />
+    </span>
+  );
+});
 
 export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubbleProps) => {
   const isUser = msg.role === "user";
@@ -360,8 +401,8 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
       <div className="flex flex-col gap-1.5 w-full min-w-0">
         <div
           className={cn(
-            "relative w-full overflow-hidden transition-all duration-300 bg-white px-1 py-1",
-            isUser ? "border-b border-stone-100 pb-6 mb-4" : "pb-4"
+            "relative w-full overflow-hidden transition-all duration-300 bg-white p-5 rounded-2xl border border-stone-150 shadow-sm",
+            isUser ? "mb-4" : "pb-4"
           )}
         >
           {isUser ? (
@@ -540,8 +581,8 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
             className={cn(
               "text-[17px] leading-[1.85] max-w-none font-outfit",
               isUser
-                ? "font-bold text-stone-900 prose prose-stone prose-p:mb-2 prose-headings:text-stone-900"
-                : "font-normal text-stone-900 prose prose-stone prose-p:mb-3 prose-p:text-stone-800 prose-strong:text-stone-900 prose-strong:font-bold prose-headings:text-stone-900 prose-headings:font-bold prose-headings:tracking-tight prose-ul:list-disc prose-li:marker:text-stone-400"
+                ? "font-normal text-stone-850 prose prose-stone max-w-none prose-p:mb-2 prose-headings:text-stone-900"
+                : "font-normal text-stone-900 prose prose-stone max-w-none prose-p:mb-3 prose-p:text-stone-800 prose-strong:text-stone-900 prose-strong:font-bold prose-headings:text-stone-900 prose-headings:font-bold prose-headings:tracking-tight prose-ul:list-disc prose-li:marker:text-stone-400"
             )}
           >
             <ReactMarkdown 
@@ -567,18 +608,12 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
                     const refNum = citeMatch[1];
                     const source = citeLookup.byRefId.get(refNum);
                     return (
-                      <span className="inline-flex items-baseline flex-wrap gap-0.5 align-baseline not-prose">
-                        <a
-                          href={`#cite-${refNum}`}
-                          className="inline text-gold-primary font-semibold underline decoration-gold-primary/40 underline-offset-2 hover:decoration-gold-primary"
-                          {...props}
-                        >
-                          {children}
-                        </a>
-                        <InlineStatuteCitation source={source} refNum={refNum} />
-                      </span>
+                      <CitationLinkWrapper source={source} refNum={refNum} {...props}>
+                        {children}
+                      </CitationLinkWrapper>
                     );
                   }
+
                   return <a href={href} className="text-gold-primary underline hover:no-underline font-semibold" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
                 }
               }}
@@ -742,7 +777,9 @@ export const MessageBubble = React.memo(({ msg, onPreviewDoc }: MessageBubblePro
                       {src.full_text ? (
                         <details className="mt-1 rounded-lg border border-stone-200 bg-white overflow-hidden">
                           <summary className="cursor-pointer px-3 py-2 text-[11px] font-black uppercase tracking-wider text-gold-primary hover:bg-stone-50">
-                            Pokaż pełne brzmienie przepisu
+                            {src.source_type === "judgment"
+                              ? "Pokaż pełną treść orzeczenia"
+                              : "Pokaż pełne brzmienie przepisu"}
                           </summary>
                           <div className="px-3 py-3 text-[12px] leading-relaxed text-stone-800 whitespace-pre-wrap max-h-80 overflow-y-auto custom-scrollbar border-t border-stone-100 font-mono">
                             {src.full_text}

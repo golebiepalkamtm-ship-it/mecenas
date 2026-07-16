@@ -137,6 +137,7 @@ def init_db():
                 message_type TEXT DEFAULT 'standard',
                 reasoning TEXT,
                 eli_explanation TEXT,
+                ai_task TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -190,6 +191,20 @@ def init_db():
             print("Migrating DB: Adding 'eli_explanation' column to 'messages'")
             cursor.execute("ALTER TABLE messages ADD COLUMN eli_explanation TEXT")
 
+        # 4. Add sources if missing (RAG / SAOS / ELI references)
+        if 'sources' not in columns:
+            print("Migrating DB: Adding 'sources' column to 'messages'")
+            cursor.execute("ALTER TABLE messages ADD COLUMN sources TEXT")
+
+        # 5. Add ai_task if missing (AI task mode selection)
+        if 'ai_task' not in columns:
+            print("Migrating DB: Adding 'ai_task' column to 'messages'")
+            cursor.execute("ALTER TABLE messages ADD COLUMN ai_task TEXT")
+
+        if 'cited_sources' not in columns:
+            print("Migrating DB: Adding 'cited_sources' column to 'messages'")
+            cursor.execute("ALTER TABLE messages ADD COLUMN cited_sources TEXT")
+
         # Settings table
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS settings (
@@ -233,6 +248,17 @@ def init_db():
                 session_id TEXT PRIMARY KEY,
                 state_json TEXT NOT NULL,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS semantic_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                query_text TEXT NOT NULL,
+                query_hash TEXT UNIQUE NOT NULL,
+                embedding BLOB NOT NULL,
+                response_json TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         
@@ -305,7 +331,7 @@ def get_session_investigation_state(session_id: str) -> Optional[str]:
         return None
 
 
-def save_message(id: str, session_id: str, role: str, content: str, sources: Optional[str] = None, message_type: Optional[str] = None, reasoning: Optional[str] = None, eli_explanation: Optional[str] = None):
+def save_message(id: str, session_id: str, role: str, content: str, sources: Optional[str] = None, message_type: Optional[str] = None, reasoning: Optional[str] = None, eli_explanation: Optional[str] = None, ai_task: Optional[str] = None, cited_sources: Optional[str] = None):
     try:
         # Próba wyciagnięcia czystego tekstu z JSONa dla tytułu (przed szyfrowaniem)
         clean_title = "Nowa Rozprawa"
@@ -328,6 +354,7 @@ def save_message(id: str, session_id: str, role: str, content: str, sources: Opt
         encrypted_content = encrypt_text(content)
         encrypted_reasoning = encrypt_text(reasoning) if reasoning else None
         encrypted_eli = encrypt_text(eli_explanation) if eli_explanation else None
+        encrypted_cited = encrypt_text(cited_sources) if cited_sources else None
 
         with get_db() as conn:
             with conn:
@@ -338,8 +365,8 @@ def save_message(id: str, session_id: str, role: str, content: str, sources: Opt
                     conn.execute("UPDATE sessions SET title = ? WHERE id = ? AND (title = 'Nowa Rozprawa' OR title LIKE '[%')", (clean_title, session_id))
                 
                 conn.execute(
-                    "INSERT INTO messages (id, session_id, role, content, sources, message_type, reasoning, eli_explanation, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", 
-                    (id, session_id, role, encrypted_content, sources, message_type, encrypted_reasoning, encrypted_eli)
+                    "INSERT INTO messages (id, session_id, role, content, sources, message_type, reasoning, eli_explanation, ai_task, cited_sources, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)", 
+                    (id, session_id, role, encrypted_content, sources, message_type, encrypted_reasoning, encrypted_eli, ai_task, encrypted_cited)
                 )
                 conn.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
     except Exception as e:
@@ -350,9 +377,9 @@ def get_messages(session_id: Optional[str] = None, limit: int = 200) -> List[Dic
         with get_db() as conn:
             with conn:
                 if session_id:
-                    rows = conn.execute("SELECT id, role, content, sources, message_type, reasoning, eli_explanation FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?", (session_id, limit)).fetchall()
+                    rows = conn.execute("SELECT id, role, content, sources, message_type, reasoning, eli_explanation, ai_task, cited_sources FROM messages WHERE session_id = ? ORDER BY rowid ASC LIMIT ?", (session_id, limit)).fetchall()
                 else:
-                    rows = conn.execute("SELECT id, role, content, sources, message_type, reasoning, eli_explanation FROM messages ORDER BY created_at ASC LIMIT ?", (limit,)).fetchall()
+                    rows = conn.execute("SELECT id, role, content, sources, message_type, reasoning, eli_explanation, ai_task, cited_sources FROM messages ORDER BY rowid ASC LIMIT ?", (limit,)).fetchall()
                 
                 messages = []
                 for r in rows:
@@ -360,6 +387,7 @@ def get_messages(session_id: Optional[str] = None, limit: int = 200) -> List[Dic
                     decrypted_content = decrypt_text(r[2])
                     decrypted_reasoning = decrypt_text(r[5]) if r[5] else None
                     decrypted_eli = decrypt_text(r[6]) if r[6] else None
+                    decrypted_cited = decrypt_text(r[8]) if len(r) > 8 and r[8] else None
 
                     msg = {
                         "id": r[0], 
@@ -367,18 +395,58 @@ def get_messages(session_id: Optional[str] = None, limit: int = 200) -> List[Dic
                         "content": decrypted_content, 
                         "sources": r[3].split(",") if r[3] else [],
                         "consensus_used": r[4] == "moa_consensus",
-                        "eli_explanation": decrypted_eli
+                        "eli_explanation": decrypted_eli,
+                        "ai_task": r[7] if len(r) > 7 else None
                     }
                     if decrypted_reasoning: # reasoning -> expert_analyses
                         try:
                             msg["expert_analyses"] = json.loads(decrypted_reasoning)
                         except:
                             msg["expert_analyses"] = []
+                    if decrypted_cited:
+                        try:
+                            msg["cited_sources"] = json.loads(decrypted_cited)
+                        except json.JSONDecodeError:
+                            msg["cited_sources"] = []
                     messages.append(msg)
                 return messages
     except Exception as e:
         print(f"DB Error (get_messages): {e}")
         return []
+
+def get_message_details(session_id: str, message_id: str) -> Optional[Dict[str, Any]]:
+    try:
+        with get_db() as conn:
+            with conn:
+                row = conn.execute(
+                    "SELECT id, role, content, sources, message_type, reasoning, eli_explanation, ai_task FROM messages WHERE session_id = ? AND id = ?",
+                    (session_id, message_id),
+                ).fetchone()
+                if not row:
+                    return None
+                
+                decrypted_content = decrypt_text(row[2])
+                decrypted_reasoning = decrypt_text(row[5]) if row[5] else None
+                decrypted_eli = decrypt_text(row[6]) if row[6] else None
+
+                msg = {
+                    "id": row[0], 
+                    "role": row[1], 
+                    "content": decrypted_content, 
+                    "sources": row[3].split(",") if row[3] else [],
+                    "consensus_used": row[4] == "moa_consensus",
+                    "eli_explanation": decrypted_eli,
+                    "ai_task": row[7]
+                }
+                if decrypted_reasoning:
+                    try:
+                        msg["expert_analyses"] = json.loads(decrypted_reasoning)
+                    except:
+                        msg["expert_analyses"] = []
+                return msg
+    except Exception as e:
+        print(f"DB Error (get_message_details): {e}")
+        return None
 
 def delete_session(session_id: str):
     try:

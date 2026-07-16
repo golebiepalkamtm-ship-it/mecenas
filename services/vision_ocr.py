@@ -84,10 +84,15 @@ async def run_verbatim_vision_ocr(
             logger.warning("[vision_ocr] preprocess failed: %s — używam oryginału", exc)
 
     b64 = base64.b64encode(raw).decode("utf-8")
-    vision_models = list(settings.vision_ocr_models)
-    max_tokens = int(settings.vision_ocr_max_tokens)
-    max_rounds = max(1, int(settings.vision_ocr_max_continuations) + 1)
-    temperature = float(settings.vision_ocr_temperature)
+    from database import get_setting
+    assigned_ocr = get_setting("assigned_model_ocr", "")
+    if assigned_ocr:
+        vision_models = [assigned_ocr]
+    else:
+        vision_models = list(settings.vision_ocr_models)
+    max_tokens = settings.vision_ocr_max_tokens
+    max_rounds = max(1, settings.vision_ocr_max_continuations + 1)
+    temperature = settings.vision_ocr_temperature
 
     last_err: Optional[BaseException] = None
     for model_name in vision_models:
@@ -102,7 +107,10 @@ async def run_verbatim_vision_ocr(
             truncated = False
 
             for round_idx in range(max_rounds):
-                completion = await client.chat.completions.create(
+                openai_client = client
+                if hasattr(openai_client, "_client") and not hasattr(openai_client, "chat"):
+                    openai_client = openai_client._client
+                completion = await openai_client.chat.completions.create(
                     model=model_name,
                     messages=messages,
                     max_tokens=max_tokens,
@@ -132,6 +140,13 @@ async def run_verbatim_vision_ocr(
                 break
 
             text = "\n".join(full_parts).strip()
+            if len(text) > 40000:
+                logger.warning(
+                    "[vision_ocr] OCR text too large (%s chars), truncating to 40k to avoid context explosion",
+                    len(text)
+                )
+                text = text[:40000] + "\n... [PRZYCIĘTO ZE WZGLĘDU NA LIMIT ZNAKÓW OCR]"
+                
             if not text:
                 continue
 

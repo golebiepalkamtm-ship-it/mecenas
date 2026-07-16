@@ -80,6 +80,26 @@ class MoaOptions(BaseModel):
     model_config = {"extra": "ignore"}
 
 
+class ChatAttachment(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    mime_type: Optional[str] = None
+    content_type: Optional[str] = None
+    url: Optional[str] = None
+    text: Optional[str] = None
+    size: Optional[int] = None
+    content: Optional[Any] = None
+
+    model_config = {"extra": "allow"}
+
+
+class ChatHistoryMessage(BaseModel):
+    role: str
+    content: Any
+
+    model_config = {"extra": "allow"}
+
+
 class ChatPayloadV2(BaseModel):
     message: str = ""
     chat_mode: ChatMode = ChatMode.SINGLE
@@ -95,9 +115,9 @@ class ChatPayloadV2(BaseModel):
         default=None,
         validation_alias=AliasChoices("session_id", "sessionId", "sid"),
     )
-    attachments: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    attachments: List[ChatAttachment] = Field(default_factory=list)
     document_text: Optional[str] = None
-    history: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    history: List[ChatHistoryMessage] = Field(default_factory=list)
     act_terms: Optional[List[str]] = None
 
     use_saos: bool = True

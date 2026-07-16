@@ -18,6 +18,17 @@ def _tags(text: str, query: str) -> List[str]:
         tags.append("eu")
     if re.search(r"konstytucj|etpc|strasbur|konwencja", blob, re.I):
         tags.append("human_rights")
+    if re.search(
+        r"narkotyk|marihuan|amfetamin|mefedron|kokain|heroina|haszysz|extasy|mdma|lsd|grzyb.*psylo"
+        r"|62 ust|62a|art\.\s*53|art\.\s*55|art\.\s*56|art\.\s*58|art\.\s*61|art\.\s*63"
+        r"|znaczna ilość|udzielani|posiadani|UoPN|przeciwdziałan.*narkoman"
+        r"|wytwarzan|produk.*narkot|prekursor|odczynnik.*chemi|laboratori.*narkot"
+        r"|upraw.*konop|upraw.*mak|plantacj|dopalacz|nowa substancja psychoaktyw"
+        r"|przemyt|wwóz|wywóz|przewo[zź].*narkot"
+        r"|\bćpan|\bjoint|\btrawka|\bjaranie|\bdziałk[aię]|\bkoks\b|\bspeed\b|\bmdm\b",
+        blob, re.I
+    ):
+        tags.append("narcotics")
     if re.search(r"\bkpk\b|karne|prokurat|oskarżon|podejrzan|zatrzym", blob):
         tags.append("criminal")
     if re.search(r"kryzys|natyc?hmiast|zatrzym|przeszuk|kontrol|alarm|pilne|24\s*h|72\s*h", blob):
@@ -26,6 +37,19 @@ def _tags(text: str, query: str) -> List[str]:
         tags.append("drafting")
     if re.search(r"dekonstru|destruk|luki|błęd.*formal|sprzeczno|wadliw|zaskarż", blob):
         tags.append("document_attack")
+    if re.search(
+        r"nadużyci|manipulacj.*dow|fałszow.*dow|zawyż.*wag|podrzuc"
+        r"|wymusz.*zeznań|wymusz.*groźb|zastrasz.*rodzin|odebr.*dziec"
+        r"|reaktor.*chemi|mieszad.*magnet|fikcyj.*protok"
+        r"|pretekst.*zatrzym|prowokacj.*polic"
+        r"|art\.\s*231|art\.\s*235|art\.\s*246|art\.\s*271"
+        r"|cbzc|cbśp|bswp|biuro.*spraw.*wewnętrzn"
+        r"|łańcuch.*dowod|chain.*custody|body.?cam|exif"
+        r"|owoce.*zatrut|fruit.*poison|osob.*przybran"
+        r"|komisyjn.*waż|rozbieżn.*wag",
+        blob, re.I
+    ):
+        tags.append("police_misconduct")
     return tags
 
 
@@ -47,7 +71,7 @@ def route_agent_specs(
     Zachowuje min 3 sloty dla kompatybilności; dodaje agenty do limitu dynamic_agent_max.
 
     specialized_prompts — opcjonalny słownik z kluczami odpowiadającymi tagom:
-        "criminal_defense", "constitutional", "document_destructor",
+        "criminal_defense", "narcotics_defense", "constitutional", "document_destructor",
         "emergency", "legal_draftsman", "rag_researcher", "master_strategist"
     """
     doctrinal, strategic, counter = default_prompts
@@ -56,8 +80,12 @@ def route_agent_specs(
     tags = detect_problem_tags(text, query)
 
     # --- Bazowe 3 sloty — adaptacja do wykrytych tagów ---
-    # Slot 1: prawo materialne (lub karnista gdy sprawa karna)
-    if "criminal" in tags and sp.get("criminal_defense"):
+    # Slot 1: prawo materialne (lub specjalista od narkotyków/karnista)
+    if "narcotics" in tags and sp.get("narcotics_defense"):
+        slot1_prompt = sp["narcotics_defense"]
+        slot1_label = "Specjalista ds. Narkotyków"
+        slot1_focus = "fokus: UoPN, art. 62a, błędy dowodowe, substancja aktywna"
+    elif "criminal" in tags and sp.get("criminal_defense"):
         slot1_prompt = sp["criminal_defense"]
         slot1_label = "Agent Obrony Karnej"
         slot1_focus = "fokus: dekonstrukcja zarzutów, znamiona, dowody, KPK/KK"
@@ -168,5 +196,26 @@ def route_agent_specs(
                 )
             )
             mi += 1
+
+    # Spawn: Agent nadużyć policji — gdy sprawa narkotykowa z elementem karnym
+    # lub gdy wykryto wzorzec nadużyć policji (manipulacja dowodami, wymuszanie zeznań)
+    if (
+        (
+            ("narcotics" in tags and "criminal" in tags)
+            or "police_misconduct" in tags
+        )
+        and len(specs) < mmax
+        and sp.get("narcotics_defense")
+    ):
+        specs.append(
+            (
+                expert_models[mi % len(expert_models)],
+                "Agent Kontr-Ofensywny (nadużycia policji)",
+                sp["narcotics_defense"],
+                "fokus: art. 224/231/235/246/271 KK/KPK, łańcuch dowodowy, owoce zatrutego drzewa, "
+                "manipulacja wagą, pretextual stop, wymuszenie groźbą, body-cam/EXIF, kontroffensywa BSWP",
+            )
+        )
+        mi += 1
 
     return specs[:mmax]

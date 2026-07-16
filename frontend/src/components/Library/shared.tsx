@@ -33,10 +33,10 @@ export const CHAT_MAIN_STAGE =
   'flex-1 flex flex-col relative h-full min-w-0 min-h-0 overflow-hidden p-1 md:p-1.5 lg:p-2 gap-1.5';
 
 export const CHAT_MESSAGES_SURFACE =
-  'chat-messages-scroll flex-1 min-h-0 overflow-y-auto scroll-smooth custom-scrollbar bg-white rounded-2xl xl:rounded-[2rem] border border-black/5 shadow-[inset_0_1px_3px_rgba(0,0,0,0.02),0_16px_36px_rgba(0,0,0,0.1)] scheme-light';
+  'chat-messages-scroll flex-1 min-h-0 overflow-y-auto scroll-smooth custom-scrollbar glass-prestige bg-white/32 rounded-2xl xl:rounded-[2rem] border border-white/55 shadow-[0_32px_64px_rgba(0,0,0,0.12),inset_0_2px_10px_rgba(255,255,255,0.88)] library-view-grain scheme-light';
 
 export const CHAT_MESSAGES_INNER =
-  'mx-auto w-full max-w-3xl xl:max-w-4xl px-3 md:px-5 lg:px-6 py-4 lg:py-6 xl:py-8 space-y-4 lg:space-y-6 min-h-full';
+  'mx-auto w-full max-w-none px-3 md:px-5 lg:px-6 py-4 lg:py-6 xl:py-8 space-y-4 lg:space-y-6 min-h-full';
 
 export const CHAT_INPUT_DOCK =
   'shrink-0 relative z-20 w-full px-0 pb-3 md:pb-4 pt-0';

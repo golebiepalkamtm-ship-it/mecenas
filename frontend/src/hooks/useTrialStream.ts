@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
-import { API_BASE } from '../config';
+import { apiPostStream } from '../services/apiClient';
+import type { ChatStreamEvent } from '../types/chatContract';
 import { consumeChatSSE } from '../utils/consumeChatSSE';
 import type { TrialSide } from '../components/TrialRoom/types';
 import type { HearingRound } from '../store/useTrialRoomStore';
@@ -17,23 +18,16 @@ async function postTrialStream(
   body: Record<string, unknown>,
   handlers: StreamHandlers,
 ): Promise<string> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const res = await apiPostStream(path, body, {
     signal: handlers.signal,
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(err || `HTTP ${res.status}`);
-  }
   const reader = res.body?.getReader();
   if (!reader) throw new Error('Brak strumienia odpowiedzi');
 
   let full = '';
   let rounds: HearingRound[] = [];
 
-  await consumeChatSSE(reader, (ev) => {
+  await consumeChatSSE(reader, (ev: ChatStreamEvent) => {
     if (ev.type === 'chunk' && typeof ev.text === 'string') {
       full += ev.text;
       handlers.onChunk(ev.text);

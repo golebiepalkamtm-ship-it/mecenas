@@ -462,10 +462,10 @@ export function ChatInput({
         )}
       </AnimatePresence>
 
-      <div className="relative w-full rounded-[2.5rem] border p-3 md:p-4 transition-all glass-liquid-convex shadow-2xl">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch min-h-[96px] md:min-h-[108px]">
+      <div className="relative w-full rounded-[2.5rem] p-3 md:p-4 transition-all chat-input-container-glossy">
+        <div className="relative z-10 flex flex-col sm:flex-row gap-3 items-stretch min-h-[96px] md:min-h-[108px]">
           <div
-            className="shrink-0 rounded-2xl border border-white/10 bg-white/5 p-2 md:p-2.5"
+            className="shrink-0 rounded-2xl p-2 md:p-2.5 well-sunken-prestige"
             aria-label="Narzędzia czatu"
           >
             <div className="flex flex-col justify-center gap-1.5 text-white/40 min-h-[72px] md:min-h-[80px]">
@@ -474,9 +474,9 @@ export function ChatInput({
                   onMouseEnter={() => setHoveredAction('new_chat')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={handleNewChat} 
-                  className="p-2 hover:bg-cyan-500/10 rounded-xl transition-all group/btn-new"
+                  className="p-2.5 btn-convex-prestige rounded-xl group/btn-new text-white/75 hover:text-white"
                 >
-                  <Plus size={18} className="group-hover/btn-new:scale-110 transition-transform text-black group-hover/btn-new:text-cyan-400" style={{ filter: 'var(--neon-cyan)' }} />
+                  <Plus size={18} className="group-hover/btn-new:scale-110 transition-transform text-white/70" style={{ filter: 'var(--neon-cyan)' }} />
                 </button>
                 {onOpenTrialRoom && (
                   <button
@@ -486,14 +486,14 @@ export function ChatInput({
                     onClick={onOpenTrialRoom}
                     disabled={!canOpenTrialRoom}
                     className={cn(
-                      'p-2 rounded-xl transition-all group/btn-trial',
-                      canOpenTrialRoom ? 'hover:bg-amber-500/15' : 'opacity-35 cursor-not-allowed',
+                      'p-2.5 btn-convex-prestige rounded-xl group/btn-trial',
+                      canOpenTrialRoom ? 'text-amber-500 hover:text-amber-400' : 'opacity-35 cursor-not-allowed border-stone-800 bg-stone-900/50 shadow-none',
                     )}
                   >
                     <Gavel
                       size={18}
                       className={cn(
-                        'transition-transform text-black group-hover/btn-trial:scale-110',
+                        'transition-transform group-hover/btn-trial:scale-110',
                         canOpenTrialRoom && 'text-amber-700',
                       )}
                     />
@@ -503,15 +503,15 @@ export function ChatInput({
                   onMouseEnter={() => setHoveredAction('attach')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={() => imageInputRef.current?.click()} 
-                  className="p-2 hover:bg-fuchsia-500/10 rounded-xl transition-all group/btn-attach"
+                  className="p-2.5 btn-convex-prestige rounded-xl group/btn-attach text-white/75 hover:text-white"
                 >
-                  <Paperclip size={18} className="group-hover/btn-attach:scale-110 transition-transform text-black group-hover/btn-attach:text-fuchsia-400" style={{ filter: 'var(--neon-fuchsia)' }} />
+                  <Paperclip size={18} className="group-hover/btn-attach:scale-110 transition-transform text-white/70" style={{ filter: 'var(--neon-fuchsia)' }} />
                 </button>
                 <button 
                   onMouseEnter={() => setHoveredAction('docs')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={() => onOpenLibrary('documents')} 
-                  className="p-2 hover:bg-green-500/10 rounded-xl transition-all group/btn-doc"
+                  className="p-2.5 btn-convex-prestige rounded-xl group/btn-doc text-white/75 hover:text-white"
                 >
                   <LexIcon name="documents" size={18} className="group-hover/btn-doc:scale-110 transition-transform" style={{ filter: 'var(--neon-green)' }} />
                 </button>
@@ -519,10 +519,10 @@ export function ChatInput({
                   onMouseEnter={() => setHoveredAction('raglegal')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={(e) => { e.stopPropagation(); setUseRagLegal(!useRagLegal); }}
-                  className={cn('p-2 rounded-xl transition-all flex items-center justify-center relative group/btn-raglegal', useRagLegal ? 'text-gold-primary bg-gold-primary/5 border border-gold-primary/10 shadow-lg' : 'text-white/15 hover:bg-white/5')}
+                  className={cn('p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative group/btn-raglegal', useRagLegal ? 'active text-gold-primary' : 'text-white/60')}
                 >
                   <LexIcon name="knowledge" size={18} className={cn('transition-transform group-hover/btn-raglegal:scale-110', useRagLegal ? 'animate-pulse' : '')} style={{ filter: useRagLegal ? 'drop-shadow(0 0 8px rgba(212, 175, 55, 0.8))' : 'none' }} />
-                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useRagLegal ? 'bg-gold-primary' : 'bg-white/10')} />
+                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useRagLegal ? 'bg-gold-primary shadow-[0_0_6px_#d4af37]' : 'bg-white/10')} />
                 </button>
                 <AnimatePresence>
                   {(useRagLegal || useRagUser) && (
@@ -533,7 +533,7 @@ export function ChatInput({
                       onMouseEnter={() => setHoveredAction('filter')} 
                       onMouseLeave={() => setHoveredAction(null)} 
                       onClick={(e) => { e.stopPropagation(); setIsActSelectorOpen(true); }}
-                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center justify-center relative"
+                      className="p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative text-white/60 hover:text-white"
                     >
                       <Filter size={16} className={actTerms.length > 0 ? 'text-gold-primary' : 'text-white/40'} />
                       {actTerms.length > 0 && (
@@ -548,39 +548,39 @@ export function ChatInput({
                   onMouseEnter={() => setHoveredAction('raguser')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={(e) => { e.stopPropagation(); setUseRagUser(!useRagUser); }}
-                  className={cn('p-2 rounded-xl transition-all flex items-center justify-center relative group/btn-raguser', useRagUser ? 'text-gold-primary bg-gold-primary/5 border border-gold-primary/10 shadow-lg' : 'text-white/15 hover:bg-white/5')}
+                  className={cn('p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative group/btn-raguser', useRagUser ? 'active text-gold-primary' : 'text-white/60')}
                 >
                   <LexIcon name="documents" size={18} className={cn('transition-transform group-hover/btn-raguser:scale-110', useRagUser ? 'animate-pulse' : '')} style={{ filter: useRagUser ? 'drop-shadow(0 0 8px rgba(212, 175, 55, 0.8))' : 'none' }} />
-                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useRagUser ? 'bg-gold-primary' : 'bg-white/10')} />
+                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useRagUser ? 'bg-gold-primary shadow-[0_0_6px_#d4af37]' : 'bg-white/10')} />
                 </button>
                 <button
                   onMouseEnter={() => setHoveredAction('saos')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={(e) => { e.stopPropagation(); setUseSaos(!useSaos); }}
-                  className={cn('p-2 rounded-xl transition-all flex items-center justify-center relative group/btn-saos', useSaos ? 'text-gold-primary bg-gold-primary/5 border border-gold-primary/10 shadow-lg' : 'text-white/15 hover:bg-white/5')}
+                  className={cn('p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative group/btn-saos', useSaos ? 'active text-gold-primary' : 'text-white/60')}
                 >
                   <LexIcon name="judgments" size={18} className={cn('transition-transform group-hover/btn-saos:scale-110', useSaos ? 'animate-pulse' : '')} style={{ filter: useSaos ? 'drop-shadow(0 0 8px rgba(212, 175, 55, 0.8))' : 'none' }} />
-                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useSaos ? 'bg-gold-primary' : 'bg-white/10')} />
+                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useSaos ? 'bg-gold-primary shadow-[0_0_6px_#d4af37]' : 'bg-white/10')} />
                 </button>
                 <button
                   onMouseEnter={() => setHoveredAction('eli')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={(e) => { e.stopPropagation(); setUseEli(!useEli); }}
-                  className={cn('p-2 rounded-xl transition-all flex items-center justify-center relative group/btn-eli', useEli ? 'text-gold-primary bg-gold-primary/5 border border-gold-primary/10 shadow-lg' : 'text-white/15 hover:bg-white/5')}
+                  className={cn('p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative group/btn-eli', useEli ? 'active text-gold-primary' : 'text-white/60')}
                 >
                   <LexIcon name="book" size={18} className={cn('transition-transform group-hover/btn-eli:scale-110', useEli ? 'animate-pulse' : '')} style={{ filter: useEli ? 'drop-shadow(0 0 8px rgba(212, 175, 55, 0.8))' : 'none' }} />
-                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useEli ? 'bg-gold-primary' : 'bg-white/10')} />
+                  <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useEli ? 'bg-gold-primary shadow-[0_0_6px_#d4af37]' : 'bg-white/10')} />
                 </button>
                 <button
                   onMouseEnter={() => setHoveredAction('mic')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={toggleListen}
-                  className={cn('p-2 rounded-xl transition-all flex items-center justify-center relative shadow-xs group/btn-mic', isListening ? 'text-red-500 bg-red-500/10 border border-red-500/20' : 'hover:bg-red-500/10')}
+                  className={cn('p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative group/btn-mic', isListening ? 'bg-red-500/10 border-red-500/30 text-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]' : 'text-white/60')}
                 >
                   {isListening && (
                     <motion.div layoutId="mic-pulse" initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: [1, 1.6, 1], opacity: [0, 0.4, 0] }} transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }} className="absolute inset-0 bg-red-500 rounded-xl" />
                   )}
-                  <Mic size={18} className={cn('relative z-10 text-black group-hover/btn-mic:text-red-400', isListening && 'text-red-400')} style={{ filter: isListening ? 'drop-shadow(0 0 8px rgba(239, 68, 68, 0.8))' : 'none' }} />
+                  <Mic size={18} className={cn('relative z-10 group-hover/btn-mic:text-red-400', isListening && 'text-red-400')} style={{ filter: isListening ? 'drop-shadow(0 0 8px rgba(239, 68, 68, 0.8))' : 'none' }} />
                 </button>
                 <AnimatePresence>
                   {isListening && (
@@ -640,7 +640,7 @@ export function ChatInput({
           </div>
 
           <div
-            className="flex-1 min-w-0 rounded-2xl border border-white/10 bg-white/5 p-2 md:p-2.5 flex items-end gap-2 transition-all group/input min-h-[72px] md:min-h-[80px]"
+            className="flex-1 min-w-0 rounded-2xl p-2 md:p-2.5 flex items-center gap-2 transition-all group/input min-h-[72px] md:min-h-[80px] well-sunken-prestige"
             aria-label="Pole wiadomości"
           >
           <textarea
@@ -658,21 +658,21 @@ export function ChatInput({
             style={{ caretColor: '#d4af37' }}
           />
 
-          <div className="shrink-0 self-end pb-0.5 relative">
+          <div className="shrink-0 self-center relative">
             <motion.button
               onMouseEnter={() => setHoveredAction('send')} 
               onMouseLeave={() => setHoveredAction(null)} 
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              disabled={isLoading || (!value.trim() && attachments.length === 0)}
+              disabled={!isLoading && (!value.trim() && attachments.length === 0)}
               onClick={isLoading ? stopGeneration : handleInternalSend}
               className={cn(
                 'h-12 w-12 flex items-center justify-center rounded-2xl transition-all group/btn-send',
                 isLoading
                   ? 'bg-gold-primary/10 text-gold-primary border border-gold-primary/20'
                   : (!value.trim() && attachments.length === 0)
-                    ? 'bg-black/10 text-stone-400 cursor-not-allowed'
-                    : 'bg-gold-primary/15 text-gold-primary border border-gold-primary/35 hover:bg-gold-primary hover:text-white hover:border-gold-primary/50 shadow-[0_0_14px_rgba(212,175,55,0.4)]'
+                    ? 'bg-black/10 text-stone-400 cursor-not-allowed border-stone-850'
+                    : 'btn-convex-prestige active text-gold-primary hover:text-white shadow-[0_0_14px_rgba(212,175,55,0.4)]'
               )}
               style={
                 isLoading || value.trim() || attachments.length > 0

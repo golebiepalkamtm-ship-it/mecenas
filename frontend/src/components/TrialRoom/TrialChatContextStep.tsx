@@ -89,7 +89,7 @@ export function TrialChatContextStep({
         type="button"
         disabled={!hasContext && question.trim().length < 10}
         onClick={onContinue}
-        className="px-5 py-2.5 rounded-xl bg-black text-gold-primary text-[10px] font-black uppercase tracking-widest disabled:opacity-40"
+        className="px-5 py-2.5 rounded-xl bg-black text-gold-primary text-[10px] font-black uppercase tracking-widest disabled:opacity-40 btn-convex-glossy"
       >
         Konfiguruj zespoły — obrona
       </button>

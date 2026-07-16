@@ -67,6 +67,10 @@ export function collectLandingScrollSnapshot(): Record<string, unknown> {
   const wrapper = getLandingScrollWrapper();
   const engine = getLandingScrollEngine();
   const w = wrapper instanceof HTMLElement ? wrapper : null;
+  const defaultScroller =
+    w instanceof HTMLElement
+      ? w.className || "landing-wrapper"
+      : "viewport";
 
   return {
     ready: isLandingScrollReady(),
@@ -88,12 +92,7 @@ export function collectLandingScrollSnapshot(): Record<string, unknown> {
     },
     scrollTrigger: {
       total: ScrollTrigger.getAll().length,
-      defaultScroller:
-        ScrollTrigger.defaults()?.scroller === window
-          ? "window"
-          : ScrollTrigger.defaults()?.scroller instanceof HTMLElement
-            ? (ScrollTrigger.defaults()?.scroller as HTMLElement).className
-            : "viewport",
+      defaultScroller,
     },
     dom: {
       hasRoot: !!document.querySelector(".landing-scroll-root"),

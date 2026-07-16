@@ -8,8 +8,5 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "dependencies": {
-    "pip": "^0.0.1",
-    "pip3": "^420.911.69"
-  }
+  "dependencies": {}
 }

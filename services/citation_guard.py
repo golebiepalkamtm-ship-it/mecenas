@@ -10,6 +10,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from services.retrieval.types import RetrievalItem, get_retrieval_title
+
 # art. 58, art. 168a, art. 332 § 1, art. 59 § 1 pkt 2 UPEA, art. 77 § 1 Op.
 _ACT_SUFFIX = (
     r"KPK|k\.?\s*p\.?\s*k\.?|KPA|k\.?\s*p\.?\s*a\.?|"
@@ -17,6 +19,9 @@ _ACT_SUFFIX = (
     r"p\.?\s*p\.?\s*s\.?\s*a\.?|PPSA|"
     r"u\.?\s*p\.?\s*e\.?\s*a\.?|UPEA|"
     r"u\.?\s*k\.?\s*p\.?|u\.?\s*k\.?\s*p\.?\s*a\.?|"
+    r"u\.?\s*p\.?\s*n\.?|UPN|narkoman\w*|"
+    r"k\.?\s*k\.?|KK|karn\w*|"
+    r"k\.?\s*w\.?|KW|wykrocze\w*|"
     r"Op\.?|ordynacj\w*\s+podatkow\w*|"
     r"Konstytucji(?:\s+RP)?|ustawy"
 )
@@ -34,6 +39,7 @@ _ARTICLE_RE = re.compile(
 _ARTICLE_PLAIN_RE = re.compile(
     r"\bartykuł\s*(\d+[a-z]?)"
     r"(?:\s*§\s*(\d+))?"
+    r"(?:\s+ust\.?\s*(\d+))?"
     r"(?:\s+pkt\.?\s*\d+)*"
     r"(?:\s+(" + _ACT_SUFFIX + r"))?",
     re.IGNORECASE,
@@ -63,6 +69,18 @@ _ACT_ALIASES = {
     "ordynacjapodatkowa": "op",
     "upea": "upea",
     "u.p.e.a": "upea",
+    "upn": "upn",
+    "u.p.n": "upn",
+    "u.p.n.": "upn",
+    "narkoman": "upn",
+    "kk": "kk",
+    "k.k": "kk",
+    "k.k.": "kk",
+    "karny": "kk",
+    "karnego": "kk",
+    "kw": "kw",
+    "k.w": "kw",
+    "k.w.": "kw",
 }
 
 
@@ -133,7 +151,7 @@ def extract_citations(text: str) -> List[ArticleCitation]:
                 out,
                 seen,
                 num=m.group(1).lower(),
-                par=m.group(2),
+                par=m.group(2) or m.group(3),
                 act_raw=m.group(4),
                 raw=m.group(0),
             )
@@ -168,7 +186,7 @@ def build_verification_corpus(
             continue
         for row in batch:
             parts.append(row.get("content") or "")
-            parts.append(row.get("title") or row.get("tytul") or "")
+            parts.append(get_retrieval_title(row))
             parts.append(row.get("source") or "")
     return "\n".join(parts).lower()
 
@@ -214,6 +232,21 @@ def _legal_row_matches_act(meta_blob: str, act_code: Optional[str]) -> bool:
             or "u.p.e.a" in blob
             or ("egzekucyjn" in blob and "administracj" in blob)
         )
+    if act_code == "upn":
+        return any(
+            x in blob
+            for x in (
+                "upn",
+                "u.p.n",
+                "przeciwdziałaniu narkomanii",
+                "przeciwdzialaniu narkomanii",
+                "narkoman",
+            )
+        )
+    if act_code == "kk":
+        return "kk" in blob or "k.k" in blob or "kodeks karny" in blob or "kodeksu karnego" in blob or "karn" in blob
+    if act_code == "kw":
+        return "kw" in blob or "k.w" in blob or "kodeks wykroczeń" in blob or "kodeksu wykroczen" in blob
     return act_code in blob
 
 
@@ -544,6 +577,52 @@ async def verify_citations_via_llm(
     return still_bad
 
 
+def is_citation_in_sources(
+    cite: ArticleCitation,
+    document_text: str = "",
+    legal_results: Optional[List[Dict[str, Any]]] = None,
+    saos_results: Optional[List[Dict[str, Any]]] = None,
+    eli_results: Optional[List[Dict[str, Any]]] = None,
+) -> bool:
+    """
+    Deterministycznie sprawdza, czy cytowany numer artykułu lub kod aktu występuje
+    w jakichkolwiek materiałach źródłowych (RAG, wyroki, akty, dokument klienta).
+    """
+    source_texts = []
+    if document_text:
+        source_texts.append(document_text.lower())
+        
+    for batch in (legal_results, saos_results, eli_results):
+        if not batch:
+            continue
+        for row in batch:
+            content = (row.get("content") or "").lower()
+            source_texts.append(content)
+            title = (row.get("title") or row.get("tytul") or "").lower()
+            if title:
+                source_texts.append(title)
+            source = (row.get("source") or "").lower()
+            if source:
+                source_texts.append(source)
+                
+    art_num = cite.article_num
+    # Sprawdzamy czy numer artykułu pojawia się w którymkolwiek źródle
+    if not any(art_num in text for text in source_texts):
+        return False
+        
+    # Jeśli podano kod aktu, sprawdzamy czy pojawia się w źródle powiązanym z numerem artykułu
+    if cite.act_code:
+        act_found = False
+        for text in source_texts:
+            if art_num in text and _act_tokens_in_corpus(cite.act_code, text):
+                act_found = True
+                break
+        if not act_found:
+            return False
+            
+    return True
+
+
 class CitationGuard:
     """Pełny audyt cytowań: korpus → ELI → LLM."""
 
@@ -553,10 +632,10 @@ class CitationGuard:
         *,
         document_text: str = "",
         combined_context: str = "",
-        legal_results: Optional[List[Dict[str, Any]]] = None,
-        user_results: Optional[List[Dict[str, Any]]] = None,
-        saos_results: Optional[List[Dict[str, Any]]] = None,
-        eli_results: Optional[List[Dict[str, Any]]] = None,
+        legal_results: Optional[List[RetrievalItem]] = None,
+        user_results: Optional[List[RetrievalItem]] = None,
+        saos_results: Optional[List[RetrievalItem]] = None,
+        eli_results: Optional[List[RetrievalItem]] = None,
         user_query: str = "",
         search_eli: Optional[Callable] = None,
         call_llm: Optional[Callable] = None,
@@ -579,6 +658,18 @@ class CitationGuard:
         if not all_cites:
             return [], []
 
+        # Deterministyczny filtr zbieżności w RAG/Dokumencie
+        filtered_cites = []
+        hallucinated_cites = []
+        for c in all_cites:
+            if is_citation_in_sources(c, document_text, legal_results, saos_results, eli_results):
+                filtered_cites.append(c)
+            else:
+                hallucinated_cites.append(c)
+
+        if not filtered_cites:
+            return all_cites, hallucinated_cites
+
         corpus = build_verification_corpus(
             document_text=document_text,
             combined_context=combined_context,
@@ -592,7 +683,7 @@ class CitationGuard:
         )
 
         unverified = filter_unverified(
-            all_cites,
+            filtered_cites,
             corpus,
             expert_analysis=expert_blob,
             legal_results=legal_results,
@@ -600,6 +691,10 @@ class CitationGuard:
             trust_legal_kb=trust_legal_kb,
             require_legal_rag=require_legal_rag,
         )
+        
+        # Łączymy z góry zidentyfikowane halucynacje z tymi, które nie przeszły walidacji szczegółowej
+        unverified = merge_citation_lists(unverified, hallucinated_cites)
+
         if require_legal_rag:
             return all_cites, unverified
         if unverified and search_eli:

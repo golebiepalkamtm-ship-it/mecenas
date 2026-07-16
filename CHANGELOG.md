@@ -1,8 +1,11 @@
 # Changelog
 
-## [Unreleased] — Repo cleanup (web-only)
+## [Unreleased]
 
 ### Added
+- **Orchestrator v2** (`services/orchestrator_v2/`): Nowy potok przetwarzania zapytania z podziałem na role (Debate Engine), budowanie kontekstu (Context Builder) i syntezę ostatecznej odpowiedzi (Synthesis Engine).
+- **QuickIntelligencePanel** (`frontend/src/components/Chat/components/QuickIntelligencePanel.tsx`): Komponent UI pozwalający na podgląd procesu myślowego sztucznej inteligencji, debat między agentami i wyciągniętej syntezy.
+- Skrypt pomocniczy `utils/helpers.py` z narzędziami m.in. dla Orchestratora v2.
 - Kontrakt API czatu (`schemas/chat_contract.py`, `schemas/chat_legacy_adapter.py`) z polem `side` i zagnieżdżonymi `prompt_overrides` / `moa_options`.
 - `domain/prompts/message_builder.py` — eksperci LLM dostają wiadomości `system` + `user` zamiast jednego bloku tekstu.
 - `frontend/src/services/chatPayloadFactory.ts` — jedna fabryka payloadu dla czatu.

@@ -60,3 +60,21 @@ def log_stage_event(
     if extra:
         event.update(extra)
     logger.info("[PIPELINE_STAGE] %s", json.dumps(event, ensure_ascii=False))
+
+def log_quality_metrics(
+    session_id: str,
+    metrics: Dict[str, Any]
+) -> None:
+    """Loguje metryki jakości (Quality Metrics) wygenerowane na końcu pipeline'u V3.0."""
+    import json
+    from config import settings
+    
+    if not getattr(settings, "feature_quality_metrics", False):
+        return
+        
+    payload = {
+        "event": "quality_metrics",
+        "session_id": session_id,
+        "metrics": metrics
+    }
+    logger.info("[QUALITY_METRICS] %s", json.dumps(payload, ensure_ascii=False))

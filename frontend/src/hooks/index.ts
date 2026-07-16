@@ -7,6 +7,17 @@ import { API_BASE } from "../config";
 
 import type { Document, KnowledgeDocument } from "../types/library";
 
+function generateUUID(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 
 
 export interface ApiProvider {
@@ -780,8 +791,11 @@ export function useChat() {
 
   // Sessions & Models
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  // Bez auto-przywracania ostatniej sesji — unikamy „wlewania” starej sprawy po restarcie aplikacji.
-  const [sessionId, setSessionId] = useState<string>("");
+  // Przywracanie ostatniej sesji z localStorage lub tworzenie nowej
+  const [sessionId, setSessionId] = useState<string>(() => {
+    const saved = localStorage.getItem("prawnik_session_id");
+    return saved || generateUUID();
+  });
 
   // ── KOŁO RATUNKOWE #1: Fetch z automatycznym retry + backoff ──
   const fetchWithRetry = useCallback(async (url: string, maxRetries = 3): Promise<Response> => {
@@ -808,7 +822,7 @@ export function useChat() {
 
   const fetchModels = useCallback(async () => {
     try {
-      const res = await fetchWithRetry(`${API_BASE}/models/all`);
+      const res = await fetchWithRetry(`${API_BASE}/models`);
       const text = await res.text();
       const parseStart = performance.now();
       const data = JSON.parse(text);
@@ -875,11 +889,7 @@ export function useChat() {
   }, [fetchWithRetry]);
 
   useEffect(() => {
-    // Defer session loading to avoid blocking the main thread on mount
-    const timer = setTimeout(() => {
-      fetchSessions();
-    }, 200);
-    return () => clearTimeout(timer);
+    fetchSessions();
   }, [fetchSessions]);
 
   const [messagesLoaded, setMessagesLoaded] = useState(false);
@@ -899,7 +909,7 @@ export function useChat() {
         setTimeout(() => reject(new Error("Messages fetch timeout")), 8000),
       );
       const res = await Promise.race([
-        fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages?limit=100`, 1),
+        fetchWithRetry(`${API_BASE}/sessions/${sessionId}/messages?limit=100`, 3),
         timeoutPromise,
       ]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -934,11 +944,7 @@ export function useChat() {
   }, [sessionId, fetchWithRetry]);
 
   useEffect(() => {
-    // Opóźnione ładowanie wiadomości, aby nie blokować UI
-    const timer = setTimeout(() => {
-      loadMessages();
-    }, 300);
-    return () => clearTimeout(timer);
+    loadMessages();
   }, [loadMessages]);
 
 
@@ -966,7 +972,8 @@ export function useChat() {
   const newChat = useCallback(() => {
     stopGeneration();
     activeMessagesRequestId.current += 1;
-    setSessionId("");
+    const newId = generateUUID();
+    setSessionId(newId);
     setMessages([]);
     setMessagesLoaded(true);
     localStorage.removeItem("prawnik_session_id");

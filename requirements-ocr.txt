@@ -1,0 +1,22 @@
+# LexMind AI — OCR Dependencies
+# Profile: OCR (core + vision & document processing)
+# Install: pip install -r requirements-core.txt -r requirements-ocr.txt
+# =================================================================
+
+# Include all core dependencies
+-r requirements-core.txt
+
+# --- Deep Learning & Computer Vision ---
+# PyTorch (CPU by default; install torch-cuda if you have GPU)
+torch>=2.2.0
+torchvision>=0.17.0
+
+# --- OCR Engines ---
+paddleocr>=2.7.0
+paddlepaddle>=2.6.0
+
+# --- Transformers (for advanced vision models) ---
+transformers>=4.40.0
+
+# --- Advanced document analysis ---
+# (Already in core, but explicitly listed for OCR profile)

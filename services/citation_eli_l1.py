@@ -35,7 +35,10 @@ _ACT_TO_ELI_TITLE = {
     "kpc": "Kodeks postępowania cywilnego",
     "kpk": "Kodeks postępowania karnego",
     "kc": "Kodeks cywilny",
-    "kp": "Kodeks karny",
+    "kk": "Kodeks karny",
+    "kp": "Kodeks pracy",
+    "kw": "Kodeks wykroczeń",
+    "upn": "Ustawa o przeciwdziałaniu narkomanii",
     "ppsa": "Prawo o postępowaniu przed sądami administracyjnymi",
     "op": "Ordynacja podatkowa",
     "upea": "Ustawa o postępowaniu egzekucyjnym w administracji",
@@ -53,26 +56,96 @@ async def fetch_eli_act_text(act_code: Optional[str], *, ttl: int = 3600) -> str
     if cached is not None:
         return cached
 
+    try:
+        from services.retrieval_service import retrieval_service
+        breaker = retrieval_service._breakers.get("ELI")
+    except Exception:
+        breaker = None
+
+    if breaker and not breaker.allow_request():
+        logger.warning("[ELI L1] Zapytanie do Sejm API zablokowane przez CircuitBreaker.")
+        return ""
+
     url = "https://api.sejm.gov.pl/eli/acts/search"
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://api.sejm.gov.pl/"
+    }
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            res = await client.get(url, params={"keyword": title, "limit": 3})
-        if res.status_code != 200:
-            return ""
-        data = res.json()
-        items = data if isinstance(data, list) else data.get("items") or []
-        parts: List[str] = []
-        for item in items[:2]:
-            if isinstance(item, dict):
-                for k in ("title", "tytul", "text", "content", "opis"):
-                    v = item.get(k)
-                    if isinstance(v, str) and v.strip():
-                        parts.append(v)
-        blob = re.sub(r"<[^>]+>", " ", " ".join(parts)).lower()
-        _cache_set(cache_key, blob)
-        return blob
+            res = await client.get(url, params={"title": title, "limit": 40}, headers=headers)
+            if res.status_code != 200:
+                if breaker:
+                    breaker.on_failure(f"http_{res.status_code}")
+                return ""
+            if breaker:
+                breaker.on_success()
+            data = res.json()
+            items = data if isinstance(data, list) else data.get("items") or []
+            
+            # Wybieramy najlepszy akt (jednolity tekst lub główny akt) z uwzględnieniem ujednoznacznienia
+            valid_items = []
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                t_lower = (item.get("title") or "").lower()
+                # Ujednoznacznienie dla kk, kc, kpk, kpc
+                if code == "kk":
+                    if "wykonawcz" in t_lower or "postępowan" in t_lower or "skarbow" in t_lower:
+                        continue
+                elif code == "kc":
+                    if "postępowan" in t_lower:
+                        continue
+                elif code == "kpk":
+                    if "postępowan" not in t_lower or "cywiln" in t_lower:
+                        continue
+                elif code == "kpc":
+                    if "postępowan" not in t_lower or "karn" in t_lower:
+                        continue
+                valid_items.append(item)
+                
+            best_item = None
+            if valid_items:
+                # Szukamy tekstu jednolitego
+                unified = [it for it in valid_items if "jednolitego tekstu" in (it.get("title") or "").lower()]
+                if unified:
+                    best_item = unified[0]
+                else:
+                    # Szukamy aktu głównego (brak "o zmianie")
+                    main_acts = [it for it in valid_items if "o zmianie" not in (it.get("title") or "").lower()]
+                    if main_acts:
+                        best_item = main_acts[0]
+                    else:
+                        best_item = valid_items[0]
+                        
+            if not best_item:
+                return ""
+                
+            # Pobieramy pełny tekst HTML
+            publisher_raw = best_item.get("publisher") or ""
+            publisher = "DU" if "DU" in publisher_raw else "MP"
+            year = best_item.get("year")
+            pos = best_item.get("pos")
+            if not year or not pos:
+                return ""
+                
+            padded_pos = str(pos).zfill(7)
+            text_url = f"https://api.sejm.gov.pl/eli/acts/{publisher}/{year}/{padded_pos}/text.html"
+            
+            text_res = await client.get(text_url)
+            if text_res.status_code != 200:
+                return ""
+                
+            html_content = text_res.text
+            blob = re.sub(r"<[^>]+>", " ", html_content)
+            blob = re.sub(r"\s+", " ", blob).strip().lower()
+            _cache_set(cache_key, blob)
+            return blob
     except Exception as e:
         logger.debug("[ELI L1] fetch %s: %s", title, e)
+        if breaker:
+            breaker.on_failure(str(e))
         return ""
 
 

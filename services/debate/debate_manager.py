@@ -4,6 +4,13 @@ import asyncio
 from typing import Dict, Any, List, Optional, AsyncGenerator
 
 from services.config import settings
+from services.debate.cross_exam import run_debate_cross_exam
+from services.debate.reconciliation import reconcile_expert_debate
+from services.expert_context import expert_context_with_chunk
+from services.expert_roles import resolve_expert_role_block
+from services.llm_gateway import call_with_fallback
+from services.model_resolution import resolve_model_id
+from services.pii_mask import mask_pii
 from services.schemas import ExpertAnalysis
 from services import msg_builder
 
@@ -15,8 +22,8 @@ class DebateManager:
     Uruchamia agentów wykładni, procedury, strategii i kontrargumentacji.
     Następnie inicjuje przesłuchania krzyżowe i protokół pojednania.
     """
-    def __init__(self, orchestrator_ref):
-        self.orchestrator = orchestrator_ref
+    def __init__(self, _orchestrator_ref=None):
+        self.orchestrator = _orchestrator_ref
 
     async def run_debate_stream(
         self,
@@ -66,7 +73,7 @@ class DebateManager:
                     "Jeśli w dostarczonych fragmentach nie ma podstawy do omówienia całej procedury, powiedz to wprost i wyjaśnij tylko to, co wynika z cytatu.\n"
                 )
             else:
-                safe_context_excerpt = self.orchestrator._mask_pii(combined_context[:1200])
+                safe_context_excerpt = mask_pii(combined_context[:1200])
                 researcher_responses = (
                     "=== ANALIZA BEZ DEBATY EKSPERTÓW ===\n"
                     f"Pytanie: {zanonimizowane_zapytanie[:800]}\n\n"
@@ -80,8 +87,8 @@ class DebateManager:
                 try:
                     start_agent_time = time.time()
                     try:
-                        response, used_model = await self.orchestrator._call_with_fallback(
-                            client, model_id,
+                        response, used_model = await call_with_fallback(
+                            model_id,
                             messages,
                             max_tokens=2600,
                             temperature=0.22,
@@ -92,8 +99,8 @@ class DebateManager:
                         )
                     except Exception as e:
                         logger.warning(f"   [STAGE 8 ERR] {role_name} primary try failed: {e}")
-                        response, used_model = await self.orchestrator._call_with_fallback(
-                            client, model_id,
+                        response, used_model = await call_with_fallback(
+                            model_id,
                             messages,
                             max_tokens=2400,
                             temperature=0.2,
@@ -123,25 +130,25 @@ class DebateManager:
 
             expert_specs = [
                 (
-                    self.orchestrator._resolve_model_id((expert_roles.get("doctrinal") or {}).get("model")),
+                    resolve_model_id((expert_roles.get("doctrinal") or {}).get("model")),
                     "Agent Wykładu Przepisów",
                     "rag_researcher",
                     "Wykładnia przepisów"
                 ),
                 (
-                    self.orchestrator._resolve_model_id((expert_roles.get("procedure") or {}).get("model")),
+                    resolve_model_id((expert_roles.get("procedure") or {}).get("model")),
                     "Agent Procedury",
                     "rag_researcher",
                     "Kwestie proceduralne"
                 ),
                 (
-                    self.orchestrator._resolve_model_id((expert_roles.get("strategic") or {}).get("model")),
+                    resolve_model_id((expert_roles.get("strategic") or {}).get("model")),
                     "Agent Strategii i Furtek",
                     "master_strategist",
                     "Strategia procesowa i furtki"
                 ),
                 (
-                    self.orchestrator._resolve_model_id((expert_roles.get("counter") or {}).get("model")),
+                    resolve_model_id((expert_roles.get("counter") or {}).get("model")),
                     "Agent Kontrargumentacji",
                     "master_strategist",
                     "Słabości i kontrargumenty"
@@ -161,14 +168,20 @@ class DebateManager:
 
             parallel_tasks = []
             for idx, (model_id, role_name, default_role, chunk_focus) in enumerate(expert_specs):
-                role_block = self.orchestrator._resolve_expert_role_block(
-                    model_id, default_role,
-                    expert_roles, expert_role_prompts, merged_role_catalog,
+                role_block = resolve_expert_role_block(
+                    model_id=model_id,
+                    default_role=default_role,
+                    expert_roles=expert_roles,
+                    expert_role_prompts=expert_role_prompts,
+                    role_catalog=merged_role_catalog,
                     side=prompt_side,
                 )
                 chunk_slot = idx % 3
-                expert_ctx = self.orchestrator._expert_context_with_chunk(
-                    case_context, full_doc, chunk_slot, chunk_focus,
+                expert_ctx = expert_context_with_chunk(
+                    base_context=case_context,
+                    full_document=full_doc,
+                    expert_index=chunk_slot,
+                    chunk_focus=chunk_focus,
                 )
                 addressee_hint = ""
                 if client_addressee.get("formal_address"):
@@ -176,7 +189,7 @@ class DebateManager:
                         f"\n[STRONA — interes klienta]\n"
                         f"Reprezentujesz interesy: {client_addressee['formal_address']}.\n"
                     )
-                expert_user_q = query_for_retrieval[: self.orchestrator.DOCUMENT_CONTEXT_CHARS]
+                expert_user_q = query_for_retrieval[: settings.document_context_chars]
                 task_block = (addressee_hint + resolved_task_block).strip()
                 expert_messages = msg_builder.build_expert_messages(
                     role_block,
@@ -196,12 +209,11 @@ class DebateManager:
 
             cross_exam = ""
             if len(agent_results) >= 3 and not use_fast_path:
-                cross_exam = await self.orchestrator._run_debate_cross_exam(
-                    client,
-                    agent_results,
-                    combined_context,
-                    zanonimizowane_zapytanie,
-                    primary_model,
+                cross_exam = await run_debate_cross_exam(
+                    agent_results=agent_results,
+                    combined_context=combined_context,
+                    user_query=zanonimizowane_zapytanie,
+                    primary_model=primary_model,
                     status_callback=status_callback,
                 )
                 if cross_exam:
@@ -214,13 +226,12 @@ class DebateManager:
             )
 
             yield {"type": "metadata", "message": "[Etap 8b] Pojednanie debaty: synteza zgodności i sprzeczności między ekspertami..."}
-            debate_protocol = await self.orchestrator._reconcile_expert_debate(
-                client,
-                primary_model,
-                analysis_1,
-                analysis_2,
-                analysis_3,
-                query_for_retrieval[:2000],
+            debate_protocol = await reconcile_expert_debate(
+                model_id=primary_model,
+                analysis_1=analysis_1,
+                analysis_2=analysis_2,
+                analysis_3=analysis_3,
+                user_query=query_for_retrieval[:2000],
                 conversation_snippet=zanonimizowana_historia,
                 status_callback=status_callback,
             )
@@ -234,7 +245,7 @@ class DebateManager:
                 )
             if debate_protocol:
                 researcher_responses += (
-                    f"--- PROTOKÓŁ POJEDNANIA DEBATY (dla sędziego) ---\n{debate_protocol}\n\n"
+                    f"--- PROTOKÓŁ POJEDNANIA DEBATY (dla Głównego Adwokata) ---\n{debate_protocol}\n\n"
                 )
             researcher_responses += (
                 f"--- 1. STANOWISKO DOKTRYNALNE ---\nEkspert: {analysis_1.get('model', analysis_1.get('used_model', analysis_1.get('model_id', 'Brak')))}\n{analysis_1.get('response', 'Brak odpowiedzi')}\n\n"

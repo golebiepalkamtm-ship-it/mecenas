@@ -63,3 +63,26 @@ def upsert_case_memory_supabase(
     except Exception as e:
         logger.warning("[case_memory] upsert: %s", e)
     return False
+
+async def search_similar_cases(query_embedding: list[float], limit: int = 3) -> list[Dict[str, Any]]:
+    """Wyszukuje podobne sprawy historyczne przy użyciu Supabase pgvector (funkcja RPC)."""
+    if not SUPABASE_URL:
+        return []
+    headers = _supabase_auth_headers()
+    if not headers:
+        return []
+    
+    url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/match_case_memory"
+    payload = {
+        "query_embedding": query_embedding,
+        "match_threshold": 0.5,
+        "match_count": limit
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(url, json=payload, headers=headers)
+        if res.status_code == 200:
+            return res.json()
+    except Exception as e:
+        logger.warning("[case_memory] search_similar_cases error: %s", e)
+    return []

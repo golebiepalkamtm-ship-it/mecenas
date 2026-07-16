@@ -364,7 +364,7 @@ def infer_procedural_stage(text: str) -> str:
 
 def build_procedural_brief(text: str) -> Dict[str, Any]:
     """
-    Jednolity opis stanu sprawy dla sędziego i alertów — żeby nie było sprzeczności.
+    Jednolity opis stanu sprawy dla adwokata i alertów — żeby nie było sprzeczności.
     """
     deliveries = extract_delivery_dates(text)
     filings = extract_filings(text)

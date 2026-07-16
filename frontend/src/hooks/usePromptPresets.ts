@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { API_BASE } from '../config';
+import { usePromptSettingsState } from './chatSettingsSelectors';
+import { apiGetJson } from '../services/apiClient';
 import { useChatSettingsStore } from '../store/useChatSettingsStore';
 import { filterFavoritesForAdminPool } from '../utils/modelSelection';
 import { readEnabledModels } from './useConfig';
@@ -20,7 +21,7 @@ function resolvePresetId(activeId: string): PromptPresetId {
   return activeId === 'prosecution' ? 'prosecution' : 'defense';
 }
 
-function needsPromptCatalogBootstrap(store: ReturnType<typeof useChatSettingsStore.getState>): boolean {
+function needsPromptCatalogBootstrap(): boolean {
   // Tymczasowo zawsze zwracamy true, aby po odświeżeniu strony UI zaciągnęło zaktualizowane pliki .txt z backendu
   return true;
 }
@@ -29,7 +30,7 @@ export function usePromptPresets() {
   const [presets, setPresets] = useState<PromptPresetsMap | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const applyPromptPreset = useChatSettingsStore((s) => s.applyPromptPreset);
+  const { applyPromptPreset } = usePromptSettingsState();
 
   const applyPresetBundle = useCallback(
     (
@@ -58,20 +59,20 @@ export function usePromptPresets() {
         readEnabledModels(),
       );
 
-      const nextActive: string[] = [];
-      const nextExpertMap: Record<string, string> = {};
-      defaultRoles.forEach((roleId, idx) => {
-        const modelId = pool[idx];
-        if (modelId) {
-          nextActive.push(modelId);
+      const modelsToAssign =
+        store.activeModels.length > 0 ? store.activeModels : pool.slice(0, defaultRoles.length);
+      const nextExpertMap: Record<string, string> = { ...store.expertRoleByModel };
+      modelsToAssign.forEach((modelId, idx) => {
+        const roleId = defaultRoles[idx % defaultRoles.length];
+        if (roleId) {
           nextExpertMap[modelId] = roleId;
         }
       });
 
-      if (nextActive.length > 0) {
+      if (modelsToAssign.length > 0) {
         useChatSettingsStore.setState({
-          activeModels: nextActive,
-          selectedExperts: nextActive,
+          activeModels: modelsToAssign,
+          selectedExperts: modelsToAssign,
           expertRoleByModel: nextExpertMap,
         });
       }
@@ -83,13 +84,11 @@ export function usePromptPresets() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/prompts/presets`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as PromptPresetsMap;
+      const data = await apiGetJson<PromptPresetsMap>('/prompts/presets');
       setPresets(data);
 
       const store = useChatSettingsStore.getState();
-      if (needsPromptCatalogBootstrap(store)) {
+      if (needsPromptCatalogBootstrap()) {
         const presetId = resolvePresetId(store.activePromptPresetId);
         const bundle = data[presetId];
         if (bundle?.unitSystemRoles && Object.keys(bundle.unitSystemRoles).length > 0) {
@@ -121,6 +120,8 @@ export function usePromptPresets() {
         return;
       }
       applyPresetBundle(id, bundle, { mode: extra?.mode, assignModels: true });
+      // Automatyczne dopasowanie zadania AI po zastosowaniu presetu, aby nie było nadpisywane przez "general"
+      useChatSettingsStore.setState({ currentTask: id === 'defense' ? 'criminal_defense' : 'charge_building' });
     },
     [presets, applyPromptPreset, applyPresetBundle],
   );

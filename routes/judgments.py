@@ -294,8 +294,19 @@ async def search_judgments(request: JudgmentSearchRequest) -> dict[str, Any]:
     try:
         original_query = request.query.strip()
         search_query = original_query
+        case_number_filter = request.caseNumber
+        use_ai_for_this = request.use_ai
 
-        if request.use_ai and len(original_query) > 10:
+        # Detect sygnatura akt in the query to bypass AI optimization and use it as a filter
+        sygnatura_match = re.search(r"((?:[IVXLCDM]+\s+)?[a-zA-ZąćęłńóśźżĄĆĘŁŃÓŚŹŻ]+\s+\d+/\d+)", original_query)
+        if sygnatura_match:
+            extracted_sygn = sygnatura_match.group(1)
+            use_ai_for_this = False
+            search_query = extracted_sygn
+            if not case_number_filter:
+                case_number_filter = extracted_sygn
+
+        if use_ai_for_this and len(original_query) > 10:
             print(f"   [AI SEARCH] Optymalizacja zapytania: '{original_query[:50]}...'")
             _, saos_ai_query, _ = await _extract_search_plans(original_query)
             if saos_ai_query and saos_ai_query.strip():
@@ -312,7 +323,7 @@ async def search_judgments(request: JudgmentSearchRequest) -> dict[str, Any]:
             "referenced_regulation": request.referencedRegulation,
             "law_journal_entry_code": request.lawJournalEntryCode,
             "judge_name": request.judgeName,
-            "case_number": request.caseNumber,
+            "case_number": case_number_filter,
             "court_type": request.courtType,
             "cc_court_id": request.ccCourtId,
             "cc_court_code": request.ccCourtCode,

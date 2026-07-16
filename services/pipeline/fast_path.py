@@ -35,6 +35,21 @@ def is_traffic_stop_topic(query: str) -> bool:
     return _TRAFFIC_STOP_TOPIC.search(q) is not None
 
 
+def is_legal_micro_query(query: str) -> bool:
+    """
+    Krótkie zapytania prawne (np. „Art 5", „sygn. I C 1/24") — nie traktuj jako small-talk.
+    Negative lookahead dla legacy intent classifier i routerów zero-cost.
+    """
+    q = (query or "").strip()
+    if not q or len(q) > 48:
+        return False
+    if _ART_REF.search(q) or _CODE_REF.search(q) or _CASE_MARKERS.search(q):
+        return True
+    if re.search(r"(?i)\b(?:sygn|wyrok|postanowien|k\.?\s*[ckp]\.?|kpa|kpk|kpc|kk)\b", q):
+        return True
+    return False
+
+
 def is_fast_statutory_query(
     query: str,
     *,
@@ -50,6 +65,9 @@ def is_fast_statutory_query(
     q = (query or "").strip()
     if not q or len(q) > max_query_chars:
         return False
+
+    if is_legal_micro_query(q):
+        return True
 
     doc = (document_text or "").strip()
     if len(doc) > max_doc_chars:

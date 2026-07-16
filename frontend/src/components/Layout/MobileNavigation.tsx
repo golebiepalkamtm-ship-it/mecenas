@@ -42,16 +42,16 @@ export function MobileNavigation({
     initial: { opacity: 0 },
     animate: {
       opacity: 1,
-      transition: { staggerChildren: 0.035, delayChildren: 0.05 },
+      transition: { staggerChildren: 0.045, delayChildren: 0.1 },
     },
     exit: { opacity: 0, transition: { staggerChildren: 0.02, staggerDirection: -1 } },
-  };
+  } as const;
 
   const itemVariants = {
-    initial: { opacity: 0, y: 8, scale: 0.98 },
-    animate: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as any } },
-    exit: { opacity: 0, y: 6, scale: 0.98, transition: { duration: 0.18 } },
-  };
+    initial: { opacity: 0, y: 12, filter: "blur(2px)", scale: 0.97 },
+    animate: { opacity: 1, y: 0, filter: "blur(0px)", scale: 1, transition: { type: "spring", stiffness: 200, damping: 20 } },
+    exit: { opacity: 0, y: 8, filter: "blur(2px)", scale: 0.97, transition: { duration: 0.2 } },
+  } as const;
 
   const handleLogout = async () => {
     if (onLogout) {
@@ -133,12 +133,17 @@ export function MobileNavigation({
           </motion.button>
         </div>
 
-        <div
+        <motion.div
+          key={activeTab}
+          initial={{ scaleX: 0.6, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: 0.85 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           aria-hidden="true"
-          className="absolute inset-x-3 bottom-2 h-px opacity-80"
+          className="absolute inset-x-3 bottom-2 h-px origin-left"
           style={{
             background:
-              "linear-gradient(90deg, rgba(var(--topbar-accent-rgb),0.60) 0%, rgba(255,255,255,0.18) 42%, rgba(255,255,255,0.0) 100%)",
+              "linear-gradient(90deg, rgba(var(--topbar-accent-rgb),0.80) 0%, rgba(255,255,255,0.25) 42%, rgba(255,255,255,0.0) 100%)",
+            boxShadow: "0 0 8px rgba(var(--topbar-accent-rgb), 0.4)",
           }}
         />
       </header>
@@ -161,7 +166,7 @@ export function MobileNavigation({
               initial={{ x: "-110%", opacity: 0.95 }}
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: "-110%", opacity: 0.98 }}
-              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+              transition={{ type: "spring", stiffness: 220, damping: 28, mass: 0.9 }}
               className="lg:hidden fixed bottom-2 w-[min(304px,calc(100vw-1rem))] z-45 flex flex-col rounded-3xl overflow-hidden shadow-[0_40px_90px_rgba(0,0,0,0.62)] border border-[rgba(255,255,255,0.10)] lex-view-grain"
               style={{
                 top: "calc(var(--app-mobile-header-offset) + var(--safe-top))",

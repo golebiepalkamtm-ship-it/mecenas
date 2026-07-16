@@ -137,7 +137,7 @@ export const Navbar = ({ onLoginOpen, onPortalClick }: { onLoginOpen: () => void
 
   const handleNavClick = (event: MouseEvent<HTMLAnchorElement>, hash: string) => {
     event.preventDefault();
-    const target = document.querySelector(hash);
+    const target = document.querySelector<HTMLElement>(hash);
     if (target) {
       scrollToLandingTarget(target, -80);
     }

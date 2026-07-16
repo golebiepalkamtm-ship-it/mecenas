@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Save, Edit3, Check, Info, Plus, Trash2 } from "lucide-react";
-import { useChatSettingsStore } from "../../store/useChatSettingsStore";
+import { usePromptSettingsState } from "../../hooks/chatSettingsSelectors";
 import { cn } from "../../utils/cn";
 import {
   PROMPTS_SHELL,
@@ -17,21 +17,23 @@ import { translatePromptKey } from "../../utils/promptLabels";
 type PromptCategory = "roles" | "tasks" | "architect";
 
 export function PromptsView() {
-  const unitSystemRoles = useChatSettingsStore((s) => s.unitSystemRoles);
-  const addSystemRolePrompt = useChatSettingsStore((s) => s.addSystemRolePrompt);
-  const updateSystemRolePrompt = useChatSettingsStore((s) => s.updateSystemRolePrompt);
-  const removeSystemRolePrompt = useChatSettingsStore((s) => s.removeSystemRolePrompt);
-  const currentSystemRoleId = useChatSettingsStore((s) => s.currentSystemRoleId);
-  const setCurrentSystemRoleId = useChatSettingsStore((s) => s.setCurrentSystemRoleId);
-  const taskPrompts = useChatSettingsStore((s) => s.taskPrompts);
-  const addTaskPrompt = useChatSettingsStore((s) => s.addTaskPrompt);
-  const updateTaskPrompt = useChatSettingsStore((s) => s.updateTaskPrompt);
-  const removeTaskPrompt = useChatSettingsStore((s) => s.removeTaskPrompt);
-  const currentTask = useChatSettingsStore((s) => s.currentTask);
-  const setCurrentTask = useChatSettingsStore((s) => s.setCurrentTask);
-  const architectPrompt = useChatSettingsStore((s) => s.architectPrompt);
-  const setArchitectPrompt = useChatSettingsStore((s) => s.setArchitectPrompt);
-  const resetToDefaults = useChatSettingsStore((s) => s.resetToDefaults);
+  const {
+    unitSystemRoles,
+    addSystemRolePrompt,
+    updateSystemRolePrompt,
+    removeSystemRolePrompt,
+    currentSystemRoleId,
+    setCurrentSystemRoleId,
+    taskPrompts,
+    addTaskPrompt,
+    updateTaskPrompt,
+    removeTaskPrompt,
+    currentTask,
+    setCurrentTask,
+    architectPrompt,
+    setArchitectPrompt,
+    resetToDefaults,
+  } = usePromptSettingsState();
 
   const [activeCategory, setActiveCategory] = useState<PromptCategory>("architect");
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -41,6 +43,8 @@ export function PromptsView() {
   const [newPromptContent, setNewPromptContent] = useState("");
   const [newPromptError, setNewPromptError] = useState<string | null>(null);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
+
+  const [originalContent, setOriginalContent] = useState<string | null>(null);
 
   const roleCount = Object.keys(unitSystemRoles).length;
   const taskCount = Object.keys(taskPrompts).length;
@@ -79,15 +83,32 @@ export function PromptsView() {
     setNewPromptError(null);
   };
 
+  const checkUnsavedChanges = (): boolean => {
+    if (editingKey && localContent !== originalContent) {
+      return !window.confirm("Masz niezapisane zmiany. Czy na pewno chcesz odrzucić edycję?");
+    }
+    return false;
+  };
+
   const handleCategoryChange = (id: string) => {
+    if (checkUnsavedChanges()) return;
     setActiveCategory(id as PromptCategory);
     setEditingKey(null);
+    setOriginalContent(null);
     resetAddPromptForm();
   };
 
   const handleEdit = (key: string, content: string) => {
+    if (checkUnsavedChanges()) return;
     setEditingKey(key);
     setLocalContent(content);
+    setOriginalContent(content);
+  };
+
+  const handleCancelEdit = () => {
+    if (checkUnsavedChanges()) return;
+    setEditingKey(null);
+    setOriginalContent(null);
   };
 
   const handleSave = () => {
@@ -100,6 +121,7 @@ export function PromptsView() {
       setArchitectPrompt(localContent);
     }
     setEditingKey(null);
+    setOriginalContent(null);
   };
 
   const handleSelectActive = (key: string) => {
@@ -301,6 +323,7 @@ export function PromptsView() {
               Object.entries(unitSystemRoles).map(([key, prompt], idx) => (
                 <PromptCard
                   key={key}
+                  promptKey={key}
                   index={idx}
                   title={translatePromptKey(key)}
                   content={prompt}
@@ -313,7 +336,7 @@ export function PromptsView() {
                   setLocalContent={setLocalContent}
                   onEdit={() => handleEdit(key, prompt)}
                   onSave={handleSave}
-                  onCancel={() => setEditingKey(null)}
+                  onCancel={handleCancelEdit}
                 />
               ))}
 
@@ -321,6 +344,7 @@ export function PromptsView() {
               Object.entries(taskPrompts).map(([key, prompt], idx) => (
                 <PromptCard
                   key={key}
+                  promptKey={key}
                   index={idx}
                   title={translatePromptKey(key)}
                   content={prompt}
@@ -333,13 +357,14 @@ export function PromptsView() {
                   setLocalContent={setLocalContent}
                   onEdit={() => handleEdit(key, prompt)}
                   onSave={handleSave}
-                  onCancel={() => setEditingKey(null)}
+                  onCancel={handleCancelEdit}
                 />
               ))}
 
             {activeCategory === "architect" && (
               <PromptCard
                 index={0}
+                promptKey="architect"
                 title="GŁÓWNY ARCHITEKT"
                 content={architectPrompt}
                 isActive
@@ -350,7 +375,7 @@ export function PromptsView() {
                 setLocalContent={setLocalContent}
                 onEdit={() => handleEdit("architect", architectPrompt)}
                 onSave={handleSave}
-                onCancel={() => setEditingKey(null)}
+                onCancel={handleCancelEdit}
               />
             )}
           </LibraryListBody>
@@ -362,6 +387,7 @@ export function PromptsView() {
 
 interface PromptCardProps {
   index: number;
+  promptKey: string;
   title: string;
   content: string;
   isActive: boolean;
@@ -378,6 +404,7 @@ interface PromptCardProps {
 
 function PromptCard({
   index,
+  promptKey,
   title,
   content,
   isActive,
@@ -392,6 +419,28 @@ function PromptCard({
   onCancel,
 }: PromptCardProps) {
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertSnippet = (tag: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const newValue = localContent.substring(0, start) + tag + localContent.substring(end);
+    setLocalContent(newValue);
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + tag.length, start + tag.length);
+    }, 0);
+  };
+
+  const SNIPPETS = [
+    { label: "Dokument", tag: "{{DOCUMENT_TEXT}}" },
+    { label: "Historia Czatu", tag: "{{HISTORY}}" },
+    { label: "Przepisy", tag: "{{ACT_TERMS}}" },
+  ];
 
   return (
     <motion.div
@@ -436,14 +485,21 @@ function PromptCard({
               )}
             </AnimatePresence>
           </div>
-          <h3
-            className={cn(
-              "font-black tracking-wide text-sm uppercase font-outfit truncate",
-              isActive ? "text-black" : "text-black/70",
+          <div className="flex items-center gap-2">
+            <h3
+              className={cn(
+                "font-black tracking-wide text-sm uppercase font-outfit truncate",
+                isActive ? "text-black" : "text-black/70",
+              )}
+            >
+              {title}
+            </h3>
+            {title.toLowerCase() !== promptKey.toLowerCase() && (
+              <span className="px-1.5 py-0.5 rounded-md bg-black/5 text-[9px] font-mono text-black/40 border border-black/5">
+                {promptKey}
+              </span>
             )}
-          >
-            {title}
-          </h3>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isEditing ? (
@@ -525,11 +581,27 @@ function PromptCard({
       </div>
       <div className="p-4">
         {isEditing ? (
-          <textarea
-            value={localContent}
-            onChange={(e) => setLocalContent(e.target.value)}
-            className="w-full h-48 library-view-cell p-4 text-xs font-mono text-black outline-none focus:border-library-accent/45 resize-none custom-scrollbar leading-relaxed"
-          />
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[9px] font-black uppercase tracking-widest text-black/40 mr-1">Zmienne:</span>
+              {SNIPPETS.map((s) => (
+                <button
+                  key={s.tag}
+                  type="button"
+                  onClick={() => insertSnippet(s.tag)}
+                  className="px-2.5 py-1 rounded-md library-view-cell text-[10px] font-bold text-black/70 hover:text-black hover:border-gold-primary/40 transition-all border border-black/5 bg-white shadow-sm"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={localContent}
+              onChange={(e) => setLocalContent(e.target.value)}
+              className="w-full h-40 library-view-cell p-4 text-xs font-mono text-black outline-none focus:border-library-accent/45 resize-none custom-scrollbar leading-relaxed"
+            />
+          </div>
         ) : (
           <div className="text-xs font-mono text-black/75 leading-relaxed max-h-32 overflow-hidden relative">
             <div className="absolute bottom-0 left-0 right-0 h-12 bg-linear-to-t from-white/70 to-transparent pointer-events-none" />

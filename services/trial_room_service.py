@@ -6,7 +6,8 @@ import logging
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from moa.prompt_builder import DEFENSE_UNIVERSE, PROSECUTION_UNIVERSE
-from services.orchestrator import orchestrator
+from services.llm_gateway import call_with_fallback, call_with_fallback_stream
+from services.model_resolution import resolve_model_id
 from services.trial_position_pipeline import stream_trial_position
 from services.trial_context import chat_context_block, scaled_tokens
 
@@ -160,9 +161,8 @@ class TrialRoomService:
                 "trial_side": side,
             }
 
-            text, used = await orchestrator._call_with_fallback(
-                None,
-                orchestrator._resolve_model_id(model),
+            text, used = await call_with_fallback(
+                resolve_model_id(model),
                 [
                     {"role": "system", "content": _universe_for_side(side)["identity"]},
                     {"role": "user", "content": user_content},
@@ -209,10 +209,9 @@ class TrialRoomService:
         yield {"type": "metadata", "message": "[Sala] Werdykt sędziego…"}
 
         stream = None
-        used_model = orchestrator._resolve_model_id(judge_model)
+        used_model = resolve_model_id(judge_model)
         try:
-            stream, used_model = await orchestrator._call_with_fallback_stream(
-                None,
+            stream, used_model = await call_with_fallback_stream(
                 used_model,
                 [
                     {"role": "system", "content": TRIAL_VERDICT_SYSTEM},
@@ -230,8 +229,7 @@ class TrialRoomService:
             stream = None
 
         if stream is None:
-            text, used_model = await orchestrator._call_with_fallback(
-                None,
+            text, used_model = await call_with_fallback(
                 used_model,
                 [
                     {"role": "system", "content": TRIAL_VERDICT_SYSTEM},

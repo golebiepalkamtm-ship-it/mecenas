@@ -36,20 +36,40 @@ export function Sidebar({
 }: SidebarProps) {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
   return (
-    <nav className="app-nav-sidebar hidden lg:flex lg:col-start-1 lg:row-start-1 lg:row-span-2 flex-col mercury-sidebar-shimmer lex-view-grain h-full min-h-0 2xl:w-32 shrink-0 relative z-30 pointer-events-auto overflow-hidden rounded-l-3xl">
-      <div className="flex flex-col items-center justify-center shrink-0 relative z-20 px-1 h-16 2xl:h-32">
-        <div className="mt-1 2xl:mt-4 w-11 h-11 2xl:w-17 2xl:h-17 rounded-2xl 2xl:rounded-3xl glass-liquid-convex flex items-center justify-center cursor-pointer relative group/logo border border-gold-primary/30 shadow-[0_0_25px_rgba(212,175,55,0.22)] hover:shadow-[0_0_44px_rgba(212,175,55,0.45)] transition-all duration-700">
-          <div className="absolute inset-0 rounded-inherit bg-gold-primary/5 animate-pulse" />
-          <TrialRoomIcon className="w-7 h-7 2xl:w-11 2xl:h-11 relative z-10 filter drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]" />
-        </div>
+    <nav className="app-nav-sidebar hidden lg:flex lg:col-start-1 lg:row-start-1 lg:row-span-2 flex-col mercury-sidebar-shimmer lex-view-grain h-full min-h-0 2xl:w-32 shrink-0 relative z-30 pointer-events-auto overflow-hidden rounded-l-[var(--app-nav-chrome-r-side)]">
+      <div className="sidebar-logo-lead shrink-0 relative z-20 w-full px-2 pt-2 2xl:pt-3 pb-1 flex flex-col items-center justify-center min-h-[var(--app-nav-header-h)]">
+        <motion.div
+          animate={{
+            y: [0, -3, 0],
+          }}
+          transition={{
+            duration: 8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="w-14 h-14 2xl:w-16 2xl:h-16 rounded-2xl 2xl:rounded-[1.35rem] glass-liquid-convex flex items-center justify-center cursor-pointer relative group/logo border border-gold-primary/35 shadow-[0_0_30px_rgba(212,175,55,0.28)] hover:shadow-[0_0_48px_rgba(212,175,55,0.5)] transition-all duration-700"
+        >
+          <motion.div
+            animate={{
+              opacity: [0.05, 0.22, 0.05],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute inset-0 rounded-inherit bg-gold-primary/5"
+          />
+          <TrialRoomIcon className="w-9 h-9 2xl:w-11 2xl:h-11 relative z-10 filter drop-shadow-[0_0_10px_rgba(212,175,55,0.45)]" />
+        </motion.div>
 
-        <span className="text-[8px] 2xl:text-[10px] font-black uppercase tracking-[0.35em] 2xl:tracking-[0.5em] font-outfit mt-1 2xl:mt-3 text-[#6b5420]">
+        <span className="text-[9px] 2xl:text-[11px] font-black uppercase tracking-[0.32em] 2xl:tracking-[0.42em] font-outfit mt-1.5 2xl:mt-2 text-white/70">
           LexMind
         </span>
       </div>
 
       <LayoutGroup id="sidebar-nav">
-        <div className="flex-1 w-full flex flex-col items-center gap-1.5 2xl:gap-2 py-2">
+        <div className="sidebar-nav-stack flex-1 w-full min-h-0 flex flex-col items-stretch px-1.5 2xl:px-2 gap-0.5 2xl:gap-1 py-1 pb-1 [perspective:800px]">
           {navItems.map((item) => (
             <NavItem
               key={item.id}
@@ -61,48 +81,64 @@ export function Sidebar({
         </div>
       </LayoutGroup>
 
-      <div className="p-1.5 pb-2 xl:pb-4 shrink-0 flex flex-col justify-center gap-1 relative">
+      <div className="shrink-0 w-full px-1.5 2xl:px-2 pb-2 xl:pb-4 flex flex-col justify-center gap-1 relative">
         <button
           onClick={onLogout}
           onMouseEnter={() => setHoveredAction('logout')}
           onMouseLeave={() => setHoveredAction(null)}
-          className="w-18 2xl:w-20 h-9 2xl:h-12 flex flex-col items-center justify-center gap-0.5 rounded-lg transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-[rgba(var(--gold-rgb),0.55)] focus-visible:ring-offset-2 focus-visible:ring-offset-black/30"
+          className="w-full h-9 2xl:h-11 flex flex-col items-center justify-center gap-0.5 rounded-lg 2xl:rounded-xl transition-all duration-500 relative group/nav outline-none glass-liquid-convex opacity-80 hover:opacity-100 focus-visible:ring-2 focus-visible:ring-[rgba(var(--gold-rgb),0.55)] focus-visible:ring-offset-2 focus-visible:ring-offset-black/30"
           aria-label="Wyloguj się"
         >
           <LogOut
             size={18}
             strokeWidth={1.5}
-            className="relative z-10 text-[#8a7a50] group-hover:text-red-600 transition-colors duration-500"
+            className="relative z-10 text-white/70 group-hover/nav:text-red-400 transition-colors duration-500"
           />
-          <span className="text-[8px] font-black uppercase tracking-[0.15em] font-outfit relative z-10 text-[#6b6350] transition-all duration-500 whitespace-nowrap">
+          <span className="text-[8px] font-black uppercase tracking-[0.15em] font-outfit relative z-10 text-white/75 transition-all duration-500 whitespace-nowrap group-hover/nav:text-white">
             Wyloguj
           </span>
         </button>
         <AnimatePresence>
           {hoveredAction === 'logout' && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, x: -10 }}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.95, x: -10 }}
+              initial={{ opacity: 0, scale: 0.9, x: -15, filter: "blur(4px)" }}
+              animate={{ opacity: 1, scale: 1, x: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.9, x: -15, filter: "blur(4px)" }}
+              transition={{
+                type: "spring",
+                stiffness: 280,
+                damping: 24,
+                delay: 0.15,
+              }}
               className="absolute left-full bottom-2 ml-3 w-52 p-3 rounded-2xl shadow-[0_28px_60px_rgba(0,0,0,0.55)] text-left z-9999 pointer-events-none"
               style={{
-                background: "rgba(8,8,10,0.78)",
-                border: "1px solid rgba(212,175,55,0.25)",
-                backdropFilter: "blur(14px)",
+                background: "rgba(8,8,10,0.82)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                backdropFilter: "blur(20px)",
               }}
             >
-              <p className="text-[9px] font-black uppercase tracking-widest text-white mb-1">
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.25 }}
+                className="text-[9px] font-black uppercase tracking-widest text-white mb-1"
+              >
                 Wyloguj Się
-              </p>
-              <p className="text-[8px] leading-relaxed text-white/65 font-bold uppercase tracking-wider">
+              </motion.p>
+              <motion.p
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.32 }}
+                className="text-[8px] leading-relaxed text-white/65 font-bold uppercase tracking-wider"
+              >
                 Zakończ sesję i wróć do ekranu logowania.
-              </p>
+              </motion.p>
               <div
                 className="absolute top-1/2 -translate-y-1/2 right-full -mr-px w-2 h-2 rotate-45"
                 style={{
-                  background: "rgba(8,8,10,0.78)",
-                  borderLeft: "1px solid rgba(212,175,55,0.25)",
-                  borderBottom: "1px solid rgba(212,175,55,0.25)",
+                  background: "rgba(8,8,10,0.82)",
+                  borderLeft: "1px solid rgba(255,255,255,0.15)",
+                  borderBottom: "1px solid rgba(255,255,255,0.15)",
                 }}
               />
             </motion.div>
@@ -116,23 +152,58 @@ export function Sidebar({
 const NavItem = React.memo(({ item, active, onClick }: NavItemProps) => {
   const Icon = realisticIconMap[item.id] || item.icon;
   const [isHovered, setIsHovered] = useState(false);
+  const ref = React.useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState({ x: 0, y: 0, rX: 0, rY: 0 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = e.clientX - rect.left - width / 2;
+    const mouseY = e.clientY - rect.top - height / 2;
+    
+    // Magnetic pull: max 3px offset
+    const pullX = (mouseX / (width / 2)) * 3;
+    const pullY = (mouseY / (height / 2)) * 3;
+    
+    // Tilt rotate: max 8 degrees
+    const tiltX = -(mouseY / (height / 2)) * 8;
+    const tiltY = (mouseX / (width / 2)) * 8;
+
+    setCoords({ x: pullX, y: pullY, rX: tiltX, rY: tiltY });
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovered(false);
+    setCoords({ x: 0, y: 0, rX: 0, rY: 0 });
+  };
 
   return (
-    <div className="relative">
-      <button
+    <div className="relative w-full flex-1 min-h-0">
+      <motion.button
+        ref={ref}
         onClick={onClick}
+        onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
+        onMouseLeave={handleMouseLeave}
+        animate={{
+          x: coords.x,
+          y: coords.y,
+          rotateX: coords.rX,
+          rotateY: coords.rY,
+        }}
+        transition={{ type: "spring", stiffness: 250, damping: 25, mass: 0.8 }}
         style={{ "--item-rgb": item.colorRgb } as React.CSSProperties}
         className={cn(
-          "w-18 2xl:w-28 h-11 2xl:h-18 flex flex-col items-center justify-center gap-0 rounded-xl 2xl:rounded-[1.25rem] relative group/nav outline-none glass-liquid-convex border border-transparent shrink-0 transition-[transform,filter,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:ring-2 focus-visible:ring-[rgba(var(--item-rgb),0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
-          active ? "scale-[1.03] 2xl:scale-[1.07] z-10 opacity-100" : "opacity-80 hover:opacity-100 hover:scale-[1.02]",
+          "w-full h-full min-h-0 flex flex-col items-center justify-between py-1 2xl:py-1.5 rounded-xl 2xl:rounded-[1.15rem] relative group/nav outline-none glass-liquid-convex border border-transparent transition-[transform,filter,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:ring-2 focus-visible:ring-[rgba(var(--item-rgb),0.45)] focus-visible:ring-offset-2 focus-visible:ring-offset-black/30",
+          active ? "scale-[1.02] 2xl:scale-[1.03] z-10 opacity-100" : "opacity-80 hover:opacity-100 hover:scale-[1.01]",
         )}
       >
         {active && (
           <motion.div
             layoutId="sidebar-active-surface"
-            transition={{ type: "spring", stiffness: 420, damping: 36 }}
+            transition={{ type: "spring", stiffness: 350, damping: 30 }}
             className="absolute inset-[3px] rounded-[inherit] z-0"
             style={{
               background:
@@ -160,13 +231,13 @@ const NavItem = React.memo(({ item, active, onClick }: NavItemProps) => {
 
         <div
           className={cn(
-            "w-8 h-7 2xl:w-12 2xl:h-11 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] relative z-10",
-            active ? "scale-110" : "group-hover/nav:scale-[1.07]",
+            "flex-1 min-h-0 w-full flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] relative z-10",
+            active ? "scale-105" : "group-hover/nav:scale-[1.04]",
           )}
         >
           <Icon
             className={cn(
-              "w-5 h-5 2xl:w-7 2xl:h-7 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+              "sidebar-nav-icon h-[clamp(1.2rem,72%,2.5rem)] w-[clamp(1.2rem,72%,2.5rem)] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
               active
                 ? "opacity-100"
                 : "opacity-60 grayscale-[12%] group-hover/nav:opacity-100"
@@ -177,8 +248,8 @@ const NavItem = React.memo(({ item, active, onClick }: NavItemProps) => {
 
         <span
           className={cn(
-            "text-[7px] 2xl:text-[9px] font-black uppercase tracking-[0.12em] 2xl:tracking-[0.2em] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] font-outfit relative z-10 text-center px-0.5 leading-tight truncate max-w-full mt-0.5",
-            active ? "opacity-100" : "text-[#6b6350] opacity-75 group-hover/nav:opacity-100"
+            "sidebar-nav-label shrink-0 text-[clamp(6.5px,1.05vh,9px)] font-black uppercase tracking-[0.05em] 2xl:tracking-[0.08em] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] font-outfit relative z-10 text-center px-1 leading-[1.05] truncate w-full pb-0.5",
+            active ? "opacity-100" : "text-white/80 opacity-90 group-hover/nav:opacity-100 group-hover/nav:text-white"
           )}
           style={active ? { color: item.color } : undefined}
         >
@@ -186,36 +257,66 @@ const NavItem = React.memo(({ item, active, onClick }: NavItemProps) => {
         </span>
 
         {active && (
-          <div
-            className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 h-6 rounded-r-full shadow-lg z-20"
-            style={{ backgroundColor: item.color, boxShadow: `0 0 10px ${item.color}` }}
+          <motion.div
+            className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 h-[42%] min-h-[1.25rem] max-h-[2rem] rounded-r-full shadow-lg z-20"
+            style={{ backgroundColor: item.color }}
+            animate={{
+              boxShadow: [
+                `0 0 10px ${item.color}`,
+                `0 0 20px ${item.color}`,
+                `0 0 10px ${item.color}`,
+              ],
+              scaleY: [1, 1.15, 1],
+            }}
+            transition={{
+              duration: 3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
           />
         )}
-      </button>
+      </motion.button>
 
       <AnimatePresence>
         {isHovered && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, x: -10 }}
-            animate={{ opacity: 1, scale: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.95, x: -10 }}
+            initial={{ opacity: 0, scale: 0.9, x: -15, filter: "blur(4px)" }}
+            animate={{ opacity: 1, scale: 1, x: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, scale: 0.9, x: -15, filter: "blur(4px)" }}
+            transition={{
+              type: "spring",
+              stiffness: 280,
+              damping: 24,
+              delay: 0.15,
+            }}
             className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-56 p-3 rounded-2xl shadow-[0_28px_60px_rgba(0,0,0,0.55)] text-left z-9999 pointer-events-none"
             style={{
-              background: "rgba(8,8,10,0.78)",
-              border: `1px solid rgba(${item.colorRgb},0.30)`,
-              backdropFilter: "blur(14px)",
+              background: "rgba(8,8,10,0.82)",
+              border: `1px solid rgba(${item.colorRgb},0.35)`,
+              backdropFilter: "blur(20px)",
             }}
           >
-            <p className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: item.color }}>
+            <motion.p
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="text-[9px] font-black uppercase tracking-widest mb-1"
+              style={{ color: item.color }}
+            >
               {item.label}
-            </p>
-            <p className="text-[8px] leading-relaxed text-white/65 font-bold uppercase tracking-wider">
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.32 }}
+              className="text-[8px] leading-relaxed text-white/65 font-bold uppercase tracking-wider"
+            >
               {item.sublabel}
-            </p>
+            </motion.p>
             <div
               className="absolute top-1/2 -translate-y-1/2 right-full -mr-px w-2 h-2 rotate-45"
               style={{
-                background: "rgba(8,8,10,0.78)",
+                background: "rgba(8,8,10,0.82)",
                 borderLeft: `1px solid rgba(${item.colorRgb},0.30)`,
                 borderBottom: `1px solid rgba(${item.colorRgb},0.30)`,
               }}

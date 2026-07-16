@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, BookOpen, Trash2, FileSearch } from 'lucide-react';
+import { FileText, BookOpen, Trash2, FileSearch, Maximize2 } from 'lucide-react';
 import type { KnowledgeDocument } from '../types';
 import { cn } from '../../../utils/cn';
 import { formatDocumentTitle } from '../../../utils/documentTitle';
@@ -9,10 +9,11 @@ import { libraryRowClasses } from '../../Library/shared';
 interface DocumentCardProps {
   doc: KnowledgeDocument;
   onDelete: (name: string) => void;
+  onPreview: (doc: KnowledgeDocument) => void;
   index: number;
 }
 
-export function DocumentCard({ doc, onDelete, index }: DocumentCardProps) {
+export function DocumentCard({ doc, onDelete, onPreview, index }: DocumentCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [hoveredButton, setHoveredButton] = useState<string | null>(null);
   const isCodeks = doc.name.toLowerCase().includes('kodeks');
@@ -29,7 +30,18 @@ export function DocumentCard({ doc, onDelete, index }: DocumentCardProps) {
       onMouseLeave={() => setIsHovered(false)}
       className="group relative flex w-full min-w-0"
     >
-      <div className={libraryRowClasses(isHovered)}>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onPreview(doc)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onPreview(doc);
+          }
+        }}
+        className={cn(libraryRowClasses(isHovered), 'cursor-pointer')}
+      >
         <div
           className={cn(
             'w-10 h-10 shrink-0 rounded-xl flex items-center justify-center border mr-3 transition-colors',
@@ -73,37 +85,66 @@ export function DocumentCard({ doc, onDelete, index }: DocumentCardProps) {
           </div>
         </div>
 
-        <div className="relative">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(doc.name);
-            }}
-            onMouseEnter={() => setHoveredButton('delete')}
-            onMouseLeave={() => setHoveredButton(null)}
-            className={cn(
-              'p-2 rounded-lg text-black/35 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200/60 transition-all ml-1 shrink-0',
-              isHovered ? 'opacity-100' : 'opacity-0 sm:opacity-100',
-            )}
-          >
-            <Trash2 size={16} />
-          </button>
-          <AnimatePresence>
-            {hoveredButton === 'delete' && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                className="absolute bottom-full right-0 mb-2 w-32 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
-              >
-                <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider text-center">
-                  Usuń dokument
-                </p>
-                <div className="absolute top-full right-4 -mt-px w-2 h-2 bg-white border-l border-b border-black/10 -rotate-45" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+        <div className="relative flex items-center gap-1 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => onPreview(doc)}
+              onMouseEnter={() => setHoveredButton('preview')}
+              onMouseLeave={() => setHoveredButton(null)}
+              className={cn(
+                'p-2 rounded-lg text-black/35 hover:text-gold-primary hover:bg-gold-primary/10 border border-transparent hover:border-gold-primary/20 transition-all shrink-0',
+                isHovered ? 'opacity-100' : 'opacity-0 sm:opacity-100',
+              )}
+            >
+              <Maximize2 size={16} />
+            </button>
+            <AnimatePresence>
+              {hoveredButton === 'preview' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                  className="absolute bottom-full right-0 mb-2 w-32 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
+                >
+                  <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider text-center">
+                    Otwórz podgląd
+                  </p>
+                  <div className="absolute top-full right-4 -mt-px w-2 h-2 bg-white border-l border-b border-black/10 -rotate-45" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => onDelete(doc.name)}
+              onMouseEnter={() => setHoveredButton('delete')}
+              onMouseLeave={() => setHoveredButton(null)}
+              className={cn(
+                'p-2 rounded-lg text-black/35 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200/60 transition-all shrink-0',
+                isHovered ? 'opacity-100' : 'opacity-0 sm:opacity-100',
+              )}
+            >
+              <Trash2 size={16} />
+            </button>
+            <AnimatePresence>
+              {hoveredButton === 'delete' && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                  className="absolute bottom-full right-0 mb-2 w-32 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
+                >
+                  <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider text-center">
+                    Usuń dokument
+                  </p>
+                  <div className="absolute top-full right-4 -mt-px w-2 h-2 bg-white border-l border-b border-black/10 -rotate-45" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
     </motion.div>

@@ -1,4 +1,3 @@
-import React from 'react';
 import { LIBRARY_SHELL } from '../Library/shared';
 import { TrialRoomPanel } from './TrialRoomPanel';
 

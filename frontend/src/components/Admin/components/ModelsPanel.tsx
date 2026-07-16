@@ -3,9 +3,9 @@ import { Search, Zap, Cpu, Trash2, Activity, Shield } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "../../../utils/cn";
 import { useModels, readEnabledModels, saveEnabledModels, type Model } from "../../../hooks/useConfig";
+import { useModelLatencyState } from "../../../hooks/chatSettingsSelectors";
 import { useModelHealth } from "../../../hooks/useModelHealth";
-import { useChatSettingsStore } from "../../../store/useChatSettingsStore";
-import { getAdminModelGroupName } from "../../../utils/modelSource";
+import { getAdminModelGroupName, getNormalizedProviderId } from "../../../utils/modelSource";
 import { ModelTile } from "./ModelTile";
 import { API_BASE } from "../../../config";
 
@@ -119,11 +119,12 @@ export function ModelsPanel({ embedded = false }: { embedded?: boolean }) {
     const normalizedQuery = query.trim().toLowerCase();
 
     return allModels.filter((model) => {
-      const searchable = `${model.name} ${model.id} ${model.provider}`.toLowerCase();
+      const providerString = getNormalizedProviderId(model);
+      const searchable = `${model.name} ${model.id} ${providerString}`.toLowerCase();
       if (normalizedQuery && !searchable.includes(normalizedQuery)) return false;
 
       if (selectedVendor !== 'WSZYSCY') {
-        const provider = (model.provider || '').toLowerCase();
+        const provider = getNormalizedProviderId(model).toLowerCase();
         const vendorMap: Record<string, string> = {
           'GOOGLE': 'google',
           'OPENAI': 'openai',
@@ -169,7 +170,7 @@ export function ModelsPanel({ embedded = false }: { embedded?: boolean }) {
     });
   }, [allModels, query, selectedVendor, selectedCategory, latencies]);
 
-  const modelPings = useChatSettingsStore(s => s.modelLatencies);
+  const { modelLatencies: modelPings } = useModelLatencyState();
 
   const modelsByProvider = useMemo(() => {
     const groups: Record<string, Model[]> = {};

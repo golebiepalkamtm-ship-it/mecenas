@@ -46,6 +46,7 @@ export default {
       },
       fontFamily: {
         sans: [
+          'Inter',
           '"Segoe UI Variable"',
           '"Segoe UI"',
           'system-ui',
@@ -56,12 +57,14 @@ export default {
           'sans-serif',
         ],
         inter: [
+          'Inter',
           '"Segoe UI Variable"',
           '"Segoe UI"',
           'system-ui',
           'sans-serif',
         ],
         outfit: [
+          'Outfit',
           '"Segoe UI Variable"',
           '"Segoe UI"',
           'system-ui',

@@ -17,7 +17,11 @@ SAOS_WEB_BASE = "https://www.saos.org.pl"
 DEFAULT_TIMEOUT = 45.0
 DUMP_TIMEOUT = 120.0
 
-_HEADERS = {"Accept": "application/json"}
+_HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "https://www.saos.org.pl/"
+}
 
 
 class SaosMaintenanceError(Exception):
@@ -31,7 +35,7 @@ def _is_maintenance_html(text: str) -> bool:
 
 async def _request(
     url: str,
-    params: Optional[dict[str, Any]] = None,
+    params: Optional[dict[str, Any] | list[tuple[str, Any]]] = None,
     *,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> httpx.Response:
@@ -41,7 +45,7 @@ async def _request(
 
 async def _get_json(
     url: str,
-    params: Optional[dict[str, Any]] = None,
+    params: Optional[dict[str, Any] | list[tuple[str, Any]]] = None,
     *,
     timeout: float = DEFAULT_TIMEOUT,
 ) -> Any:
@@ -253,7 +257,11 @@ async def search_saos_judgments_raw(
     _add("lawJournalEntryCode", law_journal_entry_code)
     _add("judgeName", judge_name)
     _add("caseNumber", case_number)
-    _add("courtType", court_type)
+    if court_type in {"APPEAL", "REGIONAL", "DISTRICT"}:
+        _add("ccCourtType", court_type)
+        _add("courtType", "COMMON")
+    else:
+        _add("courtType", court_type)
     _add("ccCourtId", cc_court_id)
     _add("ccCourtCode", cc_court_code)
     _add("ccCourtName", cc_court_name)
@@ -283,7 +291,7 @@ async def search_saos_judgments_raw(
 
     response = await _request(
         f"{SAOS_API_BASE}/search/judgments",
-        dict(params),
+        params,
         timeout=DEFAULT_TIMEOUT,
     )
     if _is_maintenance_html(response.text):

@@ -4,10 +4,38 @@ import logging
 import re
 from typing import AsyncGenerator, Dict, Any, List, Optional, Set
 
-from conf.config import settings
-from utils.security_guardrails import SecurityGuardrails
-from services.prompts_loader import load_prompt
-from services.citation.citation_guard import citations_to_display
+from config import settings
+from services.security_guardrails import SecurityGuardrails
+from prompts.loader import load_prompt
+from services.citation_guard import CitationGuard, citations_to_display
+from services.async_utils import run_with_status_stream
+from services.llm_client import _log_model_response
+from services.observability import log_pipeline_timing
+from services.retrieval.types import get_retrieval_source
+from services.retrieval_service import retrieval_service
+from services.llm_gateway import call_with_fallback, call_with_fallback_stream
+from services.synthesis.prompts import (
+    ADVISOR_SYNTHESIS_GUARD,
+    ANTI_PARAPHRASE_GUARD,
+    CITIZEN_ARCHITECT_PROMPT,
+    CLIENT_PLAIN_LANGUAGE_GUARD,
+    COHERENCE_SYNTHESIS_GUARD,
+    CONVERSATION_CONTINUITY_GUARD,
+    DEFAULT_ARCHITECT_PROMPT,
+    DRAFT_ARCHITECT_PROMPT,
+    DRAFT_SYNTHESIS_GUARD,
+    HUMANIZED_OUTPUT_GUARD,
+    INDIVIDUAL_CONTEXT_GUARD,
+    JUDGE_DEBATE_SYNTHESIS,
+    LITIGATION_STRATEGIC_GUARD,
+    LOW_CONFIDENCE_SYNTHESIS_EXTRA,
+    MASTER_SYSTEM_PROMPT,
+    PROCEDURE_ADAPTIVE_GUARD,
+    STRICT_NO_QUOTE_GUARD,
+    STRATEGIC_SYNTHESIS_GUARD,
+    STRATEGIST_ENGAGEMENT_GUARD,
+)
+from services.synthesis.repair import synthesis_repair_pass
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +44,8 @@ def format_citation_warning(cites: List[str]) -> str:
     return ", ".join(sorted(cites)) if cites else ""
 
 class SynthesisEngine:
-    def __init__(self, orchestrator):
-        self.orch = orchestrator  # referencja do głównego orkiestratora dla promptów
+    def __init__(self, _orchestrator_ref=None, *, citation_guard: Optional[CitationGuard] = None):
+        self._citation_guard = citation_guard or CitationGuard()
 
     async def run_synthesis_stream(
         self,
@@ -66,7 +94,7 @@ class SynthesisEngine:
         verified_count: int,
         all_cites: list,
         use_rag_user: bool,
-        claim_scores_payload: list,
+        claim_scores_payload: dict,
         pipeline_timer: Any,
         session_id: str,
         inbound_blocked: bool,
@@ -78,11 +106,11 @@ class SynthesisEngine:
         start_pipeline_time: float,
         llm_audit_fn: Any,
         _eli_lookup: Any,
-        run_with_status_stream: Any,
         status_callback: Any,
         analysis: list,
         user_res: list,
         legal_res: list,
+        urgency_alerts: list,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         
         synthesis_blocked = (
@@ -98,13 +126,13 @@ class SynthesisEngine:
         yield {"type": "metadata", "message": "[Etap 11] Synteza Kliencka: łączenie opinii końcowej..."}
 
         if resolved_response_mode == "citizen":
-            system_content = architect_prompt or self.orch.CITIZEN_ARCHITECT_PROMPT
+            system_content = architect_prompt or CITIZEN_ARCHITECT_PROMPT
         elif resolved_response_mode == "draft":
-            system_content = architect_prompt or self.orch.DRAFT_ARCHITECT_PROMPT
+            system_content = architect_prompt or DRAFT_ARCHITECT_PROMPT
         else:
-            system_content = architect_prompt or self.orch.DEFAULT_ARCHITECT_PROMPT
+            system_content = architect_prompt or DEFAULT_ARCHITECT_PROMPT
 
-        master_prompt = self.orch.MASTER_SYSTEM_PROMPT
+        master_prompt = MASTER_SYSTEM_PROMPT
         if use_fast_path:
             master_prompt = master_prompt.replace(
                 "- Zacznij od najpilniejszej czynności klienta, potem plan krok po kroku.",
@@ -140,25 +168,25 @@ class SynthesisEngine:
                     "\n\nMasz tekst aktu klienta w prompcie — nie twierdź, że go nie otrzymałeś.\n"
                 )
         if resolved_response_mode in ("citizen", "strategic"):
-            system_content += self.orch.CLIENT_PLAIN_LANGUAGE_GUARD
+            system_content += CLIENT_PLAIN_LANGUAGE_GUARD
         if resolved_response_mode != "draft":
-            system_content += self.orch.STRICT_NO_QUOTE_GUARD
-            system_content += self.orch.INDIVIDUAL_CONTEXT_GUARD
-            system_content += self.orch.STRATEGIST_ENGAGEMENT_GUARD
-            system_content += self.orch.PROCEDURE_ADAPTIVE_GUARD
-            system_content += self.orch.ANTI_PARAPHRASE_GUARD
+            system_content += STRICT_NO_QUOTE_GUARD
+            system_content += INDIVIDUAL_CONTEXT_GUARD
+            system_content += STRATEGIST_ENGAGEMENT_GUARD
+            system_content += PROCEDURE_ADAPTIVE_GUARD
+            system_content += ANTI_PARAPHRASE_GUARD
             if traffic_stop_query:
                 try:
                     system_content += "\n\n" + load_prompt("traffic_stop_guard")
                 except FileNotFoundError:
                     pass
         if resolved_response_mode == "strategic":
-            system_content += self.orch.LITIGATION_STRATEGIC_GUARD
+            system_content += LITIGATION_STRATEGIC_GUARD
         if resolved_response_mode != "draft":
-            system_content += self.orch.HUMANIZED_OUTPUT_GUARD
+            system_content += HUMANIZED_OUTPUT_GUARD
         if zanonimizowana_historia.strip():
-            system_content += f"\n\n{self.orch.CONVERSATION_CONTINUITY_GUARD}"
-        system_content += self.orch.COHERENCE_SYNTHESIS_GUARD
+            system_content += f"\n\n{CONVERSATION_CONTINUITY_GUARD}"
+        system_content += COHERENCE_SYNTHESIS_GUARD
         if settings.feature_multistage_synthesis and not use_fast_path:
             try:
                 system_content += "\n\n" + load_prompt("multi_stage_synthesis")
@@ -184,16 +212,16 @@ class SynthesisEngine:
             )
 
         synthesis_guard = (
-            self.orch.DRAFT_SYNTHESIS_GUARD
+            DRAFT_SYNTHESIS_GUARD
             if resolved_response_mode == "draft"
             else (
-                self.orch.STRATEGIC_SYNTHESIS_GUARD
+                STRATEGIC_SYNTHESIS_GUARD
                 if resolved_response_mode == "strategic"
-                else self.orch.ADVISOR_SYNTHESIS_GUARD
+                else ADVISOR_SYNTHESIS_GUARD
             )
         )
         debate_block = (
-            "" if skip_expert_debate else self.orch.JUDGE_DEBATE_SYNTHESIS
+            "" if skip_expert_debate else JUDGE_DEBATE_SYNTHESIS
         )
         _rag_legal_lim = settings.synthesis_rag_legal_chars
         _rag_ext_lim = settings.synthesis_rag_external_chars
@@ -312,7 +340,7 @@ class SynthesisEngine:
                 f"{synthesis_guard}"
             )
         if low_confidence:
-            advisor_prompt += self.orch.LOW_CONFIDENCE_SYNTHESIS_EXTRA
+            advisor_prompt += LOW_CONFIDENCE_SYNTHESIS_EXTRA
 
         final_answer = ""
         if urgency_header:
@@ -365,8 +393,7 @@ class SynthesisEngine:
                 
                 # Używamy instancji orkiestratora do wywołania _call_with_fallback_stream
                 async for event in run_with_status_stream(
-                    self.orch._call_with_fallback_stream(
-                        client,
+                    call_with_fallback_stream(
                         judge_model,
                         [
                             {"role": "system", "content": system_content},
@@ -407,7 +434,6 @@ class SynthesisEngine:
                         yield {"type": "chunk", "text": err_msg}
 
                 if final_answer.strip():
-                    from services.orchestrator import _log_model_response
                     _log_model_response(used_model, final_answer, "ETAP 11 Finalna opinia", max_preview=1200)
                 else:
                     logger.info(f"   [MODEL ETAP 11 Finalna opinia] {used_model}: (brak treści w strumieniu)")
@@ -416,8 +442,8 @@ class SynthesisEngine:
                     synth_source_corpus = (
                         f"{full_doc}\n{researcher_responses[:8000]}\n{combined_context[:4000]}"
                     )
-                    _, synth_unverified = await self.orch._citation_guard.audit(
-                        [final_answer],
+                    _, synth_unverified = await self._citation_guard.audit(
+                        texts=[final_answer],
                         document_text=synth_source_corpus,
                         combined_context=combined_context,
                         legal_results=reranked_legal or legal_res,
@@ -450,12 +476,12 @@ class SynthesisEngine:
                                 f"{full_doc}\n{rag_legal_content}\n{rag_user_content}\n"
                                 f"{researcher_responses[:6000]}"
                             )
-                            repaired = await self.orch._synthesis_repair_pass(
-                                client,
-                                judge_model,
-                                final_answer,
-                                new_in_synthesis,
-                                allowed_corpus,
+                            repaired = await synthesis_repair_pass(
+                                client=client,
+                                model_id=judge_model,
+                                final_answer=final_answer,
+                                bad_cites=set(new_in_synthesis),
+                                allowed_corpus=allowed_corpus,
                                 status_callback=status_callback,
                             )
                             if repaired != final_answer:
@@ -507,8 +533,7 @@ class SynthesisEngine:
                 )
                 eli_text = None
                 async for event in run_with_status_stream(
-                    self.orch._call_with_fallback(
-                        client,
+                    call_with_fallback(
                         primary_model,
                         [{"role": "user", "content": eli_prompt}],
                         max_tokens=300,
@@ -537,14 +562,13 @@ class SynthesisEngine:
         for r in saos_results:
             sources_list.append(f"SAOS: {r.get('source') or r.get('sygnatura', 'orzeczenie')}")
         for r in eli_results:
-            sources_list.append(f"ELI: {r.get('tytul') or r.get('title') or r.get('source', 'akt prawny')}")
+            sources_list.append(f"ELI: {get_retrieval_source(r) or 'akt prawny'}")
             
         if not sources_list:
             sources_list = ["Własna baza wiedzy LexMind"]
             
         pipeline_latency_ms = int((time.time() - start_pipeline_time) * 1000)
         if pipeline_timer:
-            from services.orchestrator import log_pipeline_timing
             log_pipeline_timing(pipeline_timer, session_id)
 
         if inv_state and session_id:
@@ -563,7 +587,7 @@ class SynthesisEngine:
             }
 
         from services.statute_excerpt_service import build_cited_sources_for_answer
-        cited_sources_payload = build_cited_sources_for_answer(
+        cited_sources_payload = await build_cited_sources_for_answer(
             final_answer,
             document_text=full_doc,
             combined_context=combined_context,
@@ -603,7 +627,7 @@ class SynthesisEngine:
             "investigation_summary": investigation_summary,
             "pipeline_timing": pipeline_timer.as_dict() if pipeline_timer else None,
             "cited_sources": cited_sources_payload,
-            "circuit_breakers": self.orch.retrieval_service.circuit_breakers_snapshot(), # pobrane od orkiestratora
+            "circuit_breakers": retrieval_service.circuit_breakers_snapshot(),
             "security": {
                 "inbound_blocked": inbound_blocked,
                 "inbound_injection_matches": inbound_matches,

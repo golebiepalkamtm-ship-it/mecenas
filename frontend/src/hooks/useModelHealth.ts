@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../config';
-import { useChatSettingsStore } from '../store/useChatSettingsStore';
+import { useFavoriteModelsState, useModelLatencyState } from './chatSettingsSelectors';
 export interface ModelHealth {
   id: string;
   status: 'online' | 'offline' | 'degraded';
@@ -12,13 +12,12 @@ export interface ModelHealth {
 export function useModelHealth() {
   const [healthData, setHealthData] = useState<Record<string, ModelHealth>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const { setModelLatencies } = useChatSettingsStore();
+  const { favoriteModels } = useFavoriteModelsState();
+  const { setModelLatencies, modelLatencies: latencies } = useModelLatencyState();
 
   const refreshHealth = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Pobierz ulubione modele z globalnego stanu
-      const favoriteModels = useChatSettingsStore.getState().favoriteModels;
       if (!favoriteModels || favoriteModels.length === 0) {
         setIsLoading(false);
         return;
@@ -49,7 +48,7 @@ export function useModelHealth() {
     } finally {
       setIsLoading(false);
     }
-  }, [setModelLatencies]);
+  }, [favoriteModels, setModelLatencies]);
 
   useEffect(() => {
     let isMounted = true;
@@ -70,6 +69,5 @@ export function useModelHealth() {
     };
   }, [refreshHealth]);
 
-  const latencies = useChatSettingsStore((s) => s.modelLatencies);
   return { healthData, isLoading, refreshHealth, latencies };
 }

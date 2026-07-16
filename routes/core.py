@@ -1,20 +1,15 @@
 import time
 from fastapi import APIRouter
 from moa.prompt_builder import DEFENSE_UNIVERSE, PROSECUTION_UNIVERSE
+from schemas.response_models import PingResponse, PromptsPresetsResponse
 
 router = APIRouter()
 
-@router.get("/health-check")
-@router.get("/api/health-check")
-async def health_check():
-    return {"status": "ok", "time": time.time(), "api_version": "2.1-unified"}
-
-@router.get("/ping")
+@router.get("/ping", response_model=PingResponse)
 async def ping():
     return {"status": "ok"}
 
-@router.get("/prompts/presets")
-@router.get("/api/prompts/presets")
+@router.get("/prompts/presets", response_model=PromptsPresetsResponse)
 async def prompts_presets():
     defense_roles = dict(DEFENSE_UNIVERSE["roles"])
     defense_tasks = dict(DEFENSE_UNIVERSE["tasks"])

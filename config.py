@@ -1,4 +1,5 @@
 """Centralna konfiguracja LexMind — nadpisywanie przez zmienne LEXMIND_* w .env."""
+
 from __future__ import annotations
 
 from typing import Dict, List
@@ -17,6 +18,8 @@ class Settings(BaseSettings):
 
     default_models: List[str] = Field(
         default=[
+            "google/gemini-2.5-pro",
+            "openai/gpt-4o",
             "google/gemini-2.5-flash",
             "google/gemini-2.5-flash-lite",
             "openai/gpt-4o-mini",
@@ -28,6 +31,8 @@ class Settings(BaseSettings):
     )
     fallback_models: List[str] = Field(
         default=[
+            "google/gemini-2.5-pro",
+            "openai/gpt-4o",
             "google/gemini-2.5-flash",
             "google/gemini-2.5-flash-lite",
             "openai/gpt-4o-mini",
@@ -102,14 +107,19 @@ class Settings(BaseSettings):
 
     # Debata ekspertów przy trybie single (domyślnie wyłączona — szybsze odpowiedzi)
     debate_on_single: bool = Field(default=False)
+    debate_expert_timeout_sec: float = Field(default=75.0)
+    debate_slow_multiplier: float = Field(default=2.2, ge=1.1, le=4.0)
+    debate_min_cutoff_ms: int = Field(default=25_000, ge=3000)
 
     # Automatyczna szybka ścieżka dla krótkich pytań o art./kodeks bez załączników
     feature_fast_statutory_path: bool = Field(default=True)
 
     # Reranking po retrieval: heuristic | cohere (wymaga COHERE_API_KEY)
     rerank_provider: str = Field(default="heuristic")
-    rerank_top_k: int = Field(default=8)
-    external_rerank_top_k: int = Field(default=6)
+    rag_match_threshold: float = Field(default=0.35, ge=0.1, le=0.95)
+    rag_match_count: int = Field(default=5, ge=1, le=24)
+    rerank_top_k: int = Field(default=5)
+    external_rerank_top_k: int = Field(default=4)
 
     # Kompresja kontekstu dokumentu dla długich akt
     context_summary_max_chars: int = Field(default=100_000)
@@ -151,6 +161,32 @@ class Settings(BaseSettings):
 
     # Observability — logowanie czasów etapów
     feature_pipeline_timing: bool = Field(default=True)
+
+    # === Pipeline V3.0 — nowe etapy ===
+    # Sidecar walidacji podstaw prawnych (ValidArticlesCache) przed debatą
+    feature_legal_basis_sidecar: bool = Field(default=True)
+    # Consensus Engine — deduplikacja argumentów + głosowanie ekspertów
+    feature_consensus_engine: bool = Field(default=True)
+    # Reflection Loop — Self-Critic po syntezie Głównego Adwokata (max 1 retry)
+    feature_reflection_loop: bool = Field(default=True)
+    reflection_score_threshold: float = Field(default=0.7, ge=0.3, le=0.95)
+    reflection_max_retries: int = Field(default=1, ge=0, le=2)
+    # Iterative Retrieval — gap detection po debacie → dodatkowy retrieval pass
+    feature_iterative_retrieval: bool = Field(default=False)
+    iterative_retrieval_max_passes: int = Field(default=1, ge=0, le=2)
+    # Verification Agent — weryfikacja dat, sygnatur, uchylonych przepisów
+    feature_verification_agent: bool = Field(default=True)
+    verification_agent_timeout_sec: float = Field(default=20.0)
+    # Quality Metrics Logger — logowanie metryk jakości per odpowiedź
+    feature_quality_metrics: bool = Field(default=True)
+    # Expert Scoring — ocena per ekspert 0-100 po debacie
+    feature_expert_scoring: bool = Field(default=True)
+    # Verification Agent — weryfikacja logiki po debacie
+    feature_verification_agent: bool = Field(default=True)
+    # Temporal Ranking — boost nowszych przepisów w rerankingu
+    feature_temporal_ranking: bool = Field(default=True)
+    # Citation Weight w Głównego Adwokata — hierarchia źródeł widoczna dla adwokata
+    feature_citation_weight_in_judge: bool = Field(default=True)
 
     # Sala rozprawy (moduł extra)
     trial_enabled: bool = Field(default=True)

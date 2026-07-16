@@ -2,103 +2,371 @@ import logging
 from typing import AsyncGenerator, Dict, Any
 
 from services.orchestrator_types import OrchestratorInputParams
+from services.retrieval.types import get_retrieval_title
 from .context_builder import InvestigationContext
 from .debate_engine import DebateResult
 
 logger = logging.getLogger(__name__)
 
-class SeniorJudgeSynthesis:
+class SeniorAdvocateSynthesis:
     """
-    Synteza końcowa pełniąca rolę Głównego Sędziego.
-    To tutaj zostaną wpięte interfejsy weryfikacji halucynacji (Judge Metrics).
+    Synteza końcowa pełniąca rolę Głównego Adwokata.
+    To tutaj zostaną wpięte interfejsy weryfikacji halucynacji (Advocate Metrics).
     """
     def __init__(self):
         pass
 
-    async def synthesize(
-        self, 
-        params: OrchestratorInputParams, 
-        context: InvestigationContext, 
-        debate: DebateResult
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    async def synthesize_stream(
+        self,
+        params: OrchestratorInputParams,
+        context: InvestigationContext,
+        debate: Any,
+        llm_service: Any
+    ):
+        """
+        Główny proces syntezy końcowej.
+        - Wczesne strumieniowanie wstępu (Early Synthesis Streaming), podczas gdy debata trwa w tle.
+        - Generowanie Macierzy Konfliktów (Conflict Resolution Matrix).
+        - Weryfikacja halucynacji przed wygenerowaniem odpowiedzi (Advocate Metrics).
+        - Wygenerowanie finalnej odpowiedzi.
+        """
         logger.info("[SynthesisEngine] Rozpoczynam syntezę końcową i weryfikację metryk...")
         
-        # Miejsce na Judge Metrics (Weryfikacja halucynacji przed wygenerowaniem odpowiedzi)
-        await self._verify_hallucinations(context, debate)
-
-        yield {"type": "chunk", "text": "*(Generowanie ostatecznej porady przez Twojego Głównego Adwokata...)*\n\n"}
-        
-        from services.llm_client import LLMClientService
-        from moa.http_client import get_shared_openai_client
+        has_introed = False
         import asyncio
+        # Jeśli debata to asynchroniczny Task i nie została jeszcze ukończona, zaczynamy strumieniować wstęp
+        if isinstance(debate, asyncio.Task) and not debate.done():
+            logger.info("[SynthesisEngine] Rozpoczynam wczesne strumieniowanie wstępu (Early Synthesis)...")
+            try:
+                from database import get_setting
+                fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+                
+                intro_prompt = (
+                    "Jesteś wybitnym Głównym Adwokatem, mistrzem strategii procesowej. "
+                    "Klient przyszedł do Ciebie z zapytaniem prawnym. "
+                    "Twoim zadaniem jest rozpocząć analizę sprawy i przedstawić klientowi wstęp "
+                    "oraz ramy prawne i faktyczne na podstawie Karty Sprawy.\n\n"
+                    "WYMOGI KRYTYCZNE:\n"
+                    "1. Napisz wyłącznie krótki, naturalny, profesjonalny wstęp do opinii prawnej (max 2 akapity). "
+                    "Przedstaw krótko stan faktyczny sprawy i główne zagadnienia prawne, które będziemy badać. "
+                    "2. Pisz bezpośrednio do klienta. "
+                    "3. Zakończ słowami: 'Rozpoczynamy szczegółową analizę prawną...' i nie pisz nic więcej.\n"
+                    "4. Zakaz używania jakichkolwiek tagów XML i punktatorów."
+                )
+                
+                stan_f = getattr(context.case_brief, "stan_faktyczny", "") if context.case_brief else ""
+                cele_a = getattr(context.case_brief, "cele_analizy", "") if context.case_brief else ""
+                
+                intro_messages = [
+                    {"role": "system", "content": intro_prompt},
+                    {"role": "user", "content": f"ZAPYTANIE UŻYTKOWNIKA:\n{params.user_query}\n\nKARTA SPRAWY:\nStan faktyczny: {stan_f}\nCele analizy: {cele_a}"}
+                ]
+                
+                stream_gen, _ = await llm_service.call_with_fallback_stream(
+                    fast_model,
+                    intro_messages,
+                    temperature=0.3,
+                    max_tokens=400
+                )
+                async for chunk in stream_gen:
+                    if chunk:
+                        try:
+                            content = chunk.choices[0].delta.content or ""
+                            if content:
+                                yield {"type": "chunk", "text": content}
+                        except Exception:
+                            pass
+                yield {"type": "chunk", "text": "\n\n"}
+                has_introed = True
+            except Exception as intro_err:
+                logger.warning(f"[SynthesisEngine] Błąd generowania wczesnego wstępu: {intro_err}")
+
+        # Oczekiwanie na pełną opinię ekspertów
+        debate_result = debate
+        if isinstance(debate, asyncio.Task):
+            logger.info("[SynthesisEngine] Oczekiwanie na ukończenie debaty ekspertów w tle...")
+            debate_result = await debate
+            # Przekażmy częściowe wyniki debaty na frontend
+            yield {
+                "type": "metadata", 
+                "expert_opinions": debate_result.expert_opinions
+            }
+            
+        # 1. Weryfikacja metryk debaty (Zabezpieczenie przed halucynacjami LLM)
+        await self._verify_hallucinations(context, debate_result, llm_service)
         
-        client = get_shared_openai_client()
-        llm_service = LLMClientService(client=client)
-        
+        # 2. Składanie wniosków ekspertów
         all_expert_opinions = ""
-        for expert in debate.expert_opinions:
+        for expert in debate_result.expert_opinions:
             role = expert.get("role", "Ekspert")
             resp = expert.get("response", "")
             all_expert_opinions += f"--- OPINIA: {role} ---\n{resp}\n\n"
             
-        system_prompt = params.judge_system_prompt or "Jesteś wybitnym adwokatem i osobistym doradcą prawnym klienta. Na podstawie analiz ekspertów i dostarczonych materiałów przygotuj dla niego profesjonalną, wspierającą poradę prawną i strategię działania. Zwracaj się bezpośrednio do klienta."
+        # Generowanie Consensus Report lub Conflict Resolution Matrix
+        conflict_matrix = ""
+        if debate_result.expert_opinions:
+            from config import settings
+            if settings.feature_consensus_engine:
+                from services.orchestrator_v2.consensus_engine import ConsensusEngine
+                ce = ConsensusEngine()
+                conflict_matrix = await ce.generate_consensus(debate_result.expert_opinions, params.user_query, llm_service)
+            else:
+                conflict_matrix = await self._generate_conflict_resolution_matrix(all_expert_opinions, llm_service)
+            
+        default_advocate_prompt = (
+            "Jesteś wybitnym Głównym Adwokatem, mistrzem strategii procesowej i osobistym obrońcą klienta. "
+            "Twoim zadaniem jest dostarczenie perfekcyjnej, bogatej merytorycznie, wyczerpującej i głębokiej "
+            "analizy i odpowiedzi na zapytanie użytkownika, opierając się na zebranych materiałach i debacie ekspertów.\n\n"
+            "WYMOGI KRYTYCZNE:\n"
+            "1. Myśl krok po kroku: Rozpocznij od bloku <thinking>...</thinking>, gdzie zrobisz cichą ewaluację opinii ekspertów "
+            "i dopasujesz je do zapytania użytkownika.\n"
+            "2. BOGATA I SZCZEGÓŁOWA ANALIZA: Zdecydowanie unikaj szablonowości, schematów (typu stały podział na rekomendację, etapy itp.) "
+            "i pisania krótkich, ogólnych odpowiedzi. Twoje odpowiedzi muszą być obszerne, dogłębne i naturalne. "
+            "Wykorzystaj w pełni bogaty kontekst prawny i ustalenia ekspertów, aby szczegółowo opisać przepisy, mechanizmy prawne, "
+            "kontekst proceduralny, orzecznictwo, możliwe scenariusze i szczegóły sprawy. Każda wypowiedź musi mieć zindywidualizowany, płynny charakter "
+            "dostosowany ściśle do specyfiki pytania i dokumentów.\n"
+            "3. BEZWZGLĘDNY PRIORYTET: ODPOWIEDZ DOKŁADNIE NA PYTANIE UŻYTKOWNIKA. "
+            "Odpowiedź musi być bezpośrednio powiązana z ostatnią wiadomością użytkownika. Nie uciekaj w ogólniki.\n"
+            "4. Styl i Ton: Piszesz bezpośrednio do klienta. Bądź profesjonalny, dający ogromne wsparcie, wysoce merytoryczny, "
+            "ale zrozumiały (tłumacz zawiłości prawne, terminy i żargon na prosty język, podając ich praktyczne znaczenie).\n"
+            "5. Zakończ odpowiedź jasną, spersonalizowaną konkluzją lub planem działania dostosowanym do pytania.\n"
+            "6. Bezwzględny zakaz halucynacji. Masz walczyć o interes klienta do granic możliwości prawnych, opierając się na faktach."
+        )
+        if has_introed:
+            default_advocate_prompt += (
+                "\n7. UWAGA: Klientowi wyświetlono już wstęp ze stanem faktycznym oraz zdaniem 'Rozpoczynamy szczegółową analizę prawną...'. "
+                "Rozpocznij swoją wypowiedź bezpośrednio od analizy zebranych argumentów prawnych i opinii ekspertów (bez ponownego przywitania czy streszczenia stanu faktycznego)."
+            )
+            
+        from moa.prompt_builder import get_task_prompt
+        task_prompt = ""
+        if params.current_task and params.current_task != "general":
+            try:
+                task_prompt = f"\n\nWYBRANE ZADANIE AI (Kluczowy kontekst zadania eksperckiego):\n{get_task_prompt(params.current_task, 'defense')}\n\n---\n"
+            except Exception:
+                pass
+            
+        base_prompt = params.judge_system_prompt or default_advocate_prompt
         
-        truncated_context = context.combined_full_text[:40000]
+        # Wczytanie strażników wsparcia klienta (Client-centric Guards) dla trybów innych niż formalny draft
+        client_guards = ""
+        if params.response_mode != "draft":
+            from prompts.loader import load_prompt
+            try:
+                client_guards += "\n\n" + load_prompt("user_priority_guard")
+                client_guards += "\n\n" + load_prompt("concrete_client_actions_guard")
+                client_guards += "\n\n" + load_prompt("helpful_synthesis_guard")
+                client_guards += "\n\n" + load_prompt("humanized_output_guard")
+                client_guards += "\n\n" + load_prompt("client_plain_language_guard")
+            except Exception as e:
+                logger.warning("[SynthesisEngine] Błąd wczytywania strażników klienta: %s", e)
+ 
+        anti_xml_leak = (
+            "\n\nUWAGA KRYTYCZNA DOTYCZĄCA TWOJEJ ODPOWIEDZI (NAJWYŻSZY PRIORYTET):\n"
+            "Masz bezwzględny zakaz stosowania formatów XML (takich jak <internal_analysis>, <final_response>, itp.) pochodzących z wytycznych zadania "
+            "lub z wypowiedzi ekspertów. Pisz do klienta pięknym, logicznym, ciągłym tekstem. Unikaj list punktowanych zamiast płynnych zdań. "
+            "Odpowiedź musi wyglądać jak profesjonalna, ludzka opinia adwokacka, bez znaczników i schematów wygenerowanych maszynowo."
+        )
         
+        system_prompt = task_prompt + base_prompt + client_guards + anti_xml_leak
+        # Inject hallucination warnings if any
+        hallucination_warning = ""
+        if hasattr(debate_result, 'hallucinated_citations') and debate_result.hallucinated_citations:
+            bad_cites = ", ".join(debate_result.hallucinated_citations)
+            hallucination_warning = (
+                f"\n\n[SYSTEMOWA WERYFIKACJA FAKTÓW]\nUWAGA ADWOKACIE: Eksperci w powyższych analizach zacytowali nieistniejące w kontekście przepisy: {bad_cites}. "
+                "Zignoruj te artykuły, to są tzw. halucynacje LLM. Opieraj się tylko na przepisach rzeczywiście obecnych w KONTEKŚCIE PRAWNYM."
+            )
+        
+        from database import get_setting
+        assigned_judge = get_setting("assigned_model_judge", "openai/gpt-4o")
+        model_to_use = params.aggregator_model or params.selected_model or assigned_judge
+        
+        from services.orchestrator_v2.token_budget import allocate_synthesis_context
+        expert_context_str = all_expert_opinions + conflict_matrix + hallucination_warning
+        
+        from config import settings
+        if settings.feature_citation_weight_in_judge and hasattr(context, "legal_res") and context.legal_res:
+            legal_rank_str = "\n\nHIERARCHIA ŹRÓDEŁ (Do uwzględnienia przy rozstrzyganiu sprzeczności):\n"
+            for row in context.legal_res[:5]:
+                rank = row.get("legal_rank_label", "Ustawa")
+                title = get_retrieval_title(row)
+                legal_rank_str += f"- {title}: {rank}\n"
+            expert_context_str += legal_rank_str
+
+        truncated_context = allocate_synthesis_context(
+            model_id=model_to_use,
+            reserve_output_tokens=8192,
+            system_prompt=system_prompt,
+            user_query=params.user_query,
+            expert_opinions=expert_context_str,
+            combined_context=context.combined_full_text
+        )
+        
+        history_str = ""
+        if context.chat_history:
+            history_str = f"HISTORIA ROZMOWY:\n{context.chat_history}\n\n"
+            
+        user_msg = (
+            f"ZAPYTANIE UŻYTKOWNIKA (NAJWYŻSZY PRIORYTET):\n{params.user_query}\n\n"
+            f"{history_str}"
+            f"KONTEKST PRAWNY:\n{truncated_context}\n\n"
+            f"ANALIZY EKSPERTÓW (dla Ciebie do wglądu):\n{expert_context_str}\n\n"
+            f"Zadanie: Przeanalizuj debaty i kontekst, ale TWOJĄ ODPOWIEDZIĄ MA BYĆ KONKRETNA REAKCJA NA ZAPYTANIE UŻYTKOWNIKA."
+        )
+ 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"ZAPYTANIE UŻYTKOWNIKA:\n{params.user_query}\n\nKONTEKST PRAWNY:\n{truncated_context}\n\nANALIZY EKSPERTÓW (dla Ciebie do wglądu):\n{all_expert_opinions}\n\nPrzygotuj ostateczną poradę prawną i strategię dla klienta."}
+            {"role": "user", "content": user_msg}
         ]
         
         try:
             stream_gen, used_model = await llm_service.call_with_fallback_stream(
-                params.aggregator_model or "openai/gpt-4o",
+                model_to_use,
                 messages,
-                max_tokens=4000,
                 temperature=0.3,
-                timeout=30.0
+                max_tokens=8192
             )
             
-            async for chunk in stream_gen:
-                text = chunk.choices[0].delta.content or ""
-                if text:
-                    yield {"type": "chunk", "text": text}
-                    await asyncio.sleep(0.01) # Small delay for smoother streaming UI
+            logger.info(f"[SynthesisEngine] [OK] Wygenerowano odpowiedź Głównego Adwokata.")
+            
+            # Przekazujemy strumień do frontu z zabezpieczeniem przed błędami w trakcie streamowania
+            try:
+                async for chunk in stream_gen:
+                    if chunk:
+                        try:
+                            content = chunk.choices[0].delta.content or ""
+                            if content:
+                                yield {"type": "chunk", "text": content}
+                        except Exception:
+                            pass
+            except Exception as stream_exc:
+                logger.error(f"[SynthesisEngine] Strumień został przerwany przez API w trakcie generowania: {stream_exc}")
+                yield {"type": "chunk", "text": f"\n\n*[Uwaga: Strumień odpowiedzi został przerwany w trakcie generowania przez API: {stream_exc}. Wyświetlamy dotychczas wygenerowaną część analizy.]*"}
+                    
         except Exception as e:
-            logger.error(f"[SynthesisEngine] Błąd generowania strumienia sędziego: {e}")
-            yield {"type": "chunk", "text": f"\n\n[BŁĄD SYNTEZY: {e}]"}
-            await asyncio.sleep(0.5)
+            logger.error(f"[SynthesisEngine] Błąd inicjalizacji strumienia Głównego Adwokata: {e}")
+            err_msg = f"\n[BŁĄD SYNTEZY] Nie udało się zainicjalizować odpowiedzi. Spróbuj ponownie. ({e})"
+            yield {"type": "chunk", "text": err_msg}
 
-    async def _verify_hallucinations(self, context: InvestigationContext, debate: DebateResult):
+    async def _generate_conflict_resolution_matrix(self, all_expert_opinions: str, llm_service: Any) -> str:
         """
-        Implementacja systemu oceny halucynacji cytowań i jakości kontrargumentów (Judge Metrics).
+        Generuje Conflict Resolution Matrix na podstawie debaty ekspertów.
         """
-        logger.info("[SynthesisEngine] Weryfikacja halucynacji (Citation Hallucination Rate) i jakości kontrargumentów...")
+        if not all_expert_opinions.strip():
+            return ""
+            
+        from database import get_setting
+        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
         
-        # W prawdziwym wdrożeniu użylibyśmy LLM do weryfikacji. 
-        # Ponieważ jest to silnik V2, zasymulujemy logikę lub użyjemy prostej weryfikacji heurystycznej 
-        # (np. sprawdzenie, czy powoływane artykuły z 'debate' występują w 'context.combined_full_text').
+        matrix_prompt = (
+            "Przeanalizuj poniższe opinie ekspertów z debaty prawnej i stwórz zwięzły Conflict Resolution Matrix.\n"
+            "Zidentyfikuj:\n"
+            "1. PUNKTY ZGODNOŚCI (Consensus): Gdzie eksperci są jednomyślni i jakie przepisy zgodnie popierają.\n"
+            "2. PUNKTY SPORNE (Conflicts): Gdzie eksperci się różnią, jakie są kontrargumenty i rozbieżności interpretacyjne.\n"
+            "3. LUKI (Gaps): Jakie krytyczne aspekty lub ryzyka zostały pominięte przez część ekspertów.\n"
+            "Pisz zwięźle i konkretnie w języku polskim. Matrix posłuży jako skompresowany wsad dla Głównego Adwokata."
+        )
         
+        try:
+            res, _ = await llm_service.call_with_fallback(
+                fast_model,
+                [
+                    {"role": "system", "content": matrix_prompt},
+                    {"role": "user", "content": f"DEBATA EKSPERTÓW:\n{all_expert_opinions}"}
+                ],
+                max_tokens=1500,
+                temperature=0.2,
+                timeout=20.0,
+                log_context="ConflictMatrix"
+            )
+            return f"\n=== Skompresowana Macierz Debaty (Conflict Resolution Matrix) ===\n{res}\n"
+        except Exception as e:
+            logger.warning(f"[SynthesisEngine] Błąd generowania Conflict Resolution Matrix: {e}")
+            return ""
+
+    async def _verify_hallucinations(self, context: InvestigationContext, debate: DebateResult, llm_service: Any):
+        """
+        Prawdziwa implementacja systemu oceny halucynacji cytowań (Advocate Metrics).
+        W V2 ten mechanizm upewnia się, że Główny Adwokat nie weźmie pod uwagę fałszywych przepisów od ekspertów.
+        """
+        logger.info("[SynthesisEngine] Weryfikacja halucynacji (Citation Hallucination Rate) przy pomocy CitationGuard...")
+        
+        if not debate.expert_opinions:
+            debate.hallucination_rate = 0.0
+            debate.hallucinated_citations = []
+            debate.counter_argument_quality = 0.0
+            return
+            
         all_expert_text = "\n".join([str(op.get("response", "")) for op in debate.expert_opinions])
         
-        import re
-        # Proste wyszukiwanie wzorców 'art. X' w wypowiedziach ekspertów
-        citations = set(re.findall(r'art\.\s*\d+', all_expert_text, flags=re.IGNORECASE))
+        from services.citation_guard import CitationGuard
         
-        hallucinated_citations = []
-        for citation in citations:
-            if citation.lower() not in context.combined_full_text.lower():
-                hallucinated_citations.append(citation)
-                
-        total_citations = len(citations)
-        hallucination_rate = len(hallucinated_citations) / total_citations if total_citations > 0 else 0.0
+        guard = CitationGuard()
         
-        logger.info(f"[SynthesisEngine] Wskaźnik halucynacji: {hallucination_rate:.2f} ({len(hallucinated_citations)}/{total_citations})")
-        
-        # Oznaczmy wyniki w obiekcie debaty (na potrzeby zwrotne)
-        debate.hallucination_rate = hallucination_rate
-        debate.hallucinated_citations = hallucinated_citations
-        
-        # TODO: Złożona ocena 'Counter-Argument Quality' przy pomocy LLM
-        debate.counter_argument_quality = 0.85 # Placeholder
+        async def mock_call_llm(prompt: str) -> str:
+            try:
+                from database import get_setting
+                fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+                res, _ = await llm_service.call_with_fallback(
+                    fast_model,
+                    [{"role": "user", "content": prompt}]
+                )
+                return res
+            except Exception:
+                return ""
 
+        all_cites, unverified = await guard.audit(
+            texts=[all_expert_text],
+            document_text=context.document_text,
+            combined_context=context.combined_full_text,
+            expert_analysis=all_expert_text,
+            call_llm=mock_call_llm,
+            trust_expert_debate=False, # Skoro sprawdzamy ekspertów, nie ufamy debacie
+        )
+        
+        # Podwójna weryfikacja: Jeśli mamy ValidArticlesCache (Sidecar),
+        # odrzucamy też cytaty, których cache nie zna jako absolutny pewnik.
+        if context.valid_articles_cache:
+            for cite in all_cites:
+                if cite not in unverified and not context.valid_articles_cache.contains(cite.key):
+                    unverified.append(cite)
+        
+        debate.all_citations_count = len(all_cites)
+        
+        if all_cites:
+            debate.hallucination_rate = len(unverified) / len(all_cites) * 100.0
+        else:
+            debate.hallucination_rate = 0.0
+            
+        if unverified:
+            from services.citation_guard import citations_to_display
+            debate.hallucinated_citations = citations_to_display(unverified)
+            logger.warning(f"[SynthesisEngine] Wykryto halucynacje: {debate.hallucinated_citations} (Wskaźnik: {debate.hallucination_rate:.1f}%)")
+        else:
+            debate.hallucinated_citations = []
+            logger.info(f"[SynthesisEngine] Brak halucynacji. Wskaźnik: {debate.hallucination_rate:.1f}%")
+        
+        # Dynamiczna ocena 'Counter-Argument Quality' przy pomocy LLM
+        if debate.expert_opinions:
+            import re
+            eval_prompt = (
+                "Przeanalizuj poniższe opinie prawne wydane przez różnych ekspertów w ramach debaty.\n"
+                "Oceń poziom merytoryczny i głębię wzajemnych kontrargumentów oraz szukania słabych punktów w argumentacji.\n"
+                "Zwróć ocenę jako jedną liczbę zmiennoprzecinkową od 0.0 (bardzo słaba lub brak kontrargumentów) do 1.0 (wybitna, głęboka polemika).\n"
+                "Nie wypisuj żadnego dodatkowego tekstu ani wyjaśnień — napisz tylko i wyłącznie tę liczbę, np. 0.85.\n\n"
+                f"--- DEBATA EKSPERTÓW ---\n{all_expert_text[:10000]}"
+            )
+            try:
+                eval_res = await mock_call_llm(eval_prompt)
+                val = re.search(r"\b0\.\d+|\b1\.0\b|\b1\b|\b0\b", eval_res)
+                if val:
+                    debate.counter_argument_quality = float(val.group(0))
+                else:
+                    debate.counter_argument_quality = 0.75
+            except Exception:
+                debate.counter_argument_quality = 0.75
+        else:
+            debate.counter_argument_quality = 0.0
+            
+        logger.info(f"[SynthesisEngine] Dynamiczna ocena jakości debaty (Counter-Argument Quality): {debate.counter_argument_quality:.2f}")

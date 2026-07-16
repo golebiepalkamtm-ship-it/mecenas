@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Gavel, Shield, Scale, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTrialRoomStore } from '../../store/useTrialRoomStore';
+import { useFavoriteModelsState } from '../../hooks/chatSettingsSelectors';
 import { useTrialStream } from '../../hooks/useTrialStream';
 import { usePromptPresets } from '../../hooks/usePromptPresets';
 import { useSelectableChatModels } from '../../hooks/useSelectableChatModels';
-import { useChatSettingsStore } from '../../store/useChatSettingsStore';
 import { ELABORATION_PRESETS } from '../../utils/chatContextForTrial';
 import type { Model } from '../Chat/types';
 import { TRIAL_STEPS, type TrialSide } from './types';
@@ -19,6 +19,7 @@ import { TrialSideTeamPanel } from './TrialSideTeamPanel';
 import { TrialBriefCards } from './TrialBriefCards';
 import { TrialHearingStenograph } from './TrialHearingStenograph';
 import { TrialVerdictPanel } from './TrialVerdictPanel';
+import { TrialCourtroomVisual } from './TrialCourtroomVisual';
 import { buildTrialProtocolMarkdown, downloadTrialMarkdown } from './exportTrialProtocol';
 
 function stepUnlocked(
@@ -77,8 +78,8 @@ export function TrialRoomPanel() {
   } = useTrialRoomStore();
 
   const { presets } = usePromptPresets();
-  const favoriteModels = useChatSettingsStore((s) => s.favoriteModels);
-  const { models: pool } = useSelectableChatModels('favorites', favoriteModels, '', 'all');
+  const { favoriteModels } = useFavoriteModelsState();
+  const { models: pool } = useSelectableChatModels('all', favoriteModels, '', 'all');
   const { runPosition, runHearing, runVerdict } = useTrialStream();
 
   const [draftDefense, setDraftDefense] = useState('');
@@ -344,7 +345,7 @@ export function TrialRoomPanel() {
             onClick={handleReset}
             onMouseEnter={() => setHoveredAction('reset')}
             onMouseLeave={() => setHoveredAction(null)}
-            className="p-2 rounded-lg hover:bg-black/5 text-black/50 shrink-0"
+            className="p-2.5 rounded-xl btn-convex-glossy text-black shrink-0 flex items-center justify-center"
             aria-label="Nowa sprawa"
           >
             <RotateCcw size={16} />
@@ -385,10 +386,11 @@ export function TrialRoomPanel() {
                 onMouseLeave={() => setHoveredAction(null)}
                 className={cn(
                   'flex items-center gap-2 px-3 py-1.5 rounded-full border text-[8px] font-black uppercase tracking-widest transition-all',
+                  unlocked && 'btn-convex-glossy',
                   active && 'border-gold-primary bg-gold-primary/15 text-black',
                   done && !active && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900',
-                  !active && !done && unlocked && 'border-black/10 text-black/50 hover:bg-white/60',
-                  !unlocked && 'border-black/5 text-black/25 cursor-not-allowed',
+                  !active && !done && unlocked && 'text-black/70',
+                  !unlocked && 'border-black/5 text-black/25 cursor-not-allowed bg-black/5',
                 )}
               >
                 <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] bg-black/10">
@@ -448,6 +450,19 @@ export function TrialRoomPanel() {
             />
           )}
 
+          {step !== 'case' && (
+            <TrialCourtroomVisual
+              defenseTeam={defenseTeam}
+              prosecutionTeam={prosecutionTeam}
+              verdictJudgeModel={verdictJudgeModel}
+              runningPhase={runningPhase}
+              hearingRounds={hearingRounds}
+              verdict={verdict}
+              progressMessage={progressMessage}
+              pool={pool}
+            />
+          )}
+
           {showDefensePanel && (
             <TrialSideTeamPanel
               side="defense"
@@ -485,7 +500,7 @@ export function TrialRoomPanel() {
                     onMouseEnter={() => setHoveredAction('gen-defense')}
                     onMouseLeave={() => setHoveredAction(null)}
                     className={cn(
-                      'px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2',
+                      'px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 btn-convex-glossy',
                       SIDE_BTN.defense,
                     )}
                   >
@@ -528,7 +543,7 @@ export function TrialRoomPanel() {
                       onMouseEnter={() => setHoveredAction('gen-prosecution')}
                       onMouseLeave={() => setHoveredAction(null)}
                       className={cn(
-                        'px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest flex items-center gap-2',
+                        'px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 btn-convex-glossy',
                         SIDE_BTN.prosecution,
                       )}
                     >

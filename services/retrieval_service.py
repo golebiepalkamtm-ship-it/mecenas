@@ -11,6 +11,16 @@ from config import settings
 from services.circuit_breaker import CircuitBreaker, snapshots_dict
 from services.indexing_service import indexing_service
 from services.rag_cache import rag_cache
+from services.retrieval.providers.eli_provider import fetch_eli_once
+from services.retrieval.providers.saos_provider import fetch_saos_once
+from services.retrieval.providers.supabase_provider import (
+    build_hybrid_payload,
+    build_vector_payload,
+    fetch_hybrid_rows_with_relaxation,
+    post_rpc_json,
+    resolve_hybrid_rpc_names,
+)
+from services.retrieval.types import RetrievalItem, normalize_retrieval_rows
 
 load_dotenv()
 
@@ -31,25 +41,6 @@ def _as_plain_str(val: Any, *, empty_for_bool: bool = True) -> str:
     if isinstance(val, (int, float)):
         return str(val)
     return str(val)
-
-
-def _eli_field_str(val: Any) -> str:
-    """Pola JSON z API ELI bywają true/false zamiast stringów — nie przekazuj ich do re ani nagłówków."""
-    if val is None or isinstance(val, bool):
-        return ""
-    if isinstance(val, str):
-        return val
-    if isinstance(val, (int, float)):
-        return str(val)
-    return str(val)
-
-
-def _strip_html(text: Any) -> str:
-    s = _as_plain_str(text, empty_for_bool=True)
-    if not s:
-        return ""
-    clean = re.sub(r"<[^>]+>", " ", s)
-    return re.sub(r"\s+", " ", clean).strip()
 
 
 def _external_search_queries(keywords: Any, user_query: Any = "", max_queries: int = 3) -> List[str]:
@@ -111,6 +102,10 @@ def _eli_act_titles_from_context(blob: str) -> List[str]:
         add("Kodeks cywilny")
     if "ustawy z dnia 14 czerwca 1960" in blob_l or "p.p.s.a" in blob_l or "ustawę ppsa" in blob_l:
         add("ustawa Prawo o postępowaniu przed sądami administracyjnymi")
+    if re.search(r"\buopn\b|\bupn\b|u\.?p\.?n\.?|przeciwdziałaniu narkomanii|ustawa o przeciwdziałaniu narkomanii", blob_l):
+        add("Ustawa o przeciwdziałaniu narkomanii")
+    if re.search(r"\bpolicj\w*", blob_l):
+        add("Ustawa o Policji")
     return titles
 
 
@@ -131,8 +126,6 @@ def _eli_search_queries(
     for p in parts:
         if len(out) >= max_queries:
             break
-        if _ART_ONLY.match(p) and out:
-            continue
         if p not in out:
             out.append(p)
 
@@ -266,6 +259,31 @@ class RetrievalService:
     def circuit_breakers_snapshot(self) -> Dict[str, dict]:
         return snapshots_dict(self._breakers)
 
+    async def fetch_user_knowledge_by_session(self, session_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """Pobiera wszystkie fragmenty dokumentów przypisane do danej sesji, pomijając wektoryzację."""
+        if not SUPABASE_URL:
+            return []
+        url = f"{SUPABASE_URL}/rest/v1/knowledge_base_user"
+        params = {
+            "metadata->>session_id": f"eq.{session_id}",
+            "select": "*",
+            "limit": str(limit)
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(url, params=params, headers=self.headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    # Ręcznie formatujemy na słowniki z content i metadata
+                    return data
+                else:
+                    logger.error(f"[RETRIEVAL ERR] Fetch by session failed ({res.status_code}): {res.text[:200]}")
+                    return []
+        except Exception as e:
+            logger.exception("[RETRIEVAL ERR] Błąd pobierania sesji z Supabase")
+            return []
+
+
     async def search_supabase(
         self, 
         query: Any, 
@@ -276,7 +294,7 @@ class RetrievalService:
         allowed_source_types: Optional[List[str]] = None,
         hybrid: bool = True,
         cache_namespace: str = "",
-    ) -> List[Dict[str, Any]]:
+    ) -> List[RetrievalItem]:
         """
         Przeszukuje bazę Supabase przy użyciu wyszukiwania wektorowego 
         lub hybrydowego (FTS + Vector + RRF) dostosowanego pod język polski.
@@ -309,154 +327,97 @@ class RetrievalService:
             
             # --- TRYB HYBRYDOWY (FTS + pgvector + RRF) ---
             if hybrid:
-                rpc_name_v2 = (
-                    "hybrid_search_legal_v2"
-                    if table_name == "knowledge_base_legal"
-                    else "hybrid_search_user_v2"
+                rpc_names = resolve_hybrid_rpc_names(table_name)
+                payload = build_hybrid_payload(
+                    query=query,
+                    embedding=embedding,
+                    match_count=match_count,
+                    table_name=table_name,
+                    act_terms=act_terms,
+                    allowed_source_types=allowed_source_types,
                 )
-                rpc_name = (
-                    "hybrid_search_legal"
-                    if table_name == "knowledge_base_legal"
-                    else "hybrid_search_user"
-                )
-                payload: Dict[str, Any] = {
-                    "query_text": query,
-                    "query_embedding": embedding,
-                    "match_count": match_count,
-                    "vector_weight": 0.45,  # Lekka preferencja FTS dla sprawdzania konkretnych artykułów
-                    "k_rrf": 60
-                }
-                if act_terms:
-                    payload["act_terms"] = act_terms
-                if allowed_source_types and table_name == "knowledge_base_legal":
-                    payload["allowed_source_types"] = allowed_source_types
-                
-                fallback_rpc = (
-                    "match_knowledge_legal"
-                    if table_name == "knowledge_base_legal"
-                    else "match_knowledge_user"
-                )
-                url_v2 = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/{rpc_name_v2}"
-                url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/{rpc_name}"
                 try:
                     async with httpx.AsyncClient(timeout=30.0) as client:
-                        res_v2 = await client.post(url_v2, json=payload, headers=self.headers)
-                        if res_v2.status_code == 200:
-                            results = res_v2.json()
-                            if (
-                                not results
-                                and allowed_source_types
+                        status_v2, results = await fetch_hybrid_rows_with_relaxation(
+                            client,
+                            supabase_url=SUPABASE_URL,
+                            rpc_name=rpc_names.preferred_rpc,
+                            payload=payload,
+                            headers=self.headers,
+                            retry_without_allowed_source_types=(
+                                bool(allowed_source_types)
                                 and table_name == "knowledge_base_legal"
-                            ):
-                                payload_retry_types = {
-                                    k: v for k, v in payload.items() if k != "allowed_source_types"
-                                }
-                                res_retry_types = await client.post(
-                                    url_v2, json=payload_retry_types, headers=self.headers
-                                )
-                                if res_retry_types.status_code == 200:
-                                    results = res_retry_types.json()
-                            if (
-                                not results
-                                and act_terms
-                                and table_name == "knowledge_base_legal"
-                            ):
-                                payload_retry_acts = {
-                                    k: v for k, v in payload.items() if k != "act_terms"
-                                }
-                                payload_retry_acts.pop("allowed_source_types", None)
-                                res_retry_acts = await client.post(
-                                    url_v2, json=payload_retry_acts, headers=self.headers
-                                )
-                                if res_retry_acts.status_code == 200:
-                                    results = res_retry_acts.json()
-                            for row in results:
-                                if isinstance(row, dict) and row.get("rrf_score") is not None:
-                                    row.setdefault("score", row["rrf_score"])
-                                    row.setdefault("similarity", row["rrf_score"])
-                            rag_cache.set(cache_key, results)
-                            return results
-                        if res_v2.status_code != 404:
+                            ),
+                            retry_without_act_terms=(
+                                bool(act_terms) and table_name == "knowledge_base_legal"
+                            ),
+                        )
+                        if status_v2 == 200:
+                            normalized = normalize_retrieval_rows(results)
+                            rag_cache.set(cache_key, normalized)
+                            return normalized
+                        if status_v2 != 404:
                             self.emit_integration_warning(
-                                f"⚠️ **RAG**: `{rpc_name_v2}` odpowiedział kodem {res_v2.status_code}. "
-                                f"Fallback do `{rpc_name}`."
+                                f"⚠️ **RAG**: `{rpc_names.preferred_rpc}` odpowiedział kodem {status_v2}. "
+                                f"Fallback do `{rpc_names.legacy_rpc}`."
                             )
-                        res = await client.post(url, json=payload, headers=self.headers)
-                        if res.status_code == 200:
-                            results = res.json()
-                            for row in results:
-                                if isinstance(row, dict) and row.get("rrf_score") is not None:
-                                    row.setdefault("score", row["rrf_score"])
-                                    row.setdefault("similarity", row["rrf_score"])
-                            if (
-                                not results
-                                and act_terms
-                                and table_name == "knowledge_base_legal"
-                            ):
-                                payload_retry = {
-                                    k: v for k, v in payload.items() if k != "act_terms"
-                                }
-                                payload_retry.pop("allowed_source_types", None)
-                                res_retry = await client.post(
-                                    url, json=payload_retry, headers=self.headers
-                                )
-                                if res_retry.status_code == 200:
-                                    results = res_retry.json()
-                                    for row in results:
-                                        if isinstance(row, dict) and row.get("rrf_score") is not None:
-                                            row.setdefault("score", row["rrf_score"])
-                                            row.setdefault("similarity", row["rrf_score"])
-                            rag_cache.set(cache_key, results)
-                            return results
-                        if res.status_code == 404:
+                        status_legacy, results = await fetch_hybrid_rows_with_relaxation(
+                            client,
+                            supabase_url=SUPABASE_URL,
+                            rpc_name=rpc_names.legacy_rpc,
+                            payload=payload,
+                            headers=self.headers,
+                            retry_without_act_terms=(
+                                bool(act_terms) and table_name == "knowledge_base_legal"
+                            ),
+                        )
+                        if status_legacy == 200:
+                            normalized = normalize_retrieval_rows(results)
+                            rag_cache.set(cache_key, normalized)
+                            return normalized
+                        if status_legacy == 404:
                             self.emit_integration_warning(
-                                f"⚠️ **RAG**: funkcja `{rpc_name}` nie jest wdrożona w Supabase (404). "
-                                f"Stosuję `{fallback_rpc}` — tylko podobieństwo wektorowe."
+                                f"⚠️ **RAG**: funkcja `{rpc_names.legacy_rpc}` nie jest wdrożona w Supabase (404). "
+                                f"Stosuję `{rpc_names.vector_fallback_rpc}` — tylko podobieństwo wektorowe."
                             )
                         else:
                             self.emit_integration_warning(
-                                f"⚠️ **RAG**: `{rpc_name}` odpowiedział kodem {res.status_code}. "
-                                f"Fallback do `{fallback_rpc}`."
+                                f"⚠️ **RAG**: `{rpc_names.legacy_rpc}` odpowiedział kodem {status_legacy}. "
+                                f"Fallback do `{rpc_names.vector_fallback_rpc}`."
                             )
                 except Exception as e:
                     logger.warning(
                         "[RETRIEVAL] Hybrid RPC %s/%s wyjątek: %s — fallback do %s",
-                        rpc_name_v2,
-                        rpc_name,
+                        rpc_names.preferred_rpc,
+                        rpc_names.legacy_rpc,
                         e,
-                        fallback_rpc,
+                        rpc_names.vector_fallback_rpc,
                     )
                     self.emit_integration_warning(
-                        f"⚠️ **RAG**: błąd wywołania `{rpc_name_v2}` ({str(e)[:200]}). Użyto `{fallback_rpc}`."
+                        f"⚠️ **RAG**: błąd wywołania `{rpc_names.preferred_rpc}` ({str(e)[:200]}). Użyto `{rpc_names.vector_fallback_rpc}`."
                     )
             
             # --- TRYB PURE-VECTOR (FALLBACK / TRADYCYJNY) ---
-            payload_pure: Dict[str, Any]
-            if table_name == "knowledge_base_legal":
-                rpc_name = "match_knowledge_legal"
-                payload_pure = {
-                    "query_embedding": embedding,
-                    "match_threshold": match_threshold,
-                    "match_count": match_count,
-                }
-                if act_terms:
-                    payload_pure["act_terms"] = act_terms
-            else:
-                rpc_name = "match_knowledge_user"
-                payload_pure = {
-                    "query_embedding": embedding,
-                    "match_threshold": match_threshold,
-                    "match_count": match_count,
-                }
+            rpc_name, payload_pure = build_vector_payload(
+                embedding=embedding,
+                match_threshold=match_threshold,
+                match_count=match_count,
+                table_name=table_name,
+                act_terms=act_terms,
+            )
 
-            url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/{rpc_name}"
-            
             async with httpx.AsyncClient(timeout=30.0) as client:
-                res = await client.post(url, json=payload_pure, headers=self.headers)
+                res = await post_rpc_json(
+                    client,
+                    supabase_url=SUPABASE_URL,
+                    rpc_name=rpc_name,
+                    payload=payload_pure,
+                    headers=self.headers,
+                )
                 if res.status_code == 200:
-                    results = res.json()
-                    rag_cache.set(cache_key, results)
-                    return results
+                    normalized = normalize_retrieval_rows(res.json())
+                    rag_cache.set(cache_key, normalized)
+                    return normalized
                 else:
                     logger.error(
                         "[RETRIEVAL ERR] Supabase RPC failed (%s): %s",
@@ -468,46 +429,9 @@ class RetrievalService:
             logger.exception("[RETRIEVAL ERR] Błąd Supabase")
             return []
 
-    async def _fetch_saos_once(self, client: httpx.AsyncClient, query: str, limit: int) -> List[Dict[str, Any]]:
-        url = "https://www.saos.org.pl/api/search/judgments"
-        res = await client.get(
-            url,
-            params={"all": query, "pageSize": limit},
-            headers={"Accept": "application/json"},
-        )
-        if res.status_code != 200:
-            raise RuntimeError(f"saos_http_{res.status_code}")
-        items = res.json().get("items", []) or []
-        results = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            text_content = item.get("textContent") or ""
-            snippet = _strip_html(text_content) if text_content else ""
-            case_number = "N/A"
-            court_cases = item.get("courtCases")
-            if isinstance(court_cases, list) and court_cases:
-                first = court_cases[0]
-                if isinstance(first, dict) and first.get("caseNumber"):
-                    case_number = str(first["caseNumber"])
-            court_name = item.get("courtName") or item.get("division") or "sąd"
-            judgment_date = item.get("judgmentDate", "N/A")
-            if not snippet:
-                snippet = f"Orzeczenie z dnia {judgment_date}, sygn. {case_number}, {court_name}."
-            header = f"[{judgment_date} | sygn. {case_number} | {court_name}]"
-            results.append({
-                "id": item.get("id"),
-                "source": f"SAOS — {case_number}",
-                "sygnatura": case_number,
-                "title": f"Orzeczenie {judgment_date}",
-                "content": f"{header}\n{snippet[:2500]}",
-                "full_text": f"{header}\n{snippet[:12000]}",
-            })
-        return results
-
     async def search_saos(
         self, keywords: Any, limit: int = 3, user_query: Any = "", cache_namespace: str = ""
-    ) -> List[Dict[str, Any]]:
+    ) -> List[RetrievalItem]:
         """Wyszukiwanie orzeczeń w SAOS (api.saos.org.pl)."""
         breaker = self._breakers.get("SAOS")
         if breaker and not breaker.allow_request():
@@ -527,13 +451,13 @@ class RetrievalService:
         if not queries:
             return []
         seen_ids: set = set()
-        merged: List[Dict[str, Any]] = []
-        timeout = max(0.2, float(settings.saos_timeout_sec))
+        merged: List[RetrievalItem] = []
+        timeout = max(10.0, float(getattr(settings, "saos_timeout_sec", 10.0)))
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 for q in queries:
                     batch = await asyncio.wait_for(
-                        self._fetch_saos_once(client, q, limit),
+                        fetch_saos_once(client, q, limit),
                         timeout=timeout,
                     )
                     for row in batch:
@@ -558,43 +482,9 @@ class RetrievalService:
                     breaker.on_failure(str(e))
                 return []
 
-    async def _fetch_eli_once(self, client: httpx.AsyncClient, query: Any, limit: int) -> List[Dict[str, Any]]:
-        url = "https://api.sejm.gov.pl/eli/acts/search"
-        q = _as_plain_str(query, empty_for_bool=True).strip()
-        if not q:
-            return []
-        res = await client.get(url, params={"limit": limit, "keyword": q})
-        if res.status_code != 200:
-            raise RuntimeError(f"eli_http_{res.status_code}")
-        items = res.json().get("items", []) or []
-        results = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            title = _eli_field_str(item.get("title")).strip()
-            display = _eli_field_str(
-                item.get("displayAddress") or item.get("address") or ""
-            )
-            text_raw = item.get("textHTML")
-            body = _strip_html(text_raw)
-            if not body and isinstance(item.get("texts"), list) and item["texts"]:
-                body = _strip_html(item["texts"][0])
-            if not body:
-                st_s = _eli_field_str(item.get("status"))
-                eli_s = _eli_field_str(item.get("ELI"))
-                body = f"Status: {st_s or '—'}. ELI: {eli_s or '—'}"
-            header = f"{title}\n({display})"
-            results.append({
-                "source": f"ELI — {display}",
-                "tytul": title or display,
-                "title": title,
-                "content": f"{header}\n{body[:3000]}",
-            })
-        return results
-
     async def search_eli(
         self, keywords: Any, limit: int = 3, user_query: Any = "", cache_namespace: str = ""
-    ) -> List[Dict[str, Any]]:
+    ) -> List[RetrievalItem]:
         """Wyszukiwanie aktów w lokalnej replice ISAP/ELI (Supabase pgvector)."""
         kw = _as_plain_str(keywords, empty_for_bool=True)
         uq = _as_plain_str(user_query, empty_for_bool=True)
@@ -610,7 +500,7 @@ class RetrievalService:
         if not queries:
             return []
             
-        merged: List[Dict[str, Any]] = []
+        merged: List[RetrievalItem] = []
         seen: set = set()
         
         try:
@@ -619,15 +509,58 @@ class RetrievalService:
                 rpc_name = "match_isap_documents"
                 payload = {
                     "query_embedding": embedding,
-                    "match_threshold": 0.5,
+                    "match_threshold": 0.1,
                     "match_count": limit
                 }
                 
-                url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/rpc/{rpc_name}"
+                results = []
+                local_failed = False
                 async with httpx.AsyncClient(timeout=15.0) as client:
-                    res = await client.post(url, json=payload, headers=self.headers)
-                    if res.status_code == 200:
-                        results = res.json()
+                    try:
+                        res = await post_rpc_json(
+                            client,
+                            supabase_url=SUPABASE_URL,
+                            rpc_name=rpc_name,
+                            payload=payload,
+                            headers=self.headers,
+                        )
+                        if res.status_code == 200:
+                            results = res.json()
+                        else:
+                            local_failed = True
+                            logger.warning(f"[ELI PgVector] RPC match_isap_documents failed with status {res.status_code}")
+                    except Exception as db_err:
+                        local_failed = True
+                        logger.warning(f"[ELI PgVector] RPC match_isap_documents exception: {db_err}")
+                        
+                    # Fallback to direct ELI search API when Supabase fails or returns nothing
+                    if local_failed or not results:
+                        breaker = self._breakers.get("ELI")
+                        if breaker and not breaker.allow_request():
+                            snap = breaker.snapshot()
+                            self.emit_integration_warning(
+                                f"⚠️ **ELI Sejm API**: odcięte (circuit={snap.state}, failures={snap.failures})."
+                            )
+                            continue
+                            
+                        logger.info(f"[ELI Fallback] Calling fetch_eli_once directly for query: '{q}'")
+                        try:
+                            fallback_results = await fetch_eli_once(client, q, limit)
+                            if breaker:
+                                breaker.on_success()
+                            if fallback_results:
+                                logger.info(f"[ELI Fallback] Direct Sejm API returned {len(fallback_results)} acts.")
+                                for row in fallback_results:
+                                    key = row.get("source") or row.get("id") or hash(row.get("content", ""))
+                                    if key in seen:
+                                        continue
+                                    seen.add(key)
+                                    merged.append(row)
+                        except Exception as fb_err:
+                            logger.error(f"[ELI Fallback ERR] Direct Sejm API failed: {fb_err}")
+                            if breaker:
+                                breaker.on_failure(str(fb_err))
+                    else:
                         for row in results:
                             key = row.get("eli") or row.get("id")
                             if key in seen:
@@ -646,18 +579,16 @@ class RetrievalService:
                                 "content": f"{header}\n{content[:3000]}",
                             })
                             
-                            if len(merged) >= limit:
-                                break
                 if len(merged) >= limit:
                     break
                     
-            logger.info("[ELI PgVector] queries=%s -> %s aktów", queries, len(merged))
-            out = merged[:limit]
+            logger.info("[ELI PgVector/Fallback] queries=%s -> %s aktów", queries, len(merged))
+            out = normalize_retrieval_rows(merged[:limit])
             rag_cache.set(cache_key, out)
             return out
         except Exception as e:
             logger.error("[ELI PgVector ERR] %s", e)
-            self.emit_integration_warning(f"⚠️ **ELI (ISAP)**: błąd zapytania do lokalnej bazy pgvector ({str(e)[:200]}).")
+            self.emit_integration_warning(f"⚠️ **ELI (ISAP)**: błąd zapytania do lokalnej bazy pgvector / API ({str(e)[:200]}).")
             return []
 
 # Singleton

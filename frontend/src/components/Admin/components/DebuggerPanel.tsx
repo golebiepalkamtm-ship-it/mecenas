@@ -101,7 +101,10 @@ export function DebuggerPanel() {
   };
 
   useEffect(() => {
-    fetchDebugData();
+    const timer = setTimeout(() => {
+      fetchDebugData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleTestSupabase = async () => {

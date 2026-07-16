@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Trash2 } from 'lucide-react';
 import { LexIcon, type LexIconName } from '../../Layout/LexIcon';
-import { useChatSettingsStore } from '../../../store/useChatSettingsStore';
+import { useFavoriteModelsCount } from '../../../hooks/chatSettingsSelectors';
 import type { SettingsViewProps } from '../types';
 import { APIKeysSection } from './APIKeysSection';
 import { ProfileAccountForm } from './ProfileAccountForm';
@@ -90,7 +90,7 @@ export function ProfileSettingsPanel({
   isSaving,
   successMsg,
 }: Pick<SettingsViewProps, 'user' | 'profile' | 'onUpdateProfile' | 'isSaving' | 'successMsg'>) {
-  const favoriteCount = useChatSettingsStore((s) => s.favoriteModels.length);
+  const favoriteCount = useFavoriteModelsCount();
   const [notif, setNotif] = useState({ newCases: true, kb: true, sys: false, promos: false });
   const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null);
 

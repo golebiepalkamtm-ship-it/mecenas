@@ -1,6 +1,7 @@
+import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Check, 
   Copy, 
@@ -83,20 +84,37 @@ export function DocumentPreview({
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <ControlButton onClick={onCopy} active={copied} icon={copied ? <Check size={14} /> : <Copy size={14} />} label={copied ? "SKOPIOWANO" : "KOPIUJ"} />
+          <ControlButton 
+            onClick={onCopy} 
+            active={copied} 
+            icon={copied ? <Check size={14} /> : <Copy size={14} />} 
+            label={copied ? "SKOPIOWANO" : "KOPIUJ"} 
+            tooltipTitle="Skopiuj pismo"
+            tooltipDesc="Kopiuje całą wygenerowaną treść dokumentu do schowka."
+          />
           <ControlButton 
             onClick={onSave} 
             active={saveSuccess} 
             disabled={isSaving}
             icon={isGenerating ? <Loader2 size={14} className="animate-spin" /> : saveSuccess ? <Check size={14} /> : <Save size={14} />} 
             label={saveSuccess ? "ZAPISANO" : "ZAPISZ"} 
+            tooltipTitle="Zapisz roboczą"
+            tooltipDesc="Zapisuje pismo do Twojej biblioteki spraw."
           />
-          <ControlButton onClick={onDownload} icon={<Download size={14} />} label="POBIERZ .MD" />
+          <ControlButton 
+            onClick={onDownload} 
+            icon={<Download size={14} />} 
+            label="POBIERZ .MD" 
+            tooltipTitle="Pobierz Markdown"
+            tooltipDesc="Zapisuje plik w formacie .md na Twoim dysku."
+          />
           <ControlButton
             onClick={onDownloadDocx}
             disabled={isDownloadingDocx}
             icon={isDownloadingDocx ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
             label={isDownloadingDocx ? "DOCX..." : "POBIERZ DOCX"}
+            tooltipTitle="Pobierz Word"
+            tooltipDesc="Konwertuje i pobiera dokument jako gotowy plik .docx."
           />
         </div>
       </div>
@@ -148,27 +166,55 @@ function ControlButton({
   active = false, 
   disabled = false, 
   icon, 
-  label 
+  label,
+  tooltipTitle,
+  tooltipDesc
 }: { 
   onClick: () => void; 
   active?: boolean; 
   disabled?: boolean;
   icon: React.ReactNode; 
   label: string;
+  tooltipTitle: string;
+  tooltipDesc: string;
 }) {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={cn(
-        "flex items-center gap-2 h-9 px-4 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all duration-300 font-outfit",
-        active
-          ? "library-filter-active"
-          : "library-view-cell text-black/50 hover:text-black",
-      )}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
+    <div className="relative">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className={cn(
+          "flex items-center gap-2 h-9 px-4 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all duration-300 font-outfit",
+          active
+            ? "library-filter-active"
+            : "library-view-cell text-black/50 hover:text-black",
+        )}
+      >
+        {icon}
+        <span>{label}</span>
+      </button>
+      <AnimatePresence>
+        {hovered && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -5 }}
+            className="absolute top-full right-0 mt-2 w-48 p-2.5 bg-white border border-black/10 rounded-xl shadow-[0_10px_20px_rgba(0,0,0,0.12)] text-left z-9999 pointer-events-none text-black"
+          >
+            <p className="text-[9px] font-black uppercase tracking-widest text-black mb-1">
+              {tooltipTitle}
+            </p>
+            <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider">
+              {tooltipDesc}
+            </p>
+            <div className="absolute bottom-full right-4 -mb-px w-2 h-2 bg-white border-l border-t border-black/10 rotate-45" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

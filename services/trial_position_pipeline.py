@@ -9,7 +9,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from config import settings
 from moa.prompt_builder import get_role_prompt, merge_role_catalog
-from services.orchestrator import orchestrator
+from services.llm_gateway import call_with_fallback, call_with_fallback_stream
+from services.model_resolution import resolve_model_id
 from services.trial_context import chat_context_block, scaled_tokens
 
 logger = logging.getLogger(__name__)
@@ -72,9 +73,8 @@ async def _run_one_expert(
     async with semaphore:
         start = time.time()
         try:
-            resolved = orchestrator._resolve_model_id(model_id)
-            text, used = await orchestrator._call_with_fallback(
-                None,
+            resolved = resolve_model_id(model_id)
+            text, used = await call_with_fallback(
                 resolved,
                 [{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
@@ -136,10 +136,10 @@ async def stream_trial_position(
     if not models:
         from moa.dynamic_models import get_default_primary_model
         
-        models = [orchestrator._resolve_model_id(get_default_primary_model())]
+        models = [resolve_model_id(get_default_primary_model())]
 
     role_map = expert_roles or {}
-    judge = orchestrator._resolve_model_id(
+    judge = resolve_model_id(
         aggregator_model or models[0] or get_default_primary_model(),
     )
     expert_tokens = scaled_tokens(
@@ -212,8 +212,7 @@ async def stream_trial_position(
     stream = None
     used_model = judge
     try:
-        stream, used_model = await orchestrator._call_with_fallback_stream(
-            None,
+        stream, used_model = await call_with_fallback_stream(
             judge,
             [
                 {"role": "system", "content": system_content},
@@ -231,8 +230,7 @@ async def stream_trial_position(
         stream = None
 
     if stream is None:
-        text, used_model = await orchestrator._call_with_fallback(
-            None,
+        text, used_model = await call_with_fallback(
             judge,
             [
                 {"role": "system", "content": system_content},

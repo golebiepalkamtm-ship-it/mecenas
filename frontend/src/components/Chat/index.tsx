@@ -8,10 +8,11 @@ const MAX_ATTACHMENTS = 20;
 
 // Context & Hooks
 import { useSharedChat } from "../../context/useSharedChat";
-import { useChatSettingsStore } from "../../store/useChatSettingsStore";
+import { useChatRetrievalState, useChatUiState, useQuickIntelligenceState } from "../../hooks/chatSettingsSelectors";
 import { useChatMutation } from "../../hooks/useChatMutation";
 import type { ChatMetadata } from "../../hooks/useChatMutation";
 import { useKnowledgeBase, useUserLibrary } from "../../hooks";
+import { translatePromptKey } from "../../utils/promptLabels";
 import type { ChatMessage, ExpertAnalysis } from "../../types/chat";
 import type { Tab } from "../../types/navigation";
 
@@ -21,7 +22,6 @@ import { ChatSidebar } from "./components/ChatSidebar";
 import { QuickIntelligencePanel } from "./components/QuickIntelligencePanel";
 
 import { ChatInput } from "./components/ChatInput";
-import { FeatureCard } from "./components/FeatureCard";
 import { WelcomeView } from "./components/WelcomeView";
 import { LibrarySelectionModal } from "./components/LibrarySelectionModal";
 
@@ -51,12 +51,8 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
   }, [onNavigate]);
 
   // Zustand Store
+  const { mode, isOpen, setIsOpen, showHistory, setShowHistory } = useChatUiState();
   const {
-    mode,
-    isOpen,
-    setIsOpen,
-    showHistory,
-    setShowHistory,
     useSaos,
     setUseSaos,
     useEli,
@@ -65,8 +61,22 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
     setUseRagLegal,
     useRagUser,
     setUseRagUser,
-  } = useChatSettingsStore();
+  } = useChatRetrievalState();
   const isConsensusMode = mode === 'consensus' || mode === 'moa';
+
+  const { currentTask, activeModels, expertRoleByModel, responseMode, activePromptPresetId } = useQuickIntelligenceState();
+
+  const currentTaskLabel = currentTask ? translatePromptKey(currentTask) : 'Zadanie ogólne';
+  const modeLabel = responseMode === 'citizen' ? 'Obywatel' : responseMode === 'strategic' ? 'Strategia' : 'Pismo';
+  const universeLabel = activePromptPresetId === 'prosecution' ? 'Oskarżenie' : 'Obrona';
+  const activeRolesString = useMemo(() => {
+    if (!activeModels || activeModels.length === 0) return '';
+    const roles = activeModels
+      .map((id) => expertRoleByModel[id])
+      .filter(Boolean)
+      .map((role) => translatePromptKey(role));
+    return roles.length > 0 ? roles.join(', ') : 'Pasywni obserwatorzy';
+  }, [activeModels, expertRoleByModel]);
 
   // Core Hooks
   const chatMutation = useChatMutation();
@@ -191,6 +201,9 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
       
       const formData = new FormData();
       formData.append('file', file);
+      if (sessionId) {
+        formData.append('session_id', sessionId);
+      }
 
       const response = await fetch(`${API_BASE}/documents/upload-document`, {
         method: 'POST',
@@ -317,7 +330,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
 
     chatMutation.mutate({
       message: messageContent,
-      history: messages.slice(-10).map(m => ({ role: m.role, content: m.content })),
+      history: messages.map(m => ({ role: m.role, content: m.content })),
       sessionId: sessionId || undefined,
       attachments: attachmentData,
       document_text: combinedDocText,
@@ -364,6 +377,12 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
             claim_scores: meta.claim_scores as ChatMessage["claim_scores"],
           }));
         }
+        if (Array.isArray(meta.cited_sources) && meta.cited_sources.length > 0) {
+          updateAssistantMessage((msg) => ({
+            ...msg,
+            cited_sources: meta.cited_sources as ChatMessage["cited_sources"],
+          }));
+        }
       }
     }, {
       onSuccess: (data) => {
@@ -395,6 +414,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
           hallucinated_cites: data.hallucinated_cites,
           claim_scores: data.claim_scores ?? msg.claim_scores,
           investigation_summary: data.investigation_summary ?? msg.investigation_summary,
+          cited_sources: data.cited_sources ?? msg.cited_sources,
         }));
 
         fetchSessions();
@@ -536,7 +556,10 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
           <motion.button
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            onClick={() => setShowHistory(true)}
+            onClick={() => {
+              setShowHistory(true);
+              void fetchSessions();
+            }}
             className="absolute left-0 lg:left-1 top-[42%] -translate-y-1/2 z-30 p-3 lg:p-3.5 glass-prestige-platinum rounded-full text-white/50 hover:text-white hover:scale-110 transition-all shadow-xl group/hist"
             title="Pokaż Historię"
           >
@@ -568,8 +591,8 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
         <div ref={scrollRef} className={CHAT_MESSAGES_SURFACE}>
           <div className={CHAT_MESSAGES_INNER}>
             {showChatThreadHeader && (
-              <div className="sticky top-0 z-10 -mt-1 mb-2 pb-2 bg-gradient-to-b from-white via-white/95 to-transparent">
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl glass-prestige border border-black/[0.06] shadow-sm">
+              <div className="sticky top-0 z-10 -mt-1 mb-2 pb-2">
+                <div className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl glass-prestige border border-white/20 shadow-sm bg-white/40 backdrop-blur-md">
                   <div className="min-w-0 flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-gold-primary/10 border border-gold-primary/25 flex items-center justify-center shrink-0">
                       <LexIcon name="chat" size={15} />
@@ -578,9 +601,20 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
                       <p className="text-[10px] font-black uppercase tracking-[0.18em] text-black truncate font-outfit">
                         {activeSessionTitle}
                       </p>
-                      <p className="text-[8px] font-bold text-black/40 uppercase tracking-widest mt-0.5">
-                        {isConsensusMode ? "Tryb konsylium MOA" : "Konsultacja indywidualna"}
-                      </p>
+                      <div className="flex flex-col gap-0.5 mt-0.5">
+                        <p className="text-[8px] font-bold text-black/40 uppercase tracking-widest flex items-center gap-1.5 flex-wrap">
+                          <span>{isConsensusMode ? "Konsylium MOA" : "Indywidualnie"}</span>
+                          <span className="text-black/20">•</span>
+                          <span className="text-gold-primary/80">{universeLabel}</span>
+                          <span className="text-black/20">•</span>
+                          <span>{modeLabel}</span>
+                        </p>
+                        {isConsensusMode && activeRolesString && (
+                          <p className="text-[8px] font-bold text-gold-primary/80 uppercase tracking-widest truncate max-w-[250px] sm:max-w-[400px]">
+                            {currentTaskLabel} | {activeRolesString}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <span className="text-[8px] font-black uppercase tracking-widest text-black/35 shrink-0 tabular-nums">
@@ -608,14 +642,19 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
                 </div>
               </div>
             ) : messages.length === 0 ? (
-              <WelcomeView onNavigate={goToTab} />
+              <WelcomeView onNavigate={(tab) => goToTab(tab as Tab)} />
             ) : (
               <>
                 {messages.map((m, i) => (
                   <div key={m.id ?? `msg-${i}`} className="message-bubble-row w-full">
                     <MessageBubble
                       msg={m as Message}
-                      onPreviewDoc={(name, content) => setPreviewDoc({ name, content })}
+                      isLast={i === messages.length - 1}
+                      isStreaming={isLoading && i === messages.length - 1}
+                      activePhaseIndex={getActivePhaseIndex()}
+                      currentStatus={currentStatus}
+                      messagesLoaded={messagesLoaded}
+                      onShowKnowledgeBase={() => goToTab('knowledge')}
                     />
                   </div>
                 ))}
@@ -973,11 +1012,6 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
 
         <div className={CHAT_INPUT_DOCK}>
           <div className={CHAT_INPUT_DOCK_INNER}>
-            <div className="flex flex-row items-center justify-center gap-2 sm:gap-2.5 px-1 mb-2 overflow-x-auto no-scrollbar">
-              <FeatureCard icon={<LexIcon name="shield" size={14} className="opacity-80 text-black" />} title="Prywatność" bgColor="glass-prestige" textColor="text-black" />
-              <FeatureCard icon={<LexIcon name="judgments" size={14} className="opacity-80 text-black" />} title="Precyzja" bgColor="glass-prestige" textColor="text-black" />
-              <FeatureCard icon={<LexIcon name="chat" size={14} className="text-black" />} title="Szybkość" bgColor="glass-prestige-platinum" textColor="text-black" />
-            </div>
 
             <ChatInput 
                   isLoading={chatMutation.isPending}

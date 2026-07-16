@@ -1,7 +1,8 @@
 import os
+
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Domyślne modele — canonical source: config.py (LEXMIND_*)
 try:
@@ -29,7 +30,11 @@ CURATED_MODELS = [
     {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai"},
     {"id": "openai/gpt-4o", "name": "GPT-4o", "provider": "openai"},
     {"id": "anthropic/claude-3-opus", "name": "Claude 3 Opus", "provider": "anthropic"},
-    {"id": "anthropic/claude-3-sonnet", "name": "Claude 3 Sonnet", "provider": "anthropic"},
+    {
+        "id": "anthropic/claude-3-sonnet",
+        "name": "Claude 3 Sonnet",
+        "provider": "anthropic",
+    },
 ]
 
 
@@ -37,8 +42,16 @@ def is_vision_model(model_id: str) -> bool:
     if not model_id:
         return False
     vision_keywords = [
-        "vision", "vl", "vl-", "llava", "gemini", "gpt-4-vision", "claude-3",
-        "owl-alpha", "mimo", "glm",
+        "vision",
+        "vl",
+        "vl-",
+        "llava",
+        "gemini",
+        "gpt-4-vision",
+        "claude-3",
+        "owl-alpha",
+        "mimo",
+        "glm",
     ]
     return any(kw in model_id.lower() for kw in vision_keywords)
 
@@ -54,11 +67,41 @@ def _model_list_entry(raw: dict) -> dict:
 
 MODELS_LIST = [
     *[_model_list_entry(m) for m in CURATED_MODELS],
-    _model_list_entry({"id": "deepseek/deepseek-r1", "name": "DeepSeek R1 (Reasoning Judge)", "provider": "deepseek"}),
-    _model_list_entry({"id": "anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet (Legal Draft)", "provider": "anthropic"}),
-    _model_list_entry({"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash (Vision OCR)", "provider": "google"}),
-    _model_list_entry({"id": "google/gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite (Fast Vision)", "provider": "google"}),
-    _model_list_entry({"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini (Economical)", "provider": "openai"}),
+    _model_list_entry(
+        {
+            "id": "deepseek/deepseek-r1",
+            "name": "DeepSeek R1 (Reasoning Judge)",
+            "provider": "deepseek",
+        }
+    ),
+    _model_list_entry(
+        {
+            "id": "anthropic/claude-3.5-sonnet",
+            "name": "Claude 3.5 Sonnet (Legal Draft)",
+            "provider": "anthropic",
+        }
+    ),
+    _model_list_entry(
+        {
+            "id": "google/gemini-2.5-flash",
+            "name": "Gemini 2.5 Flash (Vision OCR)",
+            "provider": "google",
+        }
+    ),
+    _model_list_entry(
+        {
+            "id": "google/gemini-2.5-flash-lite",
+            "name": "Gemini 2.5 Flash Lite (Fast Vision)",
+            "provider": "google",
+        }
+    ),
+    _model_list_entry(
+        {
+            "id": "openai/gpt-4o-mini",
+            "name": "GPT-4o Mini (Economical)",
+            "provider": "openai",
+        }
+    ),
 ]
 
 
@@ -70,7 +113,8 @@ def merge_curated_models(models: list) -> list:
         base = {
             "id": mid,
             "name": entry.get("name") or mid.split("/")[-1],
-            "provider": entry.get("provider") or (mid.split("/")[0] if "/" in mid else "other"),
+            "provider": entry.get("provider")
+            or (mid.split("/")[0] if "/" in mid else "other"),
             "vision": is_vision_model(mid),
             "free": ":free" in mid.lower(),
             "api_source": "curated",
@@ -83,8 +127,9 @@ def merge_curated_models(models: list) -> list:
     return list(by_id.values())
 
 
-
-EXCLUDED_MODELS_KEYWORDS = ["extended"] # Usunięto "vision", aby odblokować zaawansowane modele OCR/Vision z OpenRouter!
+EXCLUDED_MODELS_KEYWORDS = [
+    "extended"
+]  # Usunięto "vision", aby odblokować zaawansowane modele OCR/Vision z OpenRouter!
 
 PRESETS_LIST = [
     {
@@ -97,55 +142,66 @@ PRESETS_LIST = [
         "judge_model": "deepseek/deepseek-r1",
         "vision_model": "google/gemini-2.5-flash",
         "draft_model": "anthropic/claude-3.5-sonnet",
-        "models": ["deepseek/deepseek-r1", "anthropic/claude-3.5-sonnet", "google/gemini-2.5-flash"]
+        "models": [
+            "deepseek/deepseek-r1",
+            "anthropic/claude-3.5-sonnet",
+            "google/gemini-2.5-flash",
+        ],
     },
     {
         "id": "lexmind-speed",
-        "name": "LexMind - Szybki i Ekonomiczny",
-        "description": "Zoptymalizowany pod kątem szybkości i minimalnych kosztów: GPT-4o Mini oraz Gemini 2.5 Flash Lite.",
+        "name": "LexMind - Ekonomiczny",
+        "description": "Zoptymalizowany pod kątem szybkości i minimalnych kosztów, ale bez utraty zdolności analitycznych: GPT-4o Mini oraz Gemini 2.5 Flash.",
         "icon": "zap",
         "color": "#00f5d4",
         "judge": "openai/gpt-4o-mini",
         "judge_model": "openai/gpt-4o-mini",
-        "vision_model": "google/gemini-2.5-flash-lite",
+        "vision_model": "google/gemini-2.5-flash",
         "draft_model": "openai/gpt-4o-mini",
-        "models": ["openai/gpt-4o-mini", "google/gemini-2.5-flash-lite"]
-    }
+        "models": ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
+    },
 ]
+
 
 # Clients
 def get_async_client():
     from openai import AsyncOpenAI
+
     return AsyncOpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+
 
 # Headers
 OPENROUTER_HEADERS = {
     "HTTP-Referer": "http://localhost:8000",
-    "X-Title": "LexMind AI V2"
+    "X-Title": "LexMind AI V2",
 }
+
 
 # Helper functions connected to DB settings
 def get_available_models_for_user(user_id: str = "default"):
     """Pobiera listę modeli zatwierdzonych przez administratora (dostępnych dla użytkownika)."""
     admin_selected = get_admin_models()
     from routes.models import OPENROUTER_MODELS_CACHE, load_persistent_cache
+
     cache_data = OPENROUTER_MODELS_CACHE.get("data", [])
     if not cache_data:
-        cache_data = load_persistent_cache() or []
-        
+        cache_data, _ = load_persistent_cache()
+
     if admin_selected:
         return [m for m in cache_data if m.get("id") in admin_selected]
-    
+
     # Jeśli admin nie wybrał żadnych modeli, użytkownicy nie widzą żadnych modeli
     return []
+
 
 def get_models_with_latency_check(models, latencies):
     """Mapuje identyfikatory modeli na pełne słowniki i opcjonalnie sortuje wg opóźnień."""
     from routes.models import OPENROUTER_MODELS_CACHE, load_persistent_cache
+
     cache_data = OPENROUTER_MODELS_CACHE.get("data", [])
     if not cache_data:
-        cache_data = load_persistent_cache() or []
-        
+        cache_data, _ = load_persistent_cache()
+
     resolved = []
     for m in models:
         if isinstance(m, str):
@@ -153,26 +209,32 @@ def get_models_with_latency_check(models, latencies):
             if found:
                 resolved.append(found.copy())
             else:
-                resolved.append({
-                    "id": m,
-                    "name": m.split("/")[-1].replace("-", " ").title(),
-                    "provider": m.split("/")[0] if "/" in m else "other",
-                    "vision": "vision" in m.lower(),
-                    "free": ":free" in m.lower()
-                })
+                resolved.append(
+                    {
+                        "id": m,
+                        "name": m.split("/")[-1].replace("-", " ").title(),
+                        "provider": m.split("/")[0] if "/" in m else "other",
+                        "vision": "vision" in m.lower(),
+                        "free": ":free" in m.lower(),
+                    }
+                )
         else:
             resolved.append(m)
-            
+
     if latencies:
         resolved.sort(key=lambda x: latencies.get(x.get("id"), 9999.0))
     return resolved
 
-def classify_model(m): 
+
+def classify_model(m):
     return {"id": m.get("id"), "name": m.get("name"), "provider": m.get("provider")}
+
 
 def save_admin_models(models):
     import json
+
     from database import set_setting
+
     try:
         model_ids = [m.get("id") if isinstance(m, dict) else m for m in models]
         set_setting("admin_enabled_models", json.dumps(model_ids))
@@ -181,10 +243,13 @@ def save_admin_models(models):
         print(f"[config] Error saving admin models: {e}")
         return False
 
+
 def get_user_profile_models(user_id: str = "default"):
     """Pobiera modele wybrane przez użytkownika w jego profilu."""
     import json
+
     from database import get_setting
+
     try:
         val = get_setting(f"user_models_{user_id}", "")
         if val:
@@ -193,13 +258,16 @@ def get_user_profile_models(user_id: str = "default"):
             return [m for m in available if m.get("id") in user_selected]
     except Exception as e:
         print(f"[config] Error reading user models: {e}")
-        
+
     return get_available_models_for_user(user_id)
+
 
 def save_user_profile_models(user_id: str, models: list) -> bool:
     """Zapisuje wybrane przez użytkownika modele w bazie."""
     import json
+
     from database import set_setting
+
     try:
         model_ids = [m.get("id") if isinstance(m, dict) else m for m in models]
         set_setting(f"user_models_{user_id}", json.dumps(model_ids))
@@ -208,10 +276,13 @@ def save_user_profile_models(user_id: str, models: list) -> bool:
         print(f"[config] Error saving user models: {e}")
         return False
 
+
 def get_admin_models():
     """Pobiera listę ID modeli wybranych przez administratora."""
     import json
+
     from database import get_setting
+
     try:
         val = get_setting("admin_enabled_models", "")
         if val:
@@ -219,5 +290,4 @@ def get_admin_models():
             return [m.get("id") if isinstance(m, dict) else m for m in parsed]
     except Exception as e:
         print(f"[config] Error reading admin models: {e}")
-    return []
-
+    return list(CONFIG_DEFAULT_MODELS) if CONFIG_DEFAULT_MODELS else []

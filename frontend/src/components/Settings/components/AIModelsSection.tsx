@@ -12,9 +12,9 @@ import {
 import { LexIcon } from '../../Layout/LexIcon';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useFavoriteModelsState, useModelLatencyState } from '../../../hooks/chatSettingsSelectors';
 import { useModels, readEnabledModels, type Model } from '../../../hooks/useConfig';
 import { useApiManagement } from '../../../hooks';
-import { useChatSettingsStore } from '../../../store/useChatSettingsStore';
 import { isModelVisibleForProviders } from '../../../utils/modelSource';
 import type { SettingsViewProps } from '../types';
 import { getBrand, normalizeVendor } from '../../Chat/constants';
@@ -24,7 +24,8 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<SettingsViewProps, 'onUpdateProfile' | 'isSaving' | 'successMsg'>) {
-  const { favoriteModels, toggleFavorite, setFavoriteModels, modelLatencies, setModelLatencies } = useChatSettingsStore();
+  const { favoriteModels, toggleFavorite, setFavoriteModels } = useFavoriteModelsState();
+  const { modelLatencies, setModelLatencies } = useModelLatencyState();
   const { data: allModels = [], isLoading } = useModels();
   const { providers } = useApiManagement();
   
@@ -261,7 +262,7 @@ export function AIModelsSection({ onUpdateProfile, isSaving, successMsg }: Pick<
             <div className="flex items-center justify-between px-2">
               <span className="text-[9px] text-white/40 font-black uppercase tracking-[0.2em]">Twoja aktualna lista:</span>
               <button 
-                onClick={() => useChatSettingsStore.getState().setFavoriteModels([])}
+                onClick={() => setFavoriteModels([])}
                 className="text-[9px] text-white/20 hover:text-red-400 font-bold uppercase tracking-widest transition-colors"
               >
                 Wyczyść wszystko

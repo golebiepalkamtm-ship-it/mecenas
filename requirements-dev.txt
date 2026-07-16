@@ -1,0 +1,34 @@
+# LexMind AI — Development Dependencies
+# Profile: DEV (ocr + development & testing tools)
+# Install: pip install -r requirements-core.txt -r requirements-ocr.txt -r requirements-dev.txt
+# =======================================================================================
+
+# Include all OCR dependencies (which includes core)
+-r requirements-ocr.txt
+
+# --- Testing & QA ---
+pytest>=8.0.0
+pytest-asyncio>=0.25.0
+pytest-cov>=4.1.0
+pytest-mock>=3.14.0
+
+# --- Code Quality ---
+black>=24.1.0
+flake8>=7.0.0
+isort>=5.13.0
+mypy>=1.8.0
+pylint>=3.0.0
+ruff>=0.3.0
+
+# --- Debugging & Profiling ---
+ipython>=8.20.0
+ipdb>=0.13.0
+rich>=13.7.0
+
+# --- Development Utilities ---
+pre-commit>=3.6.0
+watchdog>=3.0.0
+
+# --- Documentation ---
+sphinx>=7.2.0
+sphinx-rtd-theme>=2.0.0

@@ -7,7 +7,7 @@ import { supabase } from "../../utils/supabaseClient";
 import { DRAFTING_PROMPTS, DOCUMENT_TYPES } from "./constants";
 import { getDocumentCatalogItem } from "./documentCatalog";
 
-import { useChatSettingsStore } from "../../store/useChatSettingsStore";
+import { useDrafterModelSetting } from "../../hooks/chatSettingsSelectors";
 
 import type { ExpertModeKey } from "./types";
 
@@ -38,7 +38,7 @@ import { DRAFTER_SHELL, LibraryHero, LibraryStatPill } from "../Library/shared";
 export function DrafterView() {
   const { messages: globalMessages } = useSharedChat();
 
-  const { drafterModel } = useChatSettingsStore();
+  const { drafterModel } = useDrafterModelSetting();
 
   const currentMessages = globalMessages.map((m) => ({
     role: m.role,
@@ -91,19 +91,13 @@ export function DrafterView() {
   );
 
   const [documentDateIso, setDocumentDateIso] = useState(
-    initialFormal.documentDateIso,
+    initialFormal.documentDateIso || toIsoDateLocal(),
   );
 
   const [selectedPrompt, setSelectedPrompt] =
     useState<ExpertModeKey>("drafter");
 
   const documentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!documentDateIso) {
-      setDocumentDateIso(toIsoDateLocal());
-    }
-  }, [documentDateIso]);
 
   useEffect(() => {
     saveDrafterFormalPrefs({

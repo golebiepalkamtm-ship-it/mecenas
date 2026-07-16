@@ -4,7 +4,9 @@ import { DOCUMENT_CATALOG } from "./documentCatalog";
 export const DOCUMENT_TYPES: {
   id: string;
   label: string;
+  category: string;
   lexIcon: LexIconName;
+  defaultInstructions: string;
   color: string;
   bg: string;
   ring: string;

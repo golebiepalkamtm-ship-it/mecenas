@@ -139,7 +139,7 @@ def mask_pii(text: str, *, mapper: Optional[_EntityMapper] = None) -> str:
             return m.group(0)
         if _is_valid_pesel(m.group(1)):
             return mapper.get_label(m.group(1), "PESEL")
-        return m.group(0)  # nie jest PESELem — nie maskuj
+        return m.group(0)
 
     text = _PESEL_RE.sub(_replace_pesel, text)
 

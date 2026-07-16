@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from services.legal_rank import annotate_with_legal_rank, legal_rank_boost
+from services.retrieval.types import RetrievalItem, get_retrieval_score
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +17,8 @@ COHERE_RERANK_URL = "https://api.cohere.com/v1/rerank"
 DEFAULT_COHERE_MODEL = "rerank-multilingual-v3.0"
 
 
-def _base_score(row: Dict[str, Any]) -> float:
-    for key in ("rrf_score", "similarity", "score"):
-        val = row.get(key)
-        if val is not None:
-            try:
-                return float(val)
-            except (TypeError, ValueError):
-                pass
-    return 0.0
+def _base_score(row: RetrievalItem) -> float:
+    return get_retrieval_score(row)
 
 
 def _keyword_boost(content: str, query: str) -> float:
@@ -37,11 +31,11 @@ def _keyword_boost(content: str, query: str) -> float:
 
 
 def heuristic_rerank(
-    results: List[Dict[str, Any]],
+    results: List[RetrievalItem],
     query: str,
     *,
     top_k: int = 8,
-) -> List[Dict[str, Any]]:
+) -> List[RetrievalItem]:
     if not results:
         return []
     for r in results:
@@ -64,13 +58,13 @@ def heuristic_rerank(
 
 
 async def cohere_rerank(
-    results: List[Dict[str, Any]],
+    results: List[RetrievalItem],
     query: str,
     *,
     api_key: str,
     model: str = DEFAULT_COHERE_MODEL,
     top_k: int = 8,
-) -> List[Dict[str, Any]]:
+) -> List[RetrievalItem]:
     if not results or not api_key.strip():
         return heuristic_rerank(results, query, top_k=top_k)
 
@@ -94,7 +88,7 @@ async def cohere_rerank(
             return heuristic_rerank(results, query, top_k=top_k)
         data = res.json()
         order = data.get("results") or []
-        out: List[Dict[str, Any]] = []
+        out: List[RetrievalItem] = []
         for item in order:
             idx = int(item.get("index", 0))
             if 0 <= idx < len(results):
@@ -119,14 +113,14 @@ async def cohere_rerank(
 
 
 async def rerank_legal_chunks(
-    results: List[Dict[str, Any]],
+    results: List[RetrievalItem],
     query: str,
     *,
     provider: str = "heuristic",
     top_k: int = 8,
     cohere_api_key: Optional[str] = None,
     cohere_model: str = DEFAULT_COHERE_MODEL,
-) -> List[Dict[str, Any]]:
+) -> List[RetrievalItem]:
     """Jednolity punkt rerankingu po hybrid/vector retrieval."""
     prov = (provider or "heuristic").strip().lower()
     key = (cohere_api_key or os.getenv("COHERE_API_KEY") or "").strip()
@@ -139,15 +133,15 @@ async def rerank_legal_chunks(
 
 
 async def rerank_mixed_kb_chunks(
-    legal_results: List[Dict[str, Any]],
-    user_results: List[Dict[str, Any]],
+    legal_results: List[RetrievalItem],
+    user_results: List[RetrievalItem],
     query: str,
     *,
     provider: str = "heuristic",
     legal_top_k: int = 8,
     user_top_k: int = 4,
     cohere_api_key: Optional[str] = None,
-) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> tuple[List[RetrievalItem], List[RetrievalItem]]:
     """Rerank legal i user — osobne top_k po wspólnym scoringu."""
     combined = [dict(r, kb_source="legal") for r in legal_results]
     combined += [dict(r, kb_source="user") for r in user_results]
@@ -158,8 +152,8 @@ async def rerank_mixed_kb_chunks(
         top_k=legal_top_k + user_top_k,
         cohere_api_key=cohere_api_key,
     )
-    legal_out: List[Dict[str, Any]] = []
-    user_out: List[Dict[str, Any]] = []
+    legal_out: List[RetrievalItem] = []
+    user_out: List[RetrievalItem] = []
     for row in ranked:
         if row.get("kb_source") == "user" and len(user_out) < user_top_k:
             user_out.append(row)
@@ -169,16 +163,16 @@ async def rerank_mixed_kb_chunks(
 
 
 async def rerank_external_sources(
-    saos_results: List[Dict[str, Any]],
-    eli_results: List[Dict[str, Any]],
+    saos_results: List[RetrievalItem],
+    eli_results: List[RetrievalItem],
     query: str,
     *,
     provider: str = "heuristic",
     top_k: int = 6,
     cohere_api_key: Optional[str] = None,
-) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+) -> tuple[List[RetrievalItem], List[RetrievalItem]]:
     """Łączny rerank SAOS + ELI, potem podział z powrotem (max połowa każdego typu)."""
-    tagged: List[Dict[str, Any]] = []
+    tagged: List[RetrievalItem] = []
     for r in saos_results:
         row = dict(r)
         row["source_type"] = "SAOS"
@@ -196,8 +190,8 @@ async def rerank_external_sources(
         top_k=min(top_k, len(tagged)),
         cohere_api_key=cohere_api_key,
     )
-    saos_out: List[Dict[str, Any]] = []
-    eli_out: List[Dict[str, Any]] = []
+    saos_out: List[RetrievalItem] = []
+    eli_out: List[RetrievalItem] = []
     half = max(1, top_k // 2)
     for row in ranked:
         st = row.get("source_type")

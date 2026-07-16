@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, Optional, Tuple
 
+from services.retrieval.types import get_retrieval_title
+
 
 LegalRank = Tuple[int, str]
 
@@ -126,7 +128,7 @@ def annotate_with_legal_rank(
     r = dict(row or {})
     metadata = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
     st = r.get("source_type") or default_source_type
-    title = r.get("title") or r.get("tytul")
+    title = get_retrieval_title(r)
     filename = None
     if isinstance(metadata, dict):
         filename = metadata.get("filename") or metadata.get("source_filename")
@@ -155,10 +157,42 @@ def legal_rank_boost(row: Dict[str, Any], query: str) -> float:
 
     if query_prefers_case_law(q):
         if label == "Orzecznictwo":
-            return 0.14
-        return max(-0.06, (rank / 100.0 - 0.6) * -0.06)
+            boost = 0.14
+            # Court hierarchy scoring
+            blob = " ".join([_norm(annotated.get("title")), _norm(row.get("metadata", {}).get("court", ""))]).lower()
+            if any(x in blob for x in ("sąd najwyższy", "sn", "naczelny sąd administracyjny", "nsa", "tk", "tsue", "trybunał")):
+                boost += 0.08
+            elif any(x in blob for x in ("sąd apelacyjny", "sa", "wojewódzki sąd administracyjny", "wsa")):
+                boost += 0.04
+            elif any(x in blob for x in ("sąd okręgowy", "so", "sąd rejonowy", "sr")):
+                boost += 0.01
+        else:
+            boost = max(-0.06, (rank / 100.0 - 0.6) * -0.06)
+    elif query_prefers_norms(q):
+        boost = (rank / 100.0) * 0.12
+    else:
+        boost = (rank / 100.0) * 0.06
 
-    if query_prefers_norms(q):
-        return (rank / 100.0) * 0.12
-
-    return (rank / 100.0) * 0.06
+    from config import settings
+    if settings.feature_temporal_ranking:
+        # Próba wyciągnięcia roku z metadanych lub tytułu
+        metadata = row.get("metadata", {})
+        if isinstance(metadata, dict):
+            year_str = str(metadata.get("year", "")) or str(metadata.get("judgmentDate", "")) or str(metadata.get("date", ""))
+            match = re.search(r"\b(19|20)\d{2}\b", year_str)
+            if not match:
+                match = re.search(r"\b(19|20)\d{2}\b", _norm(get_retrieval_title(row)))
+                
+            if match:
+                from datetime import date
+                current_year = date.today().year
+                year = int(match.group(0))
+                age = current_year - year
+                if age <= 2:
+                    boost += 0.05
+                elif age <= 5:
+                    boost += 0.02
+                elif age > 15:
+                    boost -= 0.03
+                    
+    return boost

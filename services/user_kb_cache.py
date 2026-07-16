@@ -100,13 +100,7 @@ async def fetch_full_text_by_source_hash(source_hash: str, timeout: float = 25.0
     if not rows:
         return None
 
-    rows = [
-        r
-        for r in rows
-        if (r.get("metadata") or {}).get("storage_role") != STORAGE_FULL_BODY
-    ]
-    if not rows:
-        return None
+    def _chunk_key(row: Dict[str, Any]) -> tuple[int, int]:
         meta = row.get("metadata") or {}
         if isinstance(meta, dict):
             try:
@@ -121,6 +115,14 @@ async def fetch_full_text_by_source_hash(source_hash: str, timeout: float = 25.0
         except (TypeError, ValueError):
             rid = 0
         return (idx, rid)
+
+    rows = [
+        r
+        for r in rows
+        if (r.get("metadata") or {}).get("storage_role") != STORAGE_FULL_BODY
+    ]
+    if not rows:
+        return None
 
     parts: List[str] = []
     for row in sorted(rows, key=_chunk_key):

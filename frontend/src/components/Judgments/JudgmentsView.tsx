@@ -398,7 +398,9 @@ export const JudgmentsView: React.FC = () => {
 
   useEffect(() => {
     if (!filters.ccCourtId) {
-      setCommonCourtDivisions([]);
+      if (commonCourtDivisions.length > 0) {
+        setCommonCourtDivisions([]);
+      }
       return;
     }
 
@@ -427,7 +429,9 @@ export const JudgmentsView: React.FC = () => {
 
   useEffect(() => {
     if (!filters.scChamberId) {
-      setScChamberDivisions([]);
+      if (scChamberDivisions.length > 0) {
+        setScChamberDivisions([]);
+      }
       return;
     }
 
@@ -457,8 +461,12 @@ export const JudgmentsView: React.FC = () => {
   useEffect(() => {
     const prefix = keywordInput.trim();
     if (prefix.length < 2) {
-      setKeywordSuggestions([]);
-      setKeywordsLoading(false);
+      if (keywordSuggestions.length > 0) {
+        setKeywordSuggestions([]);
+      }
+      if (keywordsLoading) {
+        setKeywordsLoading(false);
+      }
       return;
     }
 
@@ -504,8 +512,12 @@ export const JudgmentsView: React.FC = () => {
 
   useEffect(() => {
     if (!selectedJudgmentId) {
-      setSelectedDetails(null);
-      setDetailsLoading(false);
+      if (selectedDetails !== null) {
+        setSelectedDetails(null);
+      }
+      if (detailsLoading) {
+        setDetailsLoading(false);
+      }
       return;
     }
 
@@ -547,8 +559,12 @@ export const JudgmentsView: React.FC = () => {
   }, [selectedJudgmentId]);
 
   useEffect(() => {
-    setSaveJudgmentStatus(null);
-    setIsSavingJudgment(false);
+    if (saveJudgmentStatus !== null) {
+      setSaveJudgmentStatus(null);
+    }
+    if (isSavingJudgment) {
+      setIsSavingJudgment(false);
+    }
   }, [selectedJudgmentId]);
 
   const addKeyword = (rawValue: string): void => {
@@ -680,6 +696,13 @@ export const JudgmentsView: React.FC = () => {
     await executeSearch();
   };
 
+  const handleFilterKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void executeSearch();
+    }
+  };
+
   const handleResetFilters = (): void => {
     setQuery("");
     setFilters({ ...DEFAULT_FILTERS });
@@ -806,20 +829,33 @@ export const JudgmentsView: React.FC = () => {
           }
           below={
             <form onSubmit={(e) => void handleSearch(e)} className="w-full max-w-4xl">
-              <div className="relative group">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder='Fraza (cudzysłowy, OR, minus) np. "dobra osobiste" OR zniesławienie -internet'
-                  className="w-full h-12 sm:h-14 library-view-cell rounded-xl pl-5 pr-14 text-sm font-outfit font-semibold text-black outline-none focus:border-library-accent/45"
-                />
+              <div className="flex gap-2.5">
+                <div className="relative flex-1 group">
+                  <Search
+                    size={18}
+                    className="absolute left-4 top-1/2 -translate-y-1/2 text-black/30 group-focus-within:text-gold-primary transition-colors pointer-events-none"
+                  />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder='Fraza (cudzysłowy, OR, minus) np. "dobra osobiste" OR zniesławienie -internet'
+                    className="w-full h-12 sm:h-14 library-view-cell rounded-xl pl-12 pr-4 text-sm font-outfit font-semibold text-black outline-none focus:border-library-accent/45 placeholder:text-black/30"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-11 sm:h-11 rounded-lg lex-btn-primary flex items-center justify-center disabled:opacity-50 transition-all"
+                  className="px-5 sm:px-8 h-12 sm:h-14 rounded-xl lex-btn-primary flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all font-outfit text-xs font-black uppercase tracking-widest shrink-0"
                 >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+                  {loading ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <>
+                      <Search size={16} />
+                      <span>Szukaj</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -880,6 +916,7 @@ export const JudgmentsView: React.FC = () => {
                       <input
                         value={filters.caseNumber}
                         onChange={(e) => updateFilter("caseNumber", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                         placeholder="np. II AKa 12/23"
                       />
@@ -890,6 +927,7 @@ export const JudgmentsView: React.FC = () => {
                       <input
                         value={filters.judgeName}
                         onChange={(e) => updateFilter("judgeName", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                         placeholder="np. Jan Kowalski"
                       />
@@ -900,6 +938,7 @@ export const JudgmentsView: React.FC = () => {
                       <input
                         value={filters.legalBase}
                         onChange={(e) => updateFilter("legalBase", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                         placeholder="np. art. 415 kc"
                       />
@@ -910,6 +949,7 @@ export const JudgmentsView: React.FC = () => {
                       <input
                         value={filters.referencedRegulation}
                         onChange={(e) => updateFilter("referencedRegulation", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                         placeholder="np. art. 233 kpc"
                       />
@@ -920,6 +960,7 @@ export const JudgmentsView: React.FC = () => {
                       <input
                         value={filters.lawJournalEntryCode}
                         onChange={(e) => updateFilter("lawJournalEntryCode", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                         placeholder="np. 2008/141"
                       />
@@ -1082,6 +1123,7 @@ export const JudgmentsView: React.FC = () => {
                         type="date"
                         value={filters.judgmentDateFrom}
                         onChange={(e) => updateFilter("judgmentDateFrom", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                       />
                     </div>
@@ -1092,6 +1134,7 @@ export const JudgmentsView: React.FC = () => {
                         type="date"
                         value={filters.judgmentDateTo}
                         onChange={(e) => updateFilter("judgmentDateTo", e.target.value)}
+                        onKeyDown={handleFilterKeyDown}
                         className={INPUT_CLASS}
                       />
                     </div>
@@ -1228,7 +1271,30 @@ export const JudgmentsView: React.FC = () => {
                           ))}
                         </div>
                       )}
-                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-black/5">
+                  <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="px-4 py-2.5 rounded-xl border border-black/10 hover:border-black/20 text-xs font-black uppercase tracking-widest text-black/60 hover:text-black hover:bg-black/5 font-outfit transition-all"
+                    >
+                      Resetuj filtry
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void executeSearch()}
+                      disabled={loading}
+                      className="px-6 py-2.5 rounded-xl lex-btn-primary text-xs font-black uppercase tracking-widest text-white font-outfit transition-all flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <Loader2 className="animate-spin" size={14} />
+                      ) : (
+                        <Search size={14} />
+                      )}
+                      Wyszukaj orzeczenia
+                    </button>
                   </div>
 
                   </motion.div>

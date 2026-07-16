@@ -75,13 +75,14 @@ export const ExpertAnalysesCompact = React.memo(({ analyses, onOpenFull }: Exper
               layout
               title={label}
               onClick={() => toggle(i)}
+              whileHover={{ scale: isOpen ? 1.22 : 1.08 }}
               animate={{
                 scale: isOpen ? 1.22 : 1,
                 y: isOpen ? -4 : 0,
               }}
               transition={{ type: "spring", stiffness: 420, damping: 28 }}
               className={cn(
-                "relative flex flex-col items-center gap-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400",
+                "relative flex flex-col items-center gap-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 transition-shadow",
                 isOpen ? "z-20" : "z-10",
               )}
             >
@@ -125,47 +126,54 @@ export const ExpertAnalysesCompact = React.memo(({ analyses, onOpenFull }: Exper
         })}
       </motion.div>
 
-      {expandedIdx !== null && analyses[expandedIdx]?.response && (
-        <div
-          key={expandedIdx}
-          className="mt-2"
-        >
-          <article
-            className={PAPER_CLASS}
-            style={{
-              backgroundImage:
-                "linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)",
-              backgroundSize: "100% 1.75rem",
-            }}
+      <AnimatePresence mode="wait">
+        {expandedIdx !== null && analyses[expandedIdx]?.response && (
+          <motion.div
+            key={expandedIdx}
+            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-3.5"
           >
-            <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-stone-200/80 bg-[#f5f4f0]">
-              <span className="text-[12px] font-bold text-stone-750 truncate">
-                {extractRoleLabel(String(analyses[expandedIdx].model || ""))}
-              </span>
-              {onOpenFull && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenFull(
-                      extractRoleLabel(String(analyses[expandedIdx].model || "")),
-                      String(analyses[expandedIdx].response || ""),
-                    )
-                  }
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-stone-500 hover:text-stone-800 shrink-0 uppercase tracking-wider transition-colors"
-                >
-                  <Maximize2 size={11} />
-                  Pełny ekran
-                </button>
-              )}
-            </div>
-            <div className="px-4 py-3.5 max-h-[260px] overflow-y-auto custom-scrollbar text-[14px] leading-relaxed prose prose-stone prose-sm max-w-none prose-p:my-2.5 prose-headings:text-stone-900 prose-headings:text-sm prose-strong:text-stone-900">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {String(analyses[expandedIdx].response)}
-              </ReactMarkdown>
-            </div>
-          </article>
-        </div>
-      )}
+            <motion.article
+              layoutId={`expert-paper-${expandedIdx}`}
+              className={PAPER_CLASS}
+              style={{
+                backgroundImage:
+                  "linear-gradient(to bottom, rgba(0,0,0,0.02) 1px, transparent 1px)",
+                backgroundSize: "100% 1.75rem",
+              }}
+            >
+              <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 border-b border-stone-200/80 bg-[#f5f4f0]">
+                <span className="text-[12px] font-bold text-stone-750 truncate">
+                  {extractRoleLabel(String(analyses[expandedIdx].model || ""))}
+                </span>
+                {onOpenFull && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenFull(
+                        extractRoleLabel(String(analyses[expandedIdx].model || "")),
+                        String(analyses[expandedIdx].response || ""),
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold text-stone-500 hover:text-stone-800 shrink-0 uppercase tracking-wider transition-colors"
+                  >
+                    <Maximize2 size={11} />
+                    Pełny ekran
+                  </button>
+                )}
+              </div>
+              <div className="px-4 py-3.5 max-h-[260px] overflow-y-auto custom-scrollbar text-[14px] leading-relaxed prose prose-stone prose-sm max-w-none prose-p:my-2.5 prose-headings:text-stone-900 prose-headings:text-sm prose-strong:text-stone-900">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {String(analyses[expandedIdx].response)}
+                </ReactMarkdown>
+              </div>
+            </motion.article>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 });

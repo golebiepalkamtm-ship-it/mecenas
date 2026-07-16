@@ -18,6 +18,11 @@ export function getResolvedModelSource(model: Pick<Model, "api_source" | "provid
     return "google_native";
   }
 
+  // Curated or other models with a slash are served via OpenRouter proxy
+  if (modelId.includes("/")) {
+    return "openrouter";
+  }
+
   return "direct";
 }
 

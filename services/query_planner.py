@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+from services.pipeline.fast_path import is_legal_micro_query
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,6 +60,21 @@ def _extract_json_blob(text: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def plan_query_zero_cost(user_query: str) -> Optional[QueryPlan]:
+    """Reguły zero-cost — krótkie zapytania prawne bez wywołania LLM."""
+    if is_legal_micro_query(user_query):
+        return QueryPlan(
+            intent="article_explain",
+            keywords=user_query.strip(),
+            skip_debate=True,
+            estimated_complexity="low",
+            rag_match_count=4,
+            saos_limit=2,
+            eli_limit=3,
+        )
+    return None
+
+
 async def plan_query(
     *,
     call_llm: Callable[..., Any],
@@ -68,6 +85,12 @@ async def plan_query(
     fallback_keywords: str = "",
 ) -> QueryPlan:
     """LLM planner ~200 tok → QueryPlan; fallback na heurystykę."""
+    zero_cost = plan_query_zero_cost(user_query)
+    if zero_cost is not None:
+        if not zero_cost.keywords.strip():
+            zero_cost.keywords = fallback_keywords
+        return zero_cost
+
     prompt = (
         "Zaplanuj wyszukiwanie prawne (PL). Zwróć WYŁĄCZNIE JSON:\n"
         '{"intent":"article_explain|case_analysis|litigation_strategy|draft_pleading",'
@@ -76,7 +99,7 @@ async def plan_query(
         '"use_saos":true,"use_eli":true,"skip_debate":false,'
         '"rag_match_count":5,"saos_limit":5,"eli_limit":5,'
         '"estimated_complexity":"low|medium|high"}\n\n'
-        f"Zapytanie: {user_query[:500]}\n"
+        f"Zapytanie: {user_query[:8000]}\n"
         f"Dokument: {document_excerpt[:1200]}\n"
         f"Historia: {history_snippet[:800]}"
     )

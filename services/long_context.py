@@ -12,6 +12,10 @@ def should_use_long_context_path(document_text: str) -> bool:
 
 
 def long_context_model_id() -> str:
+    from database import get_setting
+    assigned = get_setting("assigned_model_long_context", "").strip()
+    if assigned:
+        return assigned
     return settings.long_context_model.strip() or "google/gemini-2.5-pro"
 
 

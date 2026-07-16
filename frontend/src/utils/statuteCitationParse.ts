@@ -56,7 +56,7 @@ export function normalizeCaseNumber(value: string): string {
 }
 
 export function parseCaseNumberFromLabel(label: string): string | null {
-  const m = label.match(/\bsygn\.?(?:\s*akt\.?)?\s*([A-Za-z0-9./\- ]{3,})/i);
+  const m = label.match(/\bsygn\.?(?:\s*akt\.?)?\s*([A-Za-z0-9Ą-ź./\- ]+?\/\d{2,4}(?:\/[A-Za-z0-9]+)?)/i);
   if (!m) return null;
   return normalizeCaseNumber(m[1]);
 }
@@ -89,7 +89,7 @@ export function linkStatuteCitationsInMarkdown(
   });
 
   const sygnRe =
-    /\bsygn\.?(?:\s*akt\.?)?\s*([A-Za-z0-9./\-][A-Za-z0-9./\- ]{2,40})/gi;
+    /\bsygn\.?(?:\s*akt\.?)?\s*([A-Za-z0-9Ą-ź./\- ]+?\/\d{2,4}(?:\/[A-Za-z0-9]+)?)/gi;
   return withArts.replace(sygnRe, (match, caseNum: string) => {
     const trimmed = match.trim();
     if (trimmed.includes("](#cite-")) return match;

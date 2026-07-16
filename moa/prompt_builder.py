@@ -34,12 +34,15 @@ DEFENSE_UNIVERSE: UniverseDict = {
     ),
     "judge": (
         "[JUDGE_ROLE: SUPREME_DEFENSE_COORDINATOR]\n"
-        "Syntetyzujesz debatę ekspertów w rekomendację maksymalnie korzystną dla klienta.\n"
-        "NIE opisujesz pisma akapit po akapicie — wybierasz najsilniejsze tezy z sekcji I–IV ekspertów.\n"
-        "Format: rekomendacja → dziedzina i etap → wyjaśnienie przepisów → dodatkowa podstawa RAG/ELI → ścieżki → wyjście ze sprawy."
+        "Syntetyzujesz debatę ekspertów w wyczerpującą opinię prawną, maksymalnie korzystną dla klienta.\n"
+        "Unikaj szablonowości i sztywnych schematów odpowiedzi. Pisz płynnie, głęboko i naturalnie, "
+        "bez stosowania stałych nagłówków i z góry określonych struktur typu rekomendacja/ścieżki.\n"
+        "Zamiast tego dopasuj strukturę i zakres opinii do indywidualnego problemu klienta, "
+        "szczegółowo wyjaśniając każdą podstawę prawną i taktyczną."
     ),
     "roles": {
         "defender": load_prompt("prompt_agent_criminal_defense"),
+        "narcotics_defense": load_prompt("prompt_agent_narcotics_defense"),
         "constitutionalist": load_prompt("prompt_agent_constitutional"),
         "proceduralist": load_prompt("prompt_agent_strategic"), # Używamy strategic jako fallback proceduralny
         "evidencecracker": load_prompt("prompt_agent_document_destructor"),
@@ -53,6 +56,7 @@ DEFENSE_UNIVERSE: UniverseDict = {
             "Odpowiedz na pytanie klienta: diagnoza, ścieżki działania, terminy, ryzyka."
         ),
         "criminal_defense": load_prompt("prompt_agent_criminal_defense"),
+        "narcotics_defense": load_prompt("prompt_agent_narcotics_defense"),
         "rights_defense": load_prompt("prompt_agent_constitutional"),
         "document_attack": load_prompt("prompt_agent_document_destructor"),
         "emergency_relief": load_prompt("prompt_agent_emergency"),
@@ -71,8 +75,9 @@ PROSECUTION_UNIVERSE: UniverseDict = {
     ),
     "judge": (
         "[JUDGE_ROLE: COLD_COURT_ARBITER]\n"
-        "Syntetyzujesz analizy prokuratora/śledczego/biegłego — nie przepisujesz akt.\n"
-        "Format: orzeczenie wstępne, uzasadnienie, słabości oskarżenia, prognoza instancyjna."
+        "Syntetyzujesz analizy prokuratora/śledczego/biegłego w szczegółową i głęboką ocenę oskarżenia.\n"
+        "Pisz w sposób płynny, wyczerpujący i naturalny, bez używania sztywnych formatów czy stałych nagłówków. "
+        "Dopasuj strukturę syntezy do specyfiki sprawy, dokładnie analizując dowody, terminy i słabości."
     ),
     "roles": {
         "prosecutor": (

@@ -12,6 +12,17 @@
   );
   --app-nav-sidebar-w: 8rem;
   --app-nav-header-h: 5rem;
+  --app-nav-chrome-bevel: 5px;
+  --app-nav-chrome-bevel-strong: 6px;
+  --app-nav-chrome-r-side: 1.5rem;
+  --app-nav-chrome-r-top: 1rem;
+  --app-nav-chrome-inner-r: 18px;
+  --app-nav-chrome-bg: linear-gradient(
+    145deg,
+    rgba(130, 130, 135, 0.98) 0%,
+    rgba(100, 100, 105, 0.98) 50%,
+    rgba(65, 65, 70, 0.95) 100%
+  );
   --app-nav-logo-h: 8rem;
   --app-nav-item-h: 4.5rem;
   --app-nav-item-w: 7rem;
@@ -91,8 +102,6 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
 }
 
 html {
@@ -120,6 +129,16 @@ body {
 ::selection {
   background: rgba(212, 175, 55, 0.35);
   color: #f0cc5a;
+}
+
+/* ── Global elegant focus states ── */
+:focus-visible {
+  outline: none !important;
+  box-shadow:
+    0 0 0 2px #000000 !important,
+    0 0 0 4px var(--lex-gold) !important,
+    0 0 15px rgba(212, 175, 55, 0.55) !important;
+  transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 /* ─── Unified Luxury Scrollbars (High-Contrast Mint on Obsidian) ─── */
@@ -373,7 +392,7 @@ body {
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   color: transparent !important;
-  animation: liquid-metal-flow 60s linear infinite !important; /* Slowed down from 15s to 60s */
+  animation: liquid-metal-flow 60s linear infinite !important;
   display: inline-block;
 }
 
@@ -387,35 +406,55 @@ body {
 }
 
 /* ══════════════════════════════════════════════════════════
-   GLASS MORPHISM SYSTEM
-   Physical lens simulation — unified obsidian palette
+   GLASS MORPHISM SYSTEM — AWWWards 3D Convex Liquid Glass
+   "Wypukłe szkło 3D z grubymi połyskującymi narożnikami"
 ══════════════════════════════════════════════════════════ */
 
-/* ── Base liquid convex glass (HEAVY THICK VERSION) ── */
+/* ── Base liquid convex glass — Stalowy szary 3D Convex ── */
 @utility glass-liquid-convex {
-  /* Raw Steel Gray Gradient */
-  background: linear-gradient(
-    145deg,
-    rgba(180, 180, 185, 0.95) 0%,
-    rgba(150, 150, 155, 0.95) 50%,
-    rgba(110, 110, 115, 0.9) 100%
-  );
+  background:
+    linear-gradient(
+      160deg,
+      rgba(135, 135, 140, 0.98) 0%,
+      rgba(105, 105, 110, 0.97) 45%,
+      rgba(68, 68, 74, 0.98) 100%
+    );
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   position: relative;
   overflow: hidden;
 
-  /* Windows 98 / Metal Bevel */
-  border-top: 3px solid rgba(255, 255, 255, 1);
-  border-left: 2px solid rgba(255, 255, 255, 0.8);
-  border-right: 1px solid rgba(0, 0, 0, 0.15);
-  border-bottom: 3px solid rgba(0, 0, 0, 0.2);
+  /* 3D CONVEX thick bevel — czysta szara paleta */
+  border-top: 3.5px solid rgba(255, 255, 255, 1);
+  border-left: 3px solid rgba(255, 255, 255, 0.9);
+  border-right: 2px solid rgba(0, 0, 0, 0.18);
+  border-bottom: 3.5px solid rgba(0, 0, 0, 0.22);
+  border-radius: 14px;
 
   box-shadow:
-    0 25px 60px rgba(0, 0, 0, 0.15),
-    0 10px 20px rgba(0, 0, 0, 0.1),
-    inset 0 2px 4px rgba(255, 255, 255, 0.9),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.1);
+    0 20px 60px rgba(0, 0, 0, 0.18),
+    0 8px 20px rgba(0, 0, 0, 0.10),
+    inset 0 3px 6px rgba(255, 255, 255, 0.95),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.08),
+    -2px -2px 0 0 rgba(255, 255, 255, 0.8),
+    2px 2px 0 0 rgba(0, 0, 0, 0.12);
+}
+
+/* Convex top-left highlight overlay */
+.glass-liquid-convex::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.48) 0%,
+    rgba(255, 255, 255, 0.12) 35%,
+    transparent 65%,
+    rgba(0, 0, 0, 0.03) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
 }
 
 @utility glass-prestige {
@@ -470,34 +509,32 @@ body {
       rgba(240, 204, 90, 0.02),
       transparent
     );
-  /* animation removed — was causing 100% GPU usage */
   z-index: 0;
 }
 
-/* ── Teal variant — unified to gold ── */
+/* ── Teal variant — pure gray ── */
 @utility glass-prestige-teal {
   @apply glass-prestige;
-  border-top-color: rgba(255, 255, 255, 0.95);
+  border-top-color: rgba(255, 255, 255, 1);
   box-shadow:
-    0 24px 64px -8px rgba(0, 0, 0, 0.45),
-    0 0 20px 0 rgba(var(--gold-rgb), 0.12),
-    inset 0 1.5px 0 rgba(240, 204, 90, 0.5),
-    inset 0 -1.5px 0 rgba(0, 0, 0, 0.4);
+    0 24px 64px -8px rgba(0, 0, 0, 0.40),
+    inset 0 2px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.35);
 }
 
-/* ── Blue variant ── unified to gold ── */
+/* ── Blue variant — pure gray ── */
 @utility glass-prestige-blue {
   @apply glass-prestige;
-  border-top-color: rgba(240, 204, 90, 0.75);
-  border-left-color: rgba(212, 175, 55, 0.2);
+  border-top-color: rgba(255, 255, 255, 1);
+  border-left-color: rgba(255, 255, 255, 0.8);
 }
 
 /* ── Full shell (app container) ── */
 @utility glass-liquid-shell {
   background: linear-gradient(
     170deg,
-    rgba(175, 175, 180, 0.98) 0%,
-    rgba(135, 135, 140, 1) 100%
+    rgba(130, 130, 135, 0.98) 0%,
+    rgba(90, 90, 95, 1) 100%
   );
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -513,42 +550,16 @@ body {
     inset 0 2px 2px rgba(255, 255, 255, 0.7);
 }
 
-/* ── Minimalist Panel Action Button ── */
 @utility prestige-panel-action {
-  width: 100%;
-  padding-top: 0.85rem;
-  padding-bottom: 0.85rem;
-  border-radius: 0.75rem;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5em;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: var(--font-outfit);
-
-  background: rgba(212, 175, 55, 0.08);
-  backdrop-filter: none;
-  color: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(212, 175, 55, 0.3);
-  box-shadow:
-    0 4px 12px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  cursor: pointer;
-}
-
-.prestige-panel-action:hover {
-  background: rgba(212, 175, 55, 0.15);
-  border-color: rgba(240, 204, 90, 0.6);
-  color: white;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.35),
-    0 0 15px rgba(212, 175, 55, 0.15);
-  transform: translateY(-1px);
-}
-
-.prestige-panel-action:active {
-  transform: translateY(0);
-  opacity: 0.8;
+  @apply btn-convex-prestige;
+  width: 100% !important;
+  padding-top: 0.85rem !important;
+  padding-bottom: 0.85rem !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5em !important;
+  font-family: var(--font-outfit) !important;
 }
 
 /* ── Unified Frame Material (The "One Whole" look) ── Wide Panels stay Obsidian ── */
@@ -596,20 +607,20 @@ body {
   overflow: hidden;
 }
 
-/* ── Polished Industrial Steel Material (Heavy Metallic) ── */
+/* ── Polished Industrial Steel Material — pure gray no noise ── */
 @utility glass-steel-monolith {
   background: linear-gradient(
     165deg,
-    rgba(180, 180, 185, 0.95) 0%,
-    rgba(150, 150, 155, 0.95) 50%,
-    rgba(110, 110, 115, 1) 100%
+    rgba(185, 185, 192, 0.98) 0%,
+    rgba(155, 155, 162, 0.98) 50%,
+    rgba(115, 115, 122, 1) 100%
   );
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 
   border: 1px solid rgba(255, 255, 255, 0.6);
-  border-left: 2px solid rgba(255, 255, 255, 0.9);
-  border-top: 2px solid rgba(255, 255, 255, 1);
+  border-left: 2.5px solid rgba(255, 255, 255, 0.95);
+  border-top: 2.5px solid rgba(255, 255, 255, 1);
   border-right: 1px solid rgba(0, 0, 0, 0.15);
   border-bottom: 2px solid rgba(0, 0, 0, 0.2);
 
@@ -652,9 +663,9 @@ body {
   /* Metallic Dark Silver Gradient - truly gray */
   background: linear-gradient(
     135deg,
-    rgba(170, 170, 175, 0.95) 0%,
-    rgba(140, 140, 145, 0.95) 50%,
-    rgba(100, 100, 105, 0.9) 100%
+    rgba(120, 120, 125, 0.95) 0%,
+    rgba(90, 90, 95, 0.95) 50%,
+    rgba(55, 55, 60, 0.9) 100%
   );
 
   /* Windows 98 Plus / Awwwards Thick Bevels - unified for seamless corner */
@@ -720,17 +731,13 @@ body {
     position: relative;
   }
 
+  /* Jedna warstwa L — bez szwu między górnym paskiem a sidebarem */
   .app-nav-chrome {
     position: absolute;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    background: linear-gradient(
-      145deg,
-      rgba(180, 180, 185, 0.98) 0%,
-      rgba(150, 150, 155, 0.98) 50%,
-      rgba(110, 110, 115, 0.95) 100%
-    );
+    background: var(--app-nav-chrome-bg);
     clip-path: polygon(
       0 0,
       100% 0,
@@ -740,9 +747,22 @@ body {
       0 100%
     );
     box-shadow:
-      inset 0 3px 0 rgba(255, 255, 255, 1),
-      inset 2px 0 0 rgba(255, 255, 255, 0.8),
-      inset 0 -3px 0 rgba(0, 0, 0, 0.2);
+      inset 0 var(--app-nav-chrome-bevel-strong) 0 rgba(255, 255, 255, 0.96),
+      inset var(--app-nav-chrome-bevel) 0 0 rgba(255, 255, 255, 0.84),
+      inset 0 calc(-1 * var(--app-nav-chrome-bevel)) 0 rgba(0, 0, 0, 0.2);
+  }
+
+  .app-nav-chrome::before,
+  .app-nav-chrome::after {
+    content: none;
+    display: none;
+  }
+
+  /* Zaokrąglone wewnętrzne narożniki otworu treści (niebieskie markery) */
+  main.app-main-mobile-offset {
+    border-top-left-radius: var(--app-nav-chrome-inner-r);
+    border-top-right-radius: var(--app-nav-chrome-inner-r);
+    border-bottom-left-radius: var(--app-nav-chrome-inner-r);
   }
 
   nav.app-nav-sidebar,
@@ -803,16 +823,7 @@ body {
 }
 
 .liquid-caustics {
-  position: absolute;
-  inset: -50%;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(0, 0, 0, 0.03) 0%,
-    transparent 60%
-  );
-  filter: blur(40px);
-  pointer-events: none;
-  z-index: 2;
+  display: none !important;
 }
 
 @utility mercury-sidebar-shimmer {
@@ -1031,20 +1042,6 @@ html.landing-active body {
   }
 }
 
-@keyframes liquid-metal-flow {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-/* Specialized utility removed, consolidated into .text-chameleon above */
-
 @keyframes holographic-shimmer {
   0% {
     background-position: 200% 0%;
@@ -1077,7 +1074,6 @@ html.landing-active body {
     rgba(255, 255, 255, 0.1),
     transparent 70%
   );
-
   pointer-events: none;
 }
 
@@ -1125,83 +1121,11 @@ html.landing-active body {
 ══════════════════════════════════════════════════════════ */
 
 @utility glass-prestige-button-primary {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: none;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(255, 255, 255, 0.4);
-    box-shadow:
-      0 12px 48px rgba(0, 0, 0, 0.6),
-      0 0 20px rgba(255, 255, 255, 0.1);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0.5px);
-    opacity: 0.8;
-  }
+  @apply btn-convex-prestige;
 }
 
 @utility glass-prestige-button {
-  background: linear-gradient(
-    155deg,
-    rgba(70, 70, 75, 0.55) 0%,
-    rgba(25, 25, 30, 0.85) 100%
-  );
-  border-top: 3px solid rgba(255, 255, 255, 1);
-  border-left: 2px solid rgba(255, 255, 255, 0.4);
-  border-right: 0.8px solid rgba(0, 0, 0, 0.3);
-  border-bottom: 3.5px solid rgba(0, 0, 0, 0.6);
-  box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.45),
-    inset 0 2px 6px rgba(255, 255, 255, 0.65),
-    inset 0 -3px 10px rgba(0, 0, 0, 0.45);
-  transition: all var(--t-base) var(--ease-out);
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: none;
-
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.25) 0%,
-      transparent 50%
-    );
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  &:hover {
-    border-top-color: #ffffff;
-    background: linear-gradient(
-      155deg,
-      rgba(100, 110, 140, 0.65) 0%,
-      rgba(40, 42, 60, 0.85) 100%
-    );
-    box-shadow:
-      0 24px 64px rgba(0, 0, 0, 0.55),
-      inset 0 4px 8px rgba(255, 255, 255, 0.85);
-    transform: translateY(-2px);
-  }
-
-  &:active {
-    transform: translateY(1px) scale(0.978);
-    box-shadow:
-      0 4px 16px rgba(0, 0, 0, 0.45),
-      inset 0 4px 24px rgba(0, 0, 0, 0.65);
-  }
+  @apply btn-convex-prestige;
 }
 
 /* ── Filter chip container ── */
@@ -1324,7 +1248,6 @@ html.landing-active body {
       rgba(var(--gold-rgb), 0.06) 0%,
       transparent 65%
     );
-    /* aurora-flow animation removed — GPU killer */
     pointer-events: none;
   }
 
@@ -1940,6 +1863,21 @@ html.landing-active body {
     0 0 60px rgba(var(--gold-rgb), 0.18);
 }
 
+@keyframes topbar-accent-breath {
+  0%, 100% {
+    opacity: 0.75;
+    box-shadow:
+      0 0 14px rgba(var(--topbar-accent-rgb, 212, 175, 55), 0.3),
+      0 8px 18px rgba(0, 0, 0, 0.1);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      0 0 26px rgba(var(--topbar-accent-rgb, 212, 175, 55), 0.7),
+      0 8px 22px rgba(0, 0, 0, 0.15);
+  }
+}
+
 .app-topbar-heading-shift {
   transform: translateX(clamp(3px, 0.25vw, 6px));
   position: relative;
@@ -1963,6 +1901,8 @@ html.landing-active body {
     0 0 18px rgba(var(--topbar-accent-rgb, 212, 175, 55), 0.35),
     0 8px 18px rgba(0, 0, 0, 0.12);
   opacity: 0.85;
+  animation: topbar-accent-breath 4s ease-in-out infinite;
+  transition: background 0.5s ease;
 }
 
 .app-topbar-title {
@@ -2533,7 +2473,6 @@ html.landing-active body {
 .floating-orb {
   position: absolute;
   border-radius: 50%;
-  /* Removed mix-blend-mode: plus-lighter; - massive GPU saver when combined with blurred orbs */
   pointer-events: none;
   z-index: 0;
 }
@@ -2556,7 +2495,6 @@ html.landing-active body {
   height: 6px;
   border-radius: 50%;
   background: var(--gold-primary);
-  /* Simplified shadow */
   box-shadow: 0 0 10px var(--gold-primary);
 }
 
@@ -2568,7 +2506,6 @@ html.landing-active body {
     content: "";
     position: absolute;
     inset: 0;
-    /* Static gradient instead of animated for holo effect */
     background: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.03) 0%,
@@ -2578,15 +2515,38 @@ html.landing-active body {
     pointer-events: none;
     z-index: 1;
     border-radius: inherit;
-    /* Removed mix-blend-mode: overlay; */
   }
 }
 
-/* ─── Gold sweep hover effect — DISABLED FOR STATIC LOOK ─── */
+/* ── Dynamic Luxury Gold Sweep Effect ── */
 .gold-sweep-hover {
   position: relative;
   overflow: hidden;
-  /* Hover effects removed */
+}
+
+.gold-sweep-hover::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 120%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(240, 204, 90, 0.02) 40%,
+    rgba(240, 204, 90, 0.28) 50%,
+    rgba(212, 175, 55, 0.02) 60%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  pointer-events: none;
+  z-index: 10;
+  transition: left 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gold-sweep-hover:hover::after {
+  left: 150%;
 }
 
 /* ─── Neon text ─── */
@@ -2627,17 +2587,7 @@ html.landing-active body {
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
-  /* particle-float animation removed — 30 simultaneous animations caused GPU overload */
 }
-
-/* ─── Card float animation ─── */
-/* ─── Card float animation removed as requested ─── */
-
-/* ─── Spin slow ─── */
-/* ─── Spin animations removed ─── */
-
-/* ─── Bounce in ─── */
-/* ─── Bounce animation removed ─── */
 
 /* ══════════════════════════════════════════════════════════
    PROSE — LexMind Message Content
@@ -2738,39 +2688,6 @@ html.landing-active body {
   }
 }
 
-/* ── Dynamic Luxury Gold Sweep Effect ── */
-.gold-sweep-hover {
-  position: relative;
-  overflow: hidden;
-}
-
-.gold-sweep-hover::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: -200%;
-  width: 150%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.05) 45%,
-    rgba(255, 255, 255, 0.45) 50%,
-    rgba(255, 255, 255, 0.05) 55%,
-    transparent 100%
-  );
-  transform: skewX(-25deg);
-  pointer-events: none;
-  z-index: 10;
-}
-
-.gold-sweep-hover:hover::after {
-  left: 200%;
-  transition: all 1.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Conflicting scrollbar overrides removed - unified at top */
-
 /* ── Definitive fix for ghost scrollbars on characters ── */
 .char,
 .char * {
@@ -2790,6 +2707,7 @@ html.landing-active body {
   background-color: var(--bg-void);
   background-image: var(--app-bg);
 }
+
 /* ══════════════════════════════════════════════════════════
    GLOW SYSTEM - Neon & Pastel Glow Utilities
 ══════════════════════════════════════════════════════════ */
@@ -2841,4 +2759,526 @@ body.lex-doc-reader main.app-main-mobile-offset {
   grid-column: 1 / -1 !important;
   grid-row: 1 / -1 !important;
   padding-top: 0 !important;
+  border-radius: 0 !important;
 }
+
+/* ─── 3D Convex Prestige Buttons & Glossy Chat Input Container ─── */
+@utility btn-convex-prestige {
+  position: relative;
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.12) 50%, rgba(0, 0, 0, 0.15) 100%), linear-gradient(135deg, rgba(145, 145, 150, 0.95) 0%, rgba(105, 105, 110, 0.95) 100%);
+  border-top: 2.5px solid rgba(255, 255, 255, 0.6) !important;
+  border-left: 2.2px solid rgba(255, 255, 255, 0.5) !important;
+  border-right: 2px solid rgba(0, 0, 0, 0.4) !important;
+  border-bottom: 3.8px solid rgba(0, 0, 0, 0.55) !important;
+  box-shadow: 
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.25),
+    0 3px 6px rgba(0, 0, 0, 0.35);
+  transition: all 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+  cursor: pointer;
+  color: #1d1d1f !important;
+}
+
+.btn-convex-prestige svg {
+  stroke: #1d1d1f !important;
+  color: #1d1d1f !important;
+}
+
+/* Allow custom/active states to override icon stroke & color */
+.btn-convex-prestige.active svg,
+.btn-convex-prestige[class*="text-gold"] svg,
+.btn-convex-prestige[class*="text-amber"] svg,
+.btn-convex-prestige[class*="text-red"] svg,
+.btn-convex-prestige svg[class*="text-gold"],
+.btn-convex-prestige svg[class*="text-amber"],
+.btn-convex-prestige svg[class*="text-red"] {
+  stroke: currentColor !important;
+  color: currentColor !important;
+}
+
+.btn-convex-prestige:hover {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.18) 50%, rgba(0, 0, 0, 0.10) 100%), linear-gradient(135deg, rgba(155, 155, 160, 0.95) 0%, rgba(115, 115, 120, 0.95) 100%);
+  border-top-color: rgba(255, 255, 255, 0.8) !important;
+  border-left-color: rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 
+    inset 0 2px 1.5px rgba(255, 255, 255, 0.45),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.2),
+    0 5px 12px rgba(0, 0, 0, 0.45);
+  transform: translateY(-0.5px);
+}
+
+.btn-convex-prestige:active {
+  background: radial-gradient(circle at 50% 75%, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.1) 100%), linear-gradient(135deg, rgba(95, 95, 100, 0.95) 0%, rgba(75, 75, 80, 0.95) 100%);
+  border-top: 3.5px solid rgba(0, 0, 0, 0.6) !important;
+  border-left: 3px solid rgba(0, 0, 0, 0.6) !important;
+  border-right: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 
+    inset 0 3px 5px rgba(0, 0, 0, 0.5),
+    0 1px 1px rgba(0, 0, 0, 0.1);
+  transform: translateY(1.5px);
+}
+
+.btn-convex-prestige.active {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 60%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(135deg, rgba(240, 204, 90, 0.95) 0%, rgba(212, 175, 55, 0.9) 100%) !important;
+  border-top-color: rgba(255, 255, 255, 0.65) !important;
+  border-left-color: rgba(255, 255, 255, 0.5) !important;
+  border-right-color: rgba(138, 106, 30, 0.6) !important;
+  border-bottom-color: rgba(138, 106, 30, 0.75) !important;
+  box-shadow: 
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.3),
+    0 3px 6px rgba(0, 0, 0, 0.35),
+    0 0 15px rgba(212, 175, 55, 0.3) !important;
+  color: #1d1d1f !important;
+}
+
+.btn-convex-prestige.active svg {
+  stroke: #1d1d1f !important;
+  color: #1d1d1f !important;
+}
+
+@utility btn-convex-glossy {
+  position: relative;
+  background-image: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.12) 50%, rgba(0, 0, 0, 0.15) 100%) !important;
+  border-top: 2.8px solid rgba(255, 255, 255, 0.65) !important;
+  border-left: 2.5px solid rgba(255, 255, 255, 0.55) !important;
+  border-right: 2px solid rgba(0, 0, 0, 0.45) !important;
+  border-bottom: 3.8px solid rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 
+    inset 0 1.8px 1.5px rgba(255, 255, 255, 0.4),
+    inset 0 -1.8px 2px rgba(0, 0, 0, 0.28),
+    0 4px 8px rgba(0, 0, 0, 0.35) !important;
+  transition: all 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  cursor: pointer;
+}
+
+.btn-convex-glossy:hover {
+  background-image: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.18) 50%, rgba(0, 0, 0, 0.10) 100%) !important;
+  border-top-color: rgba(255, 255, 255, 0.8) !important;
+  border-left-color: rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 
+    inset 0 2.2px 2px rgba(255, 255, 255, 0.52),
+    inset 0 -1.8px 2px rgba(0, 0, 0, 0.22),
+    0 6px 14px rgba(0, 0, 0, 0.45) !important;
+  transform: translateY(-0.5px);
+}
+
+.btn-convex-glossy:active {
+  background-image: radial-gradient(circle at 50% 75%, rgba(0, 0, 0, 0.28) 0%, rgba(0, 0, 0, 0.12) 100%) !important;
+  border-top: 3.8px solid rgba(0, 0, 0, 0.65) !important;
+  border-left: 3.2px solid rgba(0, 0, 0, 0.65) !important;
+  border-right: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 
+    inset 0 3px 5px rgba(0, 0, 0, 0.55),
+    0 1px 1px rgba(0, 0, 0, 0.15) !important;
+  transform: translateY(1.5px);
+}
+
+/* Map button selectors to the convex glossy utility */
+button.library-view-cell,
+button.library-filter-active,
+.lex-btn-primary,
+button.lex-btn-primary,
+.btn-convex-glossy {
+  @apply btn-convex-glossy;
+}
+
+.chat-input-container-glossy {
+  position: relative;
+  background: linear-gradient(160deg, rgba(135, 135, 140, 0.98) 0%, rgba(105, 105, 110, 0.97) 45%, rgba(68, 68, 74, 0.98) 100%) !important;
+  border-top: 5px solid rgba(255, 255, 255, 0.96) !important;
+  border-left: 4.5px solid rgba(255, 255, 255, 0.82) !important;
+  border-right: 2.5px solid rgba(0, 0, 0, 0.5) !important;
+  border-bottom: 5px solid rgba(0, 0, 0, 0.65) !important;
+  box-shadow:
+    0 25px 60px -10px rgba(0, 0, 0, 0.70),
+    inset 0 3px 6px rgba(255, 255, 255, 0.25),
+    inset 3px 0 6px rgba(255, 255, 255, 0.15),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.45),
+  0 0 35px rgba(212, 175, 55, 0.08) !important;
+}
+
+.chat-input-container-glossy textarea {
+  color: #1d1d1f !important;
+  caret-color: #d4af37 !important;
+}
+
+.chat-input-container-glossy textarea::placeholder {
+  color: rgba(0, 0, 0, 0.45) !important;
+}
+
+/* Glossy highlight line reflection on the upper half */
+.chat-input-container-glossy::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.03) 80%,
+    transparent 100%
+  );
+  pointer-events: none;
+  border-radius: 2.5rem 2.5rem 0 0;
+  z-index: 1;
+}
+
+/* Recessed wells to visually anchor buttons & input fields */
+.well-sunken-prestige {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border-top: 1.5px solid rgba(0, 0, 0, 0.45) !important;
+  border-left: 1.5px solid rgba(0, 0, 0, 0.40) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.25) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.30) !important;
+  box-shadow: 
+    inset 0 4px 8px rgba(0, 0, 0, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* ─── 3D Convex styling for all buttons inside panel wrappers ─── */
+.glass-liquid-convex button,
+.app-nav-sidebar button,
+.prestige-panel-action,
+.glass-prestige-button,
+.glass-prestige-button-primary {
+  position: relative;
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.35) 0%, rgba(255, 255, 255, 0.12) 50%, rgba(0, 0, 0, 0.15) 100%), linear-gradient(135deg, rgba(145, 145, 150, 0.95) 0%, rgba(105, 105, 110, 0.95) 100%) !important;
+  border-top: 2.8px solid rgba(255, 255, 255, 0.65) !important;
+  border-left: 2.5px solid rgba(255, 255, 255, 0.55) !important;
+  border-right: 2.2px solid rgba(0, 0, 0, 0.45) !important;
+  border-bottom: 4px solid rgba(0, 0, 0, 0.6) !important;
+  box-shadow: 
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.25),
+    0 3px 6px rgba(0, 0, 0, 0.35) !important;
+  transition: all 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+  cursor: pointer;
+  color: #1d1d1f !important;
+}
+
+.glass-liquid-convex button svg,
+.app-nav-sidebar button svg,
+.prestige-panel-action svg,
+.glass-prestige-button svg,
+.glass-prestige-button-primary svg {
+  stroke: #1d1d1f !important;
+  color: #1d1d1f !important;
+}
+
+/* Allow custom/active states to override icon stroke & color */
+.btn-convex-prestige.active svg,
+.glass-prestige-button.active svg,
+.prestige-panel-action.active svg,
+.glass-prestige-button-primary.active svg,
+.glass-liquid-convex button.active svg,
+.glass-liquid-convex button[class*="bg-gold"] svg,
+.glass-liquid-convex button[class*="bg-gold-primary"] svg,
+.btn-convex-prestige[class*="text-gold"] svg,
+.btn-convex-prestige[class*="text-amber"] svg,
+.btn-convex-prestige[class*="text-red"] svg,
+.btn-convex-prestige svg[class*="text-gold"],
+.btn-convex-prestige svg[class*="text-amber"],
+.btn-convex-prestige svg[class*="text-red"] {
+  stroke: currentColor !important;
+  color: currentColor !important;
+}
+
+.glass-liquid-convex button:hover,
+.app-nav-sidebar button:hover,
+.prestige-panel-action:hover,
+.glass-prestige-button:hover,
+.glass-prestige-button-primary:hover {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.18) 50%, rgba(0, 0, 0, 0.10) 100%), linear-gradient(135deg, rgba(155, 155, 160, 0.95) 0%, rgba(115, 115, 120, 0.95) 100%) !important;
+  border-top-color: rgba(255, 255, 255, 0.8) !important;
+  border-left-color: rgba(255, 255, 255, 0.65) !important;
+  box-shadow: 
+    inset 0 2px 1.5px rgba(255, 255, 255, 0.45),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.2),
+    0 5px 12px rgba(0, 0, 0, 0.45) !important;
+  transform: translateY(-0.5px) !important;
+}
+
+.glass-liquid-convex button:active,
+.app-nav-sidebar button:active,
+.prestige-panel-action:active,
+.glass-prestige-button:active,
+.glass-prestige-button-primary:active {
+  background: radial-gradient(circle at 50% 75%, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.1) 100%), linear-gradient(135deg, rgba(95, 95, 100, 0.95) 0%, rgba(75, 75, 80, 0.95) 100%) !important;
+  border-top: 4px solid rgba(0, 0, 0, 0.65) !important;
+  border-left: 3.5px solid rgba(0, 0, 0, 0.65) !important;
+  border-right: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 
+    inset 0 3px 5px rgba(0, 0, 0, 0.5),
+    0 1px 1px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(1.5px) !important;
+}
+
+/* Gold active/toggle states in control panels */
+.btn-convex-prestige.active,
+.glass-prestige-button.active,
+.prestige-panel-action.active,
+.glass-prestige-button-primary.active,
+.glass-liquid-convex button.active,
+.glass-liquid-convex button[class*="bg-gold"],
+.glass-liquid-convex button[class*="bg-gold-primary"] {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.15) 60%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(135deg, rgba(240, 204, 90, 0.95) 0%, rgba(212, 175, 55, 0.9) 100%) !important;
+  border-top-color: rgba(255, 255, 255, 0.65) !important;
+  border-left-color: rgba(255, 255, 255, 0.5) !important;
+  border-right-color: rgba(138, 106, 30, 0.6) !important;
+  border-bottom-color: rgba(138, 106, 30, 0.75) !important;
+  box-shadow: 
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1.5px 2px rgba(0, 0, 0, 0.3),
+    0 3px 6px rgba(0, 0, 0, 0.35),
+    0 0 15px rgba(212, 175, 55, 0.3) !important;
+  color: #1d1d1f !important;
+}
+
+.btn-convex-prestige.active svg,
+.glass-prestige-button.active svg,
+.prestige-panel-action.active svg,
+.glass-prestige-button-primary.active svg,
+.glass-liquid-convex button.active svg,
+.glass-liquid-convex button[class*="bg-gold"] svg,
+.glass-liquid-convex button[class*="bg-gold-primary"] svg {
+  stroke: #1d1d1f !important;
+  color: #1d1d1f !important;
+}
+
+/* Red active/close action buttons in panels */
+.glass-liquid-convex button[class*="red"],
+.glass-liquid-convex button[class*="Trash2"] {
+  color: #ef4444 !important;
+}
+
+.glass-liquid-convex button[class*="red"] svg,
+.glass-liquid-convex button[class*="Trash2"] svg {
+  stroke: #ef4444 !important;
+  color: #ef4444 !important;
+}
+
+.glass-liquid-convex button[class*="red"]:hover,
+.glass-liquid-convex button[class*="Trash2"]:hover {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 60%, rgba(0, 0, 0, 0.2) 100%), linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.2) 100%) !important;
+  border-top-color: rgba(255, 255, 255, 0.4) !important;
+  border-left-color: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.25),
+    0 4px 10px rgba(239, 68, 68, 0.2) !important;
+}
+
+/* Disabled styling override */
+.glass-liquid-convex button:disabled,
+.app-nav-sidebar button:disabled {
+  opacity: 0.35 !important;
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: rgba(0, 0, 0, 0.4) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  pointer-events: none !important;
+}
+
+/* ══════════════════════════════════════════════════════════
+   INLINE STATUTE CITATION PANEL — rozwinięcie art. w czacie
+══════════════════════════════════════════════════════════ */
+
+.cite-inline-panel {
+  display: block !important;
+  flex-basis: 100%;
+  width: 100%;
+  min-width: 0;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  background: linear-gradient(180deg, #fffdf5 0%, #ffffff 100%);
+  overflow: hidden;
+  box-shadow:
+    0 4px 20px rgba(212, 175, 55, 0.08),
+    0 1px 4px rgba(0, 0, 0, 0.05);
+  animation: cite-panel-appear 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cite-panel-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 2000px;
+  }
+}
+
+.cite-inline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.12);
+  background: linear-gradient(180deg, rgba(212, 175, 55, 0.06) 0%, rgba(212, 175, 55, 0.02) 100%);
+  flex-wrap: wrap;
+}
+
+.cite-inline-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.cite-inline-ref-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.375rem;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.08) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  font-size: 9px;
+  font-weight: 900;
+  color: #b8941e;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.cite-inline-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #292524;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 24rem;
+}
+
+.cite-inline-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 8.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.cite-inline-status--ok {
+  background: rgba(16, 185, 129, 0.1);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.cite-inline-status--warn {
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.cite-inline-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.cite-inline-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: white;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.cite-inline-action-btn:hover {
+  background: #f5f5f5;
+  color: #374151;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.cite-inline-action-link:hover {
+  color: #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.cite-inline-close-btn:hover {
+  background: #fef2f2;
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.cite-inline-body {
+  display: block;
+  padding: 1rem 1.125rem;
+  max-height: 28rem;
+  overflow-y: auto;
+}
+
+.cite-inline-fulltext {
+  display: block;
+  font-size: 13.5px;
+  line-height: 1.95;
+  color: #1f2937;
+  white-space: pre-wrap;
+  font-family: "Georgia", "Palatino Linotype", "Book Antiqua", serif;
+  word-break: break-word;
+}
+
+.cite-inline-empty {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #78716c;
+  font-style: italic;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .cite-inline-panel {
+    border-radius: 0.75rem;
+  }
+
+  .cite-inline-header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .cite-inline-body {
+    padding: 0.75rem;
+    max-height: 22rem;
+  }
+
+  .cite-inline-fulltext {
+    font-size: 12.5px;
+    line-height: 1.8;
+  }
+
+  .cite-inline-label {
+    font-size: 10.5px;
+    max-width: 14rem;
+  }
+}
+
+
+

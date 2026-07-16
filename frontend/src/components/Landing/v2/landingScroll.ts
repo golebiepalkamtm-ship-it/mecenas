@@ -49,7 +49,7 @@ function scheduleEmitScroll(scroll: number) {
 function bindScrollerProxy(wrapper: HTMLElement) {
   ScrollTrigger.scrollerProxy(wrapper, {
     scrollTop(value) {
-      if (arguments.length) {
+      if (typeof value === "number") {
         wrapper.scrollTop = value;
       }
       return wrapper.scrollTop;
@@ -189,10 +189,6 @@ export function destroyLandingScroll(): void {
   if (wrapper && nativeScrollHandler) {
     wrapper.removeEventListener("scroll", nativeScrollHandler);
     nativeScrollHandler = null;
-  }
-
-  if (wrapper) {
-    ScrollTrigger.scrollerProxy(wrapper, false);
   }
 
   ScrollTrigger.defaults({ scroller: undefined });

@@ -19,7 +19,9 @@ class IndexingService:
             "Content-Type": "application/json",
             "Prefer": "return=minimal"
         }
-        print("[INDEXING] Inicjalizacja usługi embeddingów OpenRouter (openai/text-embedding-3-small)...")
+        from database import get_setting
+        emb_model = get_setting("assigned_model_embedding", "openai/text-embedding-3-small")
+        print(f"[INDEXING] Inicjalizacja usługi embeddingów OpenRouter ({emb_model})...")
 
     async def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """Batch embedding przez OpenRouter (do N tekstów w jednym request)."""
@@ -36,8 +38,10 @@ class IndexingService:
             "X-Title": "LexMind AI",
             "Content-Type": "application/json",
         }
+        from database import get_setting
+        emb_model = get_setting("assigned_model_embedding", "openai/text-embedding-3-small")
         payload = {
-            "model": "openai/text-embedding-3-small",
+            "model": emb_model,
             "input": inputs,
         }
         url = "https://openrouter.ai/api/v1/embeddings"
@@ -63,8 +67,10 @@ class IndexingService:
             "Content-Type": "application/json",
         }
         
+        from database import get_setting
+        emb_model = get_setting("assigned_model_embedding", "openai/text-embedding-3-small")
         payload = {
-            "model": "openai/text-embedding-3-small",
+            "model": emb_model,
             "input": [text[:8000]],
         }
         

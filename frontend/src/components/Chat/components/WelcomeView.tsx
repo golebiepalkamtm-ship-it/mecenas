@@ -1,17 +1,18 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { BrandLogo } from "../../../components/Shared/BrandLogo";
-import { LexIcon } from "../../Layout/LexIcon";
-import type { Tab } from "../../../types/navigation";
+import { useQuickIntelligenceState } from "../../../hooks/chatSettingsSelectors";
+import { translatePromptKey } from "../../../utils/promptLabels";
+import { Zap, Shield, Gavel, Users } from "lucide-react";
+import { cn } from "../../../utils/cn";
 
-const QUICK_HINTS = [
-  { icon: "shield" as const, label: "Analiza sprawy", tint: "text-emerald-600 bg-emerald-500/10 border-emerald-500/20" },
-  { icon: "judgments" as const, label: "Orzecznictwo", tint: "text-amber-700 bg-amber-500/10 border-amber-500/20" },
-  { icon: "documents" as const, label: "Dokumenty", tint: "text-blue-700 bg-blue-500/10 border-blue-500/20" },
-] as const;
+export function WelcomeView({ onNavigate: _onNavigate }: { onNavigate?: (tab: string) => void }) {
+  const { currentTask, activeModels, activePromptPresetId } = useQuickIntelligenceState();
 
-export function WelcomeView({ onNavigate }: { onNavigate?: (tab: Tab) => void }) {
+  const isProsecution = activePromptPresetId === 'prosecution';
+  const hasActiveStrategy = activeModels.length > 0 || currentTask;
+
   return (
-    <div className="welcome-view-root flex flex-col items-center justify-center min-h-[min(100%,42rem)] text-center py-8 lg:py-12 relative">
+    <div className="welcome-view-root flex flex-col items-center justify-center min-h-[min(100%,36rem)] lg:min-h-[min(100%,42rem)] text-center py-8 lg:py-12 relative">
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -23,41 +24,64 @@ export function WelcomeView({ onNavigate }: { onNavigate?: (tab: Tab) => void })
         </div>
 
         <div className="flex items-center justify-center gap-4 lg:gap-8">
-          <div className="h-px flex-1 max-w-[5rem] lg:max-w-[5.5rem] bg-black/15" />
+          <div className="h-px flex-1 max-w-20 lg:max-w-22 bg-black/15" />
           <span className="text-[10px] lg:text-xs font-black tracking-[0.45em] lg:tracking-[0.55em] text-[#D4AF37] uppercase italic font-outfit shrink-0">
             System analizy przepisów
           </span>
-          <div className="h-px flex-1 max-w-[5rem] lg:max-w-[5.5rem] bg-black/15" />
+          <div className="h-px flex-1 max-w-20 lg:max-w-22 bg-black/15" />
         </div>
 
-        <p className="text-[8px] lg:text-[10px] font-bold text-green-700 tracking-[0.22em] leading-relaxed uppercase font-outfit px-2">
-          Serwis ma charakter wyłącznie informacyjny. Wygenerowane treści nie stanowią porady prawnej.
-        </p>
-
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-          {QUICK_HINTS.map((hint) => (
-            <span
-              key={hint.label}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-wider font-outfit ${hint.tint}`}
+        <AnimatePresence mode="popLayout">
+          {hasActiveStrategy && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              className="mt-8 flex flex-col items-center gap-3 pt-6"
             >
-              <LexIcon name={hint.icon} size={12} />
-              {hint.label}
-            </span>
-          ))}
-        </div>
-
-        {onNavigate && (
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onNavigate("documents")}
-            className="mt-2 px-6 py-2.5 rounded-xl glass-liquid-convex text-black text-[10px] font-black uppercase tracking-widest shadow-md font-outfit"
-          >
-            Przejdź do Dokumentów
-          </motion.button>
-        )}
+              <div className="flex flex-wrap justify-center items-center gap-2 px-5 py-2.5 rounded-3xl bg-white/60 backdrop-blur-xl border border-gold-primary/20 shadow-[0_10px_30px_rgba(212,175,55,0.1)]">
+                <div className={cn("flex items-center justify-center w-6 h-6 rounded-full shadow-sm", isProsecution ? "bg-red-500/10 text-red-700" : "bg-emerald-500/10 text-emerald-700")}>
+                  {isProsecution ? <Gavel size={12} /> : <Shield size={12} />}
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-black/80">
+                  {isProsecution ? "Oskarżenie" : "Obrona"}
+                </span>
+                
+                <div className="w-px h-4 bg-black/10 mx-2" />
+                
+                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gold-primary/10 text-gold-deep shadow-sm">
+                  <Users size={12} />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-black/80">
+                  {activeModels.length} {activeModels.length === 1 ? 'Ekspert' : (activeModels.length > 1 && activeModels.length < 5) ? 'Ekspertów' : 'Ekspertów'}
+                </span>
+                
+                {currentTask && (
+                  <>
+                    <div className="w-px h-4 bg-black/10 mx-2 hidden sm:block" />
+                    <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/10 text-blue-700 shadow-sm hidden sm:flex">
+                      <Zap size={12} />
+                    </div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-black/80 hidden sm:block">
+                      {translatePromptKey(currentTask)}
+                    </span>
+                  </>
+                )}
+              </div>
+              <p className="text-[9px] font-black text-gold-primary/80 uppercase tracking-[0.25em]">Aktywna Strategia - System gotowy do działania</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+        className="absolute bottom-4 left-0 right-0 text-[8px] lg:text-[10px] font-bold text-green-700 tracking-[0.22em] leading-relaxed uppercase font-outfit px-2 z-10"
+      >
+        Serwis ma charakter wyłącznie informacyjny. Wygenerowane treści nie stanowią porady prawnej.
+      </motion.p>
 
       <div className="absolute inset-0 pointer-events-none opacity-80 bg-[radial-gradient(ellipse_80%_50%_at_50%_20%,rgba(212,175,55,0.08),transparent_65%)]" />
     </div>

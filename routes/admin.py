@@ -1,21 +1,25 @@
 from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import List, Dict, Any, Optional
 import time
 import os
 from moa.config import SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, OPENROUTER_API_KEY
 import httpx
+from schemas.response_models import AdminStatsResponse, AdminUsersResponse, GenericSuccessResponse, AdminDebugInfo, AdminClearCacheResponse, AdminTestSupabaseResponse
 
 router = APIRouter()
 
-async def get_current_admin(authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
+security = HTTPBearer()
+
+async def get_current_admin(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> Dict[str, Any]:
     """Dependency weryfikująca, czy żądanie posiada prawidłowy token JWT administratora Supabase."""
-    if not authorization or not authorization.startswith("Bearer "):
+    if not credentials:
         raise HTTPException(
             status_code=401,
             detail="Brak autoryzacji. Wymagany jest token Bearer w nagłówku."
         )
     
-    token = authorization.split(" ")[1]
+    token = credentials.credentials
     
     # Obsługa tokenu mock dla lokalnego panelu administratora
     if token == "mock-token-prestige-luxury-edition" or token.startswith("mock-"):
@@ -70,7 +74,7 @@ async def get_current_admin(authorization: Optional[str] = Header(None)) -> Dict
             
         return user_data
 
-@router.get("/stats")
+@router.get("/stats", response_model=AdminStatsResponse)
 async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_admin)):
     """Zwraca statystyki systemowe dla panelu Admina."""
     try:
@@ -91,7 +95,7 @@ async def get_admin_stats(current_user: Dict[str, Any] = Depends(get_current_adm
         print(f"[ADMIN STATS ERR] {e}")
         return {"stats": {"users": 0, "docs": 0, "requests": 0, "tokens": 0}, "services": []}
 
-@router.get("/users")
+@router.get("/users", response_model=AdminUsersResponse)
 async def get_admin_users(current_user: Dict[str, Any] = Depends(get_current_admin)):
     """Pobiera listę użytkowników z systemu (tabela profiles w SQLite / Supabase)."""
     users_dict = {}
@@ -164,7 +168,7 @@ async def get_admin_users(current_user: Dict[str, Any] = Depends(get_current_adm
 
     return {"users": list(users_dict.values())}
 
-@router.patch("/users/{user_id}/role")
+@router.patch("/users/{user_id}/role", response_model=GenericSuccessResponse)
 async def update_user_role(
     user_id: str, 
     data: Dict[str, str], 
@@ -208,7 +212,7 @@ async def update_user_role(
         
     return {"success": True}
 
-@router.delete("/users/{user_id}")
+@router.delete("/users/{user_id}", response_model=GenericSuccessResponse)
 async def delete_user(user_id: str, current_user: Dict[str, Any] = Depends(get_current_admin)):
     """Usuwa użytkownika z SQLite i Supabase."""
     # 1. Usuń z SQLite
@@ -240,7 +244,7 @@ async def delete_user(user_id: str, current_user: Dict[str, Any] = Depends(get_c
     return {"success": True}
 
 
-@router.get("/debug")
+@router.get("/debug", response_model=AdminDebugInfo)
 async def get_admin_debug_info(current_user: Dict[str, Any] = Depends(get_current_admin)):
     """Wykonywanie pełnej, aktywnej diagnostyki systemu LexMind (Local & Cloud)."""
     import os
@@ -374,18 +378,18 @@ async def get_admin_debug_info(current_user: Dict[str, Any] = Depends(get_curren
         "openrouter_status": openrouter_status,
     }
 
-@router.post("/debug/clear-cache")
+@router.post("/debug/clear-cache", response_model=AdminClearCacheResponse)
 async def clear_models_cache(current_user: Dict[str, Any] = Depends(get_current_admin)):
     """Czyści pliki pamięci podręcznej modeli AI."""
     cleared = []
     errors = []
     
     # 1. Clear models cache json
-    cache_path = os.path.join(os.getcwd(), "models_cache.json")
+    cache_path = os.path.join(os.getcwd(), "cache", "models_cache.json")
     if os.path.exists(cache_path):
         try:
             os.remove(cache_path)
-            cleared.append("models_cache.json")
+            cleared.append("cache/models_cache.json")
         except Exception as e:
             errors.append(f"Nie udało się usunąć cache modeli: {e}")
             
@@ -404,7 +408,7 @@ async def clear_models_cache(current_user: Dict[str, Any] = Depends(get_current_
         "errors": errors
     }
 
-@router.post("/debug/test-supabase")
+@router.post("/debug/test-supabase", response_model=AdminTestSupabaseResponse)
 async def test_supabase_active_query(current_user: Dict[str, Any] = Depends(get_current_admin)):
     """Wykonuje testowe odpytanie Supabase w celu zmierzenia dokładnej latencji bazy danych."""
     if not SUPABASE_URL:

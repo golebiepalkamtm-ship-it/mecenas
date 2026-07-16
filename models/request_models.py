@@ -1,5 +1,5 @@
 from typing import Any, List, Optional, Dict, Union
-from pydantic import BaseModel, Field, ConfigDict, validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 MAX_MESSAGE_LENGTH = 10000
 MAX_HISTORY_ITEMS = 15
@@ -38,16 +38,18 @@ class ChatRequest(BaseModel):
     user_id: str = "default"
     model_config = ConfigDict(extra="allow")
 
-    @validator("message")
-    def message_length(cls, v):
+    @field_validator("message")
+    @classmethod
+    def message_length(cls, v: str) -> str:
         if len(v) > MAX_MESSAGE_LENGTH:
             raise ValueError(
                 f"Wiadomość jest zbyt długa (maksymalnie {MAX_MESSAGE_LENGTH} znaków)"
             )
         return v
 
-    @validator("history")
-    def history_limit(cls, v):
+    @field_validator("history")
+    @classmethod
+    def history_limit(cls, v: Optional[List[Any]]) -> Optional[List[Any]]:
         if v and len(v) > MAX_HISTORY_ITEMS:
             # Automatycznie przycinamy historię zamiast wyrzucać błąd
             return v[-MAX_HISTORY_ITEMS:]
@@ -64,8 +66,9 @@ class DraftRequest(BaseModel):
     sessionId: Optional[str] = None
     use_crewai: Optional[bool] = False
 
-    @validator("user_instructions")
-    def instructions_length(cls, v):
+    @field_validator("user_instructions")
+    @classmethod
+    def instructions_length(cls, v: str) -> str:
         if len(v) > 10000:
             raise ValueError("Instrukcje są zbyt długie (maksymalnie 10000 znaków)")
         return v

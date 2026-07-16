@@ -7,134 +7,7 @@ import os
 from typing import Any, List, Optional, Dict
 import database
 
-logger = logging.getLogger("LexMindUtils")
-
-
-def format_history_for_openai(
-    history: list[dict[str, Any]], use_limit: int = 10, model_id: str | None = None
-) -> list[dict[str, Any]]:
-    """
-    Konwertuje historię czatu na format oczekiwany przez OpenAI API.
-    
-    Args:
-        history: Lista wiadomości z historii
-        use_limit: Limit wiadomości do użycia (sliding window)
-        model_id: ID modelu do sprawdzenia obsługi vision
-    
-    Returns:
-        Sformatowana lista wiadomości
-    """
-    from moa.config import is_vision_model
-
-    # Sliding window
-    history_len = len(history)
-    start_idx = history_len - use_limit if history_len > use_limit else 0
-    limited = history[start_idx:]
-
-    vision_ok = is_vision_model(model_id) if model_id else True
-
-    formatted = []
-    for msg in limited:
-        role = str(msg.get("role", "user"))
-        if role in ["assistant", "model", "bot"]:
-            role = "assistant"
-
-        content = msg.get("content", "")
-
-        # Obsługa wiadomości zapisanych jako JSON z załącznikami
-        if isinstance(content, str):
-            try:
-                parsed = json.loads(content)
-                if isinstance(parsed, list):
-                    content = parsed
-            except json.JSONDecodeError:
-                pass
-
-        # Filtruj image_url z historii jeśli model nie wspiera vision
-        if not vision_ok and isinstance(content, list):
-            # Zachowaj tylko tekstowe elementy
-            text_content = [c for c in content if c.get("type") == "text"]
-            if text_content:
-                # Jeśli został tylko 1 element tekstowy, spłaszcz do stringa
-                if len(text_content) == 1:
-                    content = text_content[0]["text"]
-                else:
-                    # Połącz wiele elementów tekstowych
-                    content = "\n".join(c["text"] for c in text_content)
-            else:
-                # Jeśli brak elementów tekstowych, pomiń tę wiadomość
-                continue
-
-        if content:
-            formatted.append({"role": role, "content": content})
-
-    return formatted
-
-
-async def process_attachments(
-    attachments: list,
-) -> tuple[list[dict[str, Any]], list[str]]:
-    """Przetwarza listę załączników równolegle, ekstrahując tekst i obrazy."""
-    if not attachments:
-        return [], []
-
-    async def process_single(att):
-        user_content_local = []
-        extracted_texts_local = []
-        print(f"   [ATTACHMENT] Przetwarzanie: {att.name} ({att.type})...")
-
-        # 1. Zawsze dodaj obraz do vision jeśli to obraz (wstępnie przetworzony)
-        if att.type.startswith("image/"):
-            from utils.image_preprocessor import preprocess_base64_image
-            raw_img_data = (
-                att.content
-                if att.content.startswith("data:")
-                else f"data:{att.type};base64,{att.content}"
-            )
-            # Zoptymalizuj pod kątem kontrastu, ostrości i rotacji przed wysłaniem do LLM
-            img_data = preprocess_base64_image(raw_img_data)
-            user_content_local.append({"type": "image_url", "image_url": {"url": img_data}})
-            # OCR for images is removed as per user request to rely on native vision
-        else:
-            # 2. Dokumenty (PDF, DOCX, TXT)
-            try:
-                pure_base64 = (
-                    att.content.split(",")[1]
-                    if att.content.startswith("data:")
-                    else att.content
-                )
-                file_bytes = base64.b64decode(pure_base64)
-                text, err, _ = await process_document(
-                    file_bytes,
-                    att.name,
-                    att.type,
-                    generate_embedding=False,
-                )
-                if text:
-                    print(f"   [ATTACH SUCCESS] Wyekstrahowano tekst z {att.name}")
-                    extracted_texts_local.append(f"--- ZAŁĄCZNIK: {att.name} ---\n{text}")
-                    user_content_local.append({"type": "text", "text": f"\n[Treść dokumentu {att.name}]:\n{text}\n"})
-                elif err:
-                    print(f"   [ATTACH WARN] Błąd przetwarzania {att.name}: {err}")
-                    user_content_local.append({"type": "text", "text": f"\n[Błąd dokumentu {att.name}]: {err}\n"})
-            except Exception as e:
-                print(f"   [ATTACH ERR] Wyjątek podczas przetwarzania {att.name}: {e}")
-        
-        return user_content_local, extracted_texts_local
-
-    # Uruchom równolegle
-    results = await asyncio.gather(*[process_single(att) for att in attachments])
-    
-    # Połącz wyniki
-    user_content = []
-    extracted_texts = []
-    for u_local, e_local in results:
-        user_content.extend(u_local)
-        extracted_texts.extend(e_local)
-
-    if extracted_texts:
-        print(f"[SUCCESS] Łącznie przetworzono {len(extracted_texts)} załączników tekstowych.")
-    return user_content, extracted_texts
+logger = logging.getLogger(__name__)
 
 
 def save_chat_messages(
@@ -145,6 +18,8 @@ def save_chat_messages(
     reasoning: Optional[str] = None,
     eli_explanation: Optional[str] = None,
     sources: Optional[List[str]] = None,
+    ai_task: Optional[str] = None,
+    cited_sources: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """
     Zapisuje parę wiadomości (użytkownika i asystenta) do bazy danych SQLite.
@@ -153,8 +28,20 @@ def save_chat_messages(
         bool: True jeśli zapis się powiódł, False w przeciwnym razie
     """
     try:
-        sources_str = ",".join(sources) if sources else None
-        database.save_message(str(uuid.uuid4()), sid, "user", user_content)
+        sources_str = None
+        if sources:
+            str_sources = []
+            for s in sources:
+                if isinstance(s, str):
+                    str_sources.append(s)
+                elif isinstance(s, dict):
+                    ref_id = s.get("ref_id") or s.get("label") or str(s)
+                    str_sources.append(ref_id)
+                else:
+                    str_sources.append(str(s))
+            sources_str = ",".join(str_sources)
+        cited_json = json.dumps(cited_sources, ensure_ascii=False) if cited_sources else None
+        database.save_message(str(uuid.uuid4()), sid, "user", user_content, ai_task=ai_task)
         database.save_message(
             str(uuid.uuid4()),
             sid,
@@ -164,6 +51,8 @@ def save_chat_messages(
             message_type=message_type,
             reasoning=reasoning,
             eli_explanation=eli_explanation,
+            ai_task=ai_task,
+            cited_sources=cited_json,
         )
         return True
     except Exception as e:

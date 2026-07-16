@@ -160,7 +160,7 @@ export function ProfileAccountForm({
                 type="button"
                 disabled={passLoading || !newPassword}
                 onClick={() => void changePassword()}
-                className="px-3 py-1.5 rounded-lg bg-black text-white text-[8px] font-black uppercase tracking-widest hover:bg-black/85 disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg bg-black text-white text-[8px] font-black uppercase tracking-widest hover:bg-black/85 disabled:opacity-40 btn-convex-glossy"
               >
                 Zmień hasło
               </button>
@@ -192,7 +192,7 @@ export function ProfileAccountForm({
                 type="button"
                 disabled={passLoading || !email}
                 onClick={() => void sendResetEmail()}
-                className="px-3 py-1.5 rounded-lg border border-black/15 bg-white/50 text-[8px] font-black uppercase tracking-widest text-black hover:border-gold-primary/40 disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg border border-black/15 bg-white/50 text-[8px] font-black uppercase tracking-widest text-black hover:border-gold-primary/40 disabled:opacity-40 btn-convex-glossy"
               >
                 Link na e-mail
               </button>
@@ -244,7 +244,7 @@ export function ProfileAccountForm({
             type="button"
             disabled={isSaving}
             onClick={() => void saveProfile()}
-            className="px-4 py-1.5 rounded-lg bg-gold-primary text-black text-[8px] font-black uppercase tracking-widest shadow-[0_4px_14px_rgba(212,175,55,0.35)] hover:brightness-105 disabled:opacity-50"
+            className="px-4 py-1.5 rounded-lg bg-gold-primary text-black text-[8px] font-black uppercase tracking-widest shadow-[0_4px_14px_rgba(212,175,55,0.35)] hover:brightness-105 disabled:opacity-50 btn-convex-glossy"
           >
             {isSaving ? '…' : 'Zapisz profil'}
           </button>

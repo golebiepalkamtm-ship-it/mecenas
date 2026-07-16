@@ -31,6 +31,8 @@
 
 ### 🎯 Główne Funkcje
 
+- **Orchestrator v2 (Quick Intelligence)**: Zaawansowany wieloetapowy potok myślowy z wewnętrznym systemem debaty (Debate Engine) i precyzyjną syntezą (Synthesis Engine)
+- **Podgląd Procesu Myślowego**: Dedykowany interfejs (Quick Intelligence Panel) pokazujący krok po kroku na żywo jak AI analizuje problem
 - **Czaty z AI**: Rozmowa z wieloma modelami AI jednocześnie (Gemini, GPT-4o, Claude, Llama)
 - **Konsensus Modeli**: Synteza odpowiedzi z wielu modeli AI dla najlepszej jakości
 - **Wyszukiwanie Prawne**: System RAG do przeszukiwania bazy dokumentów prawnych
@@ -65,7 +67,7 @@
 ┌──────────────────────────▼──────────────────────────────────────┐
 │                         BACKEND (FastAPI)                        │
 │  ┌─────────────────────────────────────────────────────────────┐ │
-│  │                    LangChain v1 Agents                      │ │
+│  │         Orchestrator v2 (Debate & Synthesis Engine)         │ │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │ │
 │  │  │    Gemini    │  │  GPT-4o Mini │  │   Claude    │ ...  │ │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘      │ │
@@ -226,7 +228,7 @@ moj prawnik/
 ├── frontend/                  # Aplikacja React (Vite)
 │   ├── src/
 │   │   ├── components/       # Komponenty React
-│   │   │   ├── Chat/         # Komponent czatu
+│   │   │   ├── Chat/         # Komponent czatu (m.in. QuickIntelligencePanel)
 │   │   │   ├── Knowledge/   # Komponent biblioteki
 │   │   │   ├── Prompts/     # Konfiguracja promptów
 │   │   │   ├── Settings/    # Ustawienia
@@ -243,7 +245,12 @@ moj prawnik/
 │   └── vite.config.ts       # Konfiguracja Vite
 ├── mobile_apps/             # Aplikacje mobilne
 ├── scripts/                 # Skrypty pomocnicze
-└── sql_parts/               # Części SQL
+├── services/
+│   ├── orchestrator_v2/     # Nowy potok Szybkiej Inteligencji (Debaty, Synteza)
+│   └── ...                  # Pozostałe serwisy
+├── sql_parts/               # Części SQL
+└── utils/
+    └── helpers.py           # Narzędzia i skrypty pomocnicze
 ```
 
 ---

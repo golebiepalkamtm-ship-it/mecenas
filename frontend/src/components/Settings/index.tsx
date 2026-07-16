@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
 import type { User as AuthUser } from '@supabase/supabase-js';
 import type { Profile } from './types';
-import { useChatSettingsStore } from '../../store/useChatSettingsStore';
+import { useSettingsNavigationState } from '../../hooks/chatSettingsSelectors';
 import { ModelOrchestrator } from '../ModelOrchestrator';
 import { ProfileSettingsPanel } from './components/ProfileSettingsPanel';
 import { ProfileHeroCard } from './components/ProfileHeroCard';
@@ -29,8 +29,7 @@ export function SettingsView() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-  const currentSettingsTab = useChatSettingsStore((s) => s.currentSettingsTab);
-  const setSettingsTab = useChatSettingsStore((s) => s.setSettingsTab);
+  const { currentSettingsTab, setSettingsTab } = useSettingsNavigationState();
   const activeTab = (currentSettingsTab as SettingsTabId) || 'Profil';
   const activeTabDef = SETTINGS_TABS.find((t) => t.id === activeTab) ?? SETTINGS_TABS[0];
 

@@ -27,8 +27,10 @@ async def _extract_search_plans(
         from moa.http_client import get_shared_openai_client
 
         client = get_shared_openai_client()
+        from database import get_setting
+        retrieval_model = get_setting("assigned_model_retrieval", "google/gemini-2.5-flash-lite")
         completion = await client.chat.completions.create(
-            model="google/gemini-2.5-flash-lite",
+            model=retrieval_model,
             messages=[
                 {
                     "role": "system",

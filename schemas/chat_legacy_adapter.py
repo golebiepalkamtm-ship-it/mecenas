@@ -13,6 +13,7 @@ from schemas.chat_contract import (
     PromptOverrides,
     ResponseMode,
 )
+from services.prompt_guard import sanitize_prompt_overrides
 
 
 @dataclass(frozen=True)
@@ -178,9 +179,17 @@ class LegacyPayloadAdapter:
     @staticmethod
     def to_orchestrator_kwargs(payload: ChatPayloadV2) -> ResolvedChatRequest:
         po = payload.prompt_overrides
+        sanitized = sanitize_prompt_overrides(
+            architect_prompt=po.architect_prompt,
+            system_role_prompt=po.system_role_prompt,
+            judge_system_prompt=po.judge_system_prompt,
+            task_prompt=po.task_prompt,
+            role_catalog=po.role_catalog,
+            expert_role_prompts=po.expert_role_prompts,
+        )
         is_single = not payload.chat_mode.is_moa
 
-        system_role = (po.system_role_prompt or "").strip() or None
+        system_role = sanitized.get("system_role_prompt")
         if not is_single:
             system_role = None
 
@@ -200,14 +209,14 @@ class LegacyPayloadAdapter:
             selected_model=payload.model,
             selected_models=selected_models,
             aggregator_model=aggregator,
-            architect_prompt=(po.architect_prompt or "").strip() or None,
+            architect_prompt=sanitized.get("architect_prompt"),
             system_role_prompt=system_role,
-            judge_system_prompt=(po.judge_system_prompt or "").strip() or None,
+            judge_system_prompt=sanitized.get("judge_system_prompt"),
             expert_roles=expert_roles,
-            expert_role_prompts=po.expert_role_prompts,
-            role_catalog=po.role_catalog,
+            expert_role_prompts=sanitized.get("expert_role_prompts"),
+            role_catalog=sanitized.get("role_catalog"),
             current_task=payload.current_task,
-            task_prompt=(po.task_prompt or "").strip() or None,
+            task_prompt=sanitized.get("task_prompt"),
             attachments=payload.attachments,
             document_text=payload.document_text,
             chat_history=payload.history,

@@ -33,7 +33,7 @@ export function TrialVerdictPanel({
           <button
             type="button"
             onClick={onExport}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gold-primary/30 text-[8px] font-black uppercase tracking-widest text-black/70 hover:bg-white/80"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest text-black/70 btn-convex-glossy bg-white/80"
           >
             <Download size={12} />
             Pobierz protokół
@@ -45,7 +45,7 @@ export function TrialVerdictPanel({
           type="button"
           disabled={running || !canRequest}
           onClick={onRequest}
-          className="mb-4 px-5 py-2.5 rounded-xl bg-gold-primary text-black text-[10px] font-black uppercase tracking-widest disabled:opacity-40 flex items-center gap-2"
+          className="mb-4 px-5 py-2.5 rounded-xl bg-gold-primary text-black text-[10px] font-black uppercase tracking-widest disabled:opacity-40 flex items-center gap-2 btn-convex-glossy"
         >
           {running && <Loader2 size={14} className="animate-spin" />}
           Wydaj werdykt

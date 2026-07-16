@@ -25,17 +25,16 @@ export function buildChatPayload(
     finalJudge: string;
     modelLatencies: Record<string, number>;
   },
-): ChatPayloadV2 & Record<string, unknown> {
+): ChatPayloadV2 {
   const store = useChatSettingsStore.getState();
   const side = resolveSide(store.activePromptPresetId);
   const chatMode = normalizeChatMode(store.mode);
   const isMoa = chatMode === 'moa' || chatMode === 'consensus';
 
   const architect = store.architectPrompt?.trim() || undefined;
-  const systemRole =
-    chatMode === 'single' && store.currentSystemRoleId
-      ? store.unitSystemRoles[store.currentSystemRoleId]?.trim() || undefined
-      : undefined;
+  const systemRole = store.currentSystemRoleId
+    ? store.unitSystemRoles[store.currentSystemRoleId]?.trim() || undefined
+    : undefined;
 
   const customExpertPrompts = Object.fromEntries(
     Object.entries(store.expertPromptsByModel).filter(
@@ -55,7 +54,7 @@ export function buildChatPayload(
       Object.keys(customExpertPrompts).length > 0 ? customExpertPrompts : undefined,
   };
 
-  const payload: ChatPayloadV2 & Record<string, unknown> = {
+  const payload: ChatPayloadV2 = {
     message,
     chat_mode: chatMode,
     response_mode: store.responseMode,
@@ -65,7 +64,7 @@ export function buildChatPayload(
     prompt_overrides: promptOverrides,
     model: options.finalSingleModel,
     sessionId: extras.sessionId,
-    attachments: (extras.attachments as ChatPayloadV2['attachments']) ?? [],
+    attachments: extras.attachments ?? [],
     document_text: extras.document_text,
     history: extras.history,
     act_terms: extras.act_terms,

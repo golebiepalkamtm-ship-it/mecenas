@@ -1,114 +1,201 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { BookOpen, ExternalLink, X } from "lucide-react";
+import { BookOpen, ExternalLink, X, Copy, Check, ChevronDown } from "lucide-react";
 import type { SourceReference } from "../types";
 import { cn } from "../../../utils/cn";
 
 interface InlineStatuteCitationProps {
   source?: SourceReference;
   refNum: string;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
 export const InlineStatuteCitation = React.memo(
-  ({ source, refNum }: InlineStatuteCitationProps) => {
-    const [open, setOpen] = useState(false);
+  ({ source, refNum, isOpen, onToggle }: InlineStatuteCitationProps) => {
+    const [localOpen, setLocalOpen] = useState(false);
+    const open = isOpen !== undefined ? isOpen : localOpen;
+
+    const toggleOpen = useCallback(() => {
+      if (onToggle) {
+        onToggle();
+      } else {
+        setLocalOpen((v) => !v);
+      }
+    }, [onToggle]);
+
+    const close = useCallback(() => {
+      if (onToggle && isOpen) {
+        onToggle();
+      } else {
+        setLocalOpen(false);
+      }
+    }, [onToggle, isOpen]);
+
+    const [copied, setCopied] = useState(false);
     const rootRef = useRef<HTMLSpanElement>(null);
+    const contentRef = useRef<HTMLDivElement>(null);
 
-    const close = useCallback(() => setOpen(false), []);
-
+    // ESC to close
     useEffect(() => {
       if (!open) return;
-      const onDoc = (e: MouseEvent) => {
-        if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-          close();
-        }
-      };
       const onKey = (e: KeyboardEvent) => {
         if (e.key === "Escape") close();
       };
-      document.addEventListener("mousedown", onDoc);
       document.addEventListener("keydown", onKey);
-      return () => {
-        document.removeEventListener("mousedown", onDoc);
-        document.removeEventListener("keydown", onKey);
-      };
+      return () => document.removeEventListener("keydown", onKey);
     }, [open, close]);
 
+    // Smooth scroll into view when opened
+    useEffect(() => {
+      if (open && contentRef.current) {
+        setTimeout(() => {
+          contentRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        }, 80);
+      }
+    }, [open]);
+
+    const handleCopy = useCallback(() => {
+      if (!source?.full_text) return;
+      navigator.clipboard.writeText(source.full_text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }, [source?.full_text]);
+
+    const hasFullText = !!source?.full_text;
+
     return (
-      <span ref={rootRef} className="relative inline-flex align-middle ml-0.5 mr-0.5">
+      <span ref={rootRef} className="inline-flex flex-wrap items-baseline align-middle ml-0.5 mr-0.5 max-w-full">
+        {/* Trigger button — book icon */}
         <button
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            setOpen((v) => !v);
+            toggleOpen();
           }}
           className={cn(
-            "inline-flex items-center justify-center w-5 h-5 rounded-md border transition-all",
+            "inline-flex items-center justify-center gap-1 rounded-md border transition-all",
+            hasFullText
+              ? "px-1.5 h-5"
+              : "w-5 h-5",
             open
               ? "bg-gold-primary text-white border-gold-primary shadow-sm"
-              : "bg-gold-primary/10 text-gold-primary border-gold-primary/30 hover:bg-gold-primary/20",
+              : hasFullText
+                ? "bg-gold-primary/10 text-gold-primary border-gold-primary/30 hover:bg-gold-primary/20 hover:border-gold-primary/50"
+                : "bg-stone-100 text-stone-400 border-stone-200 hover:bg-stone-200",
           )}
           title={
-            source?.full_text
-              ? "Rozwiń pełne brzmienie przepisu"
-              : "Brak pełnego tekstu w RAG — sprawdź ISAP"
+            hasFullText
+              ? "Kliknij — rozwiń pełne brzmienie przepisu"
+              : "Brak pełnego tekstu — sprawdź ISAP"
           }
           aria-expanded={open}
-          aria-controls={`cite-popover-${refNum}`}
+          aria-controls={`cite-inline-${refNum}`}
         >
           <BookOpen size={11} strokeWidth={2.5} />
+          {hasFullText && (
+            <ChevronDown
+              size={9}
+              strokeWidth={3}
+              className={cn(
+                "transition-transform duration-200",
+                open && "rotate-180",
+              )}
+            />
+          )}
         </button>
 
+        {/* Inline expanded article — shows directly in chat flow */}
         {open && (
           <div
-            id={`cite-popover-${refNum}`}
-            role="dialog"
-            className="absolute left-0 top-full z-50 mt-1.5 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-stone-200 bg-white shadow-lg shadow-stone-900/10 overflow-hidden"
+            id={`cite-inline-${refNum}`}
+            ref={contentRef}
+            className="cite-inline-panel not-prose basis-full w-full min-w-0"
+            role="region"
+            aria-label={`Pełny tekst: ${source?.label ?? "Przepis"}`}
           >
-            <div className="flex items-start justify-between gap-2 px-3 py-2.5 border-b border-stone-100 bg-stone-50">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-wider text-gold-primary">
+            {/* Header bar */}
+            <span className="cite-inline-header">
+              <span className="cite-inline-header-left">
+                <span className="cite-inline-ref-badge">
                   {source?.ref_id ?? `[${refNum}]`}
-                </p>
-                <p className="text-[12px] font-bold text-stone-800 truncate">
+                </span>
+                <span className="cite-inline-label">
                   {source?.label ?? "Przepis"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={close}
-                className="p-1 rounded-md text-stone-400 hover:text-stone-700 hover:bg-stone-100"
-                aria-label="Zamknij"
-              >
-                <X size={14} />
-              </button>
-            </div>
+                </span>
+                {source?.verified !== false ? (
+                  <span className="cite-inline-status cite-inline-status--ok">
+                    Zweryfikowany
+                  </span>
+                ) : (
+                  <span className="cite-inline-status cite-inline-status--warn">
+                    Do weryfikacji
+                  </span>
+                )}
+              </span>
+              <span className="cite-inline-header-right">
+                {hasFullText && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleCopy();
+                    }}
+                    className="cite-inline-action-btn"
+                    title="Kopiuj treść"
+                  >
+                    {copied ? (
+                      <Check size={12} className="text-emerald-500" />
+                    ) : (
+                      <Copy size={12} />
+                    )}
+                  </button>
+                )}
+                {source?.url && (
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="cite-inline-action-btn cite-inline-action-link"
+                    title="Otwórz w ISAP"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink size={12} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    close();
+                  }}
+                  className="cite-inline-action-btn cite-inline-close-btn"
+                  aria-label="Zamknij"
+                >
+                  <X size={13} />
+                </button>
+              </span>
+            </span>
 
-            <div className="px-3 py-2.5 max-h-64 overflow-y-auto custom-scrollbar">
-              {source?.full_text ? (
-                <pre className="text-[11.5px] leading-relaxed text-stone-800 whitespace-pre-wrap font-outfit m-0">
-                  {source.full_text}
-                </pre>
+            {/* Full article text */}
+            <span className="cite-inline-body custom-scrollbar">
+              {hasFullText ? (
+                <span className="cite-inline-fulltext">
+                  {source!.full_text}
+                </span>
               ) : (
-                <p className="text-[12px] leading-relaxed text-stone-600 m-0">
+                <span className="cite-inline-empty">
                   {source?.snippet ??
                     "Pełne brzmienie nie zostało wyodrębnione z bazy RAG. Otwórz ISAP lub przypis na dole wiadomości."}
-                </p>
+                </span>
               )}
-            </div>
-
-            {source?.url && (
-              <div className="px-3 py-2 border-t border-stone-100 bg-stone-50/80 flex justify-end">
-                <a
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-500 uppercase tracking-wide"
-                >
-                  ISAP / ELI <ExternalLink size={10} />
-                </a>
-              </div>
-            )}
+            </span>
           </div>
         )}
       </span>

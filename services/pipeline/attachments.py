@@ -44,8 +44,13 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
         prompt = f"Przeanalizuj nazwę pliku '{filename}' i jeśli to możliwe, wyciągnij sygnaturę akt i nazwę sądu/organu. Zwróć jako JSON z polami 'sygnatura' i 'sad'."
         
         # This is a very simplified fast metadata step to optimize TTFT
-        res = await client.chat.completions.create(
-            model="gpt-4o-mini",
+        openai_client = client
+        if hasattr(openai_client, "_client") and not hasattr(openai_client, "chat"):
+            openai_client = openai_client._client
+        from database import get_setting
+        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        res = await openai_client.chat.completions.create(
+            model=fast_model,
             messages=[
                 {"role": "system", "content": "Jesteś asystentem prawnym. Zwracasz wyłącznie poprawny JSON."},
                 {"role": "user", "content": prompt}
@@ -62,7 +67,7 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
         logger.warning(f"Fast metadata extraction failed: {e}")
     return {}
 
-async def extract_single_attachment(att: Dict[str, Any], client: Any):
+async def extract_single_attachment(att: Dict[str, Any] | Any, client: Any):
     """
     Jedna pozycja z listy `attachments`; zwraca async generator.
     Yields dict z metadanymi, a na końcu string z tekstem.
@@ -200,10 +205,23 @@ async def extract_all_attachments_text(attachments: Optional[List[Dict[str, Any]
         yield ""
         return
     parts: List[str] = []
-    for att in attachments:
-        if not (att.get("content") or "").strip():
+    for att_item in attachments:
+        # Cast to dict if it is object or model
+        if hasattr(att_item, "model_dump"):
+            att_dict = att_item.model_dump()
+        elif hasattr(att_item, "dict"):
+            att_dict = att_item.dict()
+        elif not isinstance(att_item, dict) and hasattr(att_item, "__dict__"):
+            att_dict = vars(att_item)
+        else:
+            att_dict = att_item
+
+        if not isinstance(att_dict, dict):
+            att_dict = dict(att_dict)
+
+        if not (att_dict.get("content") or "").strip():
             continue
-        async for chunk in extract_single_attachment(att, client):
+        async for chunk in extract_single_attachment(att_dict, client):
             if isinstance(chunk, dict):
                 yield chunk
             elif isinstance(chunk, str) and chunk:

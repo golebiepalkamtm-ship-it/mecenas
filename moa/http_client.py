@@ -1,9 +1,12 @@
 from typing import Optional
+
 from openai import AsyncOpenAI
+
 from moa.config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL
 
 _shared_openai_client: Optional[AsyncOpenAI] = None
 _ping_openai_client: Optional[AsyncOpenAI] = None
+
 
 def get_shared_openai_client() -> AsyncOpenAI:
     """Zwraca współdzielony klient OpenAI/OpenRouter do odpytywania modeli."""
@@ -12,7 +15,8 @@ def get_shared_openai_client() -> AsyncOpenAI:
         _shared_openai_client = AsyncOpenAI(
             api_key=OPENROUTER_API_KEY,
             base_url=OPENROUTER_BASE_URL,
-            timeout=120.0  # Musi być >= najdłuższego asyncio.wait_for w orchestratorze
+            timeout=120.0,  # Musi być >= najdłuższego asyncio.wait_for w orchestratorze
+            max_retries=0,  # Wyłączamy wewnętrzne retries klienta SDK, by natychmiast wyzwolić fallback w llm_client
         )
     return _shared_openai_client
 
