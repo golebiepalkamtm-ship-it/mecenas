@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",
-    "@supabase/supabase-js": "^2.99.3",
+    "@supabase/server": "^1.4.0",
+    "@supabase/supabase-js": "^2.110.7",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/react-query": "^5.95.2",
     "clsx": "^2.1.1",
@@ -51,6 +52,7 @@
     "jsdom": "^26.1.0",
     "knip": "^5.63.0",
     "postcss": "^8.5.8",
+    "prisma": "^7.8.0",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.56.1",

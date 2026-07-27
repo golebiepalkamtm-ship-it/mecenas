@@ -67,6 +67,7 @@ export interface ChatPayloadV2 {
   use_eli?: boolean;
   use_rag_legal?: boolean;
   use_rag_user?: boolean;
+  use_lexminde_mcp?: boolean;
   model_latencies?: Record<string, number>;
   stream?: boolean;
   active_prompt_preset_id?: string;
@@ -92,6 +93,7 @@ export interface ChatMutationExtras {
   use_eli?: boolean;
   use_rag_legal?: boolean;
   use_rag_user?: boolean;
+  use_lexminde_mcp?: boolean;
   act_terms?: string[];
 }
 

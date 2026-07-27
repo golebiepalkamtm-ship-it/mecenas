@@ -25,11 +25,13 @@ class ReflectionLoop:
         user_query: str,
         context_text: str,
         llm_service: Any,
-        threshold: float = 0.7
+        threshold: float = 0.7,
+        hallucination_rate: float = 0.0
     ) -> ReflectionResult:
-        logger.info("[ReflectionLoop] Rozpoczynam ewaluację odpowiedzi (Self-Critic)...")
+        logger.info(f"[ReflectionLoop] Rozpoczynam ewaluację odpowiedzi (Self-Critic, hall_rate={hallucination_rate:.1f}%)...")
         from database import get_setting
-        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        from config import settings
+        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
         
         prompt = (
             "Jesteś surowym audytorem prawnym (Self-Critic).\n"
@@ -73,7 +75,14 @@ class ReflectionLoop:
                 if "Brak" not in issues_text and "None" not in issues_text:
                     issues = [line.strip("- ") for line in issues_text.split('\n') if line.strip().startswith("-")]
                     
-            needs_regen = score < threshold
+            needs_regen = score <= threshold
+            
+            # Wymuś regenerację, jeśli współczynnik halucynacji jest zbyt wysoki
+            if hallucination_rate > 30.0:
+                logger.warning(f"[ReflectionLoop] Wymuszona regeneracja: Hallucination rate {hallucination_rate}% przekracza 30.0%")
+                needs_regen = True
+                issues.insert(0, f"Zbyt wysoki wskaźnik halucynacji ({hallucination_rate:.1f}%). Zignoruj nieprawdziwe przepisy.")
+                
             logger.info(f"[ReflectionLoop] Ocena DRAFTU: {score:.2f} (Threshold: {threshold}). Needs regen: {needs_regen}")
             
             return ReflectionResult(
@@ -85,3 +94,4 @@ class ReflectionLoop:
         except Exception as e:
             logger.warning(f"[ReflectionLoop] Błąd ewaluacji odpowiedzi: {e}")
             return ReflectionResult(1.0, [], False, "")
+

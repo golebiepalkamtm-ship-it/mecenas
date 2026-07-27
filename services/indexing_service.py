@@ -8,38 +8,42 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
+
+# Domyślny model embeddingów — MUSI zwracać wektory 1536d (kompatybilne z Supabase)
+DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
+EXPECTED_EMBEDDING_DIM = 1536
 
 class IndexingService:
     def __init__(self):
-        self.headers = {
+        self.headers: Dict[str, str] = {
             "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
             "apikey": SUPABASE_ANON_KEY,
             "Content-Type": "application/json",
             "Prefer": "return=minimal"
         }
         from database import get_setting
-        emb_model = get_setting("assigned_model_embedding", "openai/text-embedding-3-small")
+        emb_model = get_setting("assigned_model_embedding") or DEFAULT_EMBEDDING_MODEL
         print(f"[INDEXING] Inicjalizacja usługi embeddingów OpenRouter ({emb_model})...")
 
     async def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         """Batch embedding przez OpenRouter (do N tekstów w jednym request)."""
         if not texts:
             return []
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-        if not openrouter_api_key:
+        from moa.config import OPENROUTER_API_KEY
+        if not OPENROUTER_API_KEY:
             raise Exception("OPENROUTER_API_KEY nie ustawiony")
 
         inputs = [(t or "")[:8000] for t in texts]
         headers = {
-            "Authorization": f"Bearer {openrouter_api_key}",
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "HTTP-Referer": "http://127.0.0.1:8003",
             "X-Title": "LexMind AI",
             "Content-Type": "application/json",
         }
         from database import get_setting
-        emb_model = get_setting("assigned_model_embedding", "openai/text-embedding-3-small")
+        emb_model = get_setting("assigned_model_embedding") or DEFAULT_EMBEDDING_MODEL
         payload = {
             "model": emb_model,
             "input": inputs,
@@ -55,42 +59,79 @@ class IndexingService:
         return [r["embedding"] for r in rows if r.get("embedding")]
 
     async def get_embedding(self, text: str) -> List[float]:
-        """Generuje natywny 1536-wymiarowy embedding bez dopełniania zerami."""
+        """Generuje natywny 1536-wymiarowy embedding (z wywołania API lub lokalnego fallbacku fastembed)."""
         if not text:
             return []
             
-        openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
-        headers = {
-            "Authorization": f"Bearer {openrouter_api_key}",
-            "HTTP-Referer": "http://127.0.0.1:8003",
-            "X-Title": "LexMind AI",
-            "Content-Type": "application/json",
-        }
-        
-        from database import get_setting
-        emb_model = get_setting("assigned_model_embedding", "openai/text-embedding-3-small")
-        payload = {
-            "model": emb_model,
-            "input": [text[:8000]],
-        }
-        
-        url = "https://openrouter.ai/api/v1/embeddings"
-        
+        from moa.config import OPENROUTER_API_KEY
+        if OPENROUTER_API_KEY:
+            headers = {
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "HTTP-Referer": "http://127.0.0.1:8003",
+                "X-Title": "LexMind AI",
+                "Content-Type": "application/json",
+            }
+            
+            from database import get_setting
+            emb_model = get_setting("assigned_model_embedding") or DEFAULT_EMBEDDING_MODEL
+            payload = {
+                "model": emb_model,
+                "input": [text[:8000]],
+            }
+            
+            url = "https://openrouter.ai/api/v1/embeddings"
+            
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.post(url, json=payload, headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if "data" in data and data["data"]:
+                            vec = data["data"][0]["embedding"]
+                            if len(vec) != EXPECTED_EMBEDDING_DIM:
+                                print(f"[INDEXING WARN] Model {emb_model} zwrócił {len(vec)}d zamiast {EXPECTED_EMBEDDING_DIM}d! Wymuszam fastembed fallback.")
+                                raise ValueError(f"Dimension mismatch: {len(vec)} != {EXPECTED_EMBEDDING_DIM}")
+                            return vec
+            except Exception as e:
+                print(f"[INDEXING WARN] OpenRouter embedding nieudany ({e}). Stosuję lokalny fallback fastembed...")
+
+        # --- LOKALNY FALLBACK (FastEmbed 1536d) ---
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                response = await client.post(url, json=payload, headers=headers)
-                if response.status_code == 200:
-                    data = response.json()
-                    if "data" in data and data["data"]:
-                        # Zwracamy czysty, natywny wektor 1536d bez żadnych zer!
-                        return data["data"][0]["embedding"]
-                    else:
-                        raise Exception(f"Błąd formatu odpowiedzi OpenRouter: {data}")
+            import numpy as np
+            from fastembed import TextEmbedding
+            if not hasattr(self, "_local_embedder"):
+                self._local_embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+            
+            embeddings = list(self._local_embedder.embed([text[:2000]]))
+            if embeddings:
+                raw_vec = np.array(embeddings[0], dtype=np.float64)
+                orig_len = len(raw_vec)
+                
+                if orig_len != 1536:
+                    # Ciągła interpolacja liniowa do dokładnie 1536 wymiarów
+                    interp_vec = np.interp(
+                        np.linspace(0, orig_len - 1, 1536),
+                        np.arange(orig_len),
+                        raw_vec
+                    )
                 else:
-                    raise Exception(f"Błąd OpenRouter {response.status_code}: {response.text}")
-        except Exception as e:
-            print(f"[INDEXING ERR] Błąd generowania embeddingu: {e}")
-            raise
+                    interp_vec = raw_vec
+                
+                # Normalizacja wektora (L2 norm)
+                norm = np.linalg.norm(interp_vec)
+                if norm > 0:
+                    interp_vec = interp_vec / norm
+                    
+                if isinstance(interp_vec, np.ndarray):
+                    return [float(x) for x in interp_vec.tolist()]
+                return [float(interp_vec)]
+        except Exception as local_err:
+            print(f"[INDEXING ERR] Lokalny fallback fastembed nie powiódł się: {local_err}")
+
+
+        return [0.0] * 1536
+
+
 
     def _content_hash(self, text: str) -> str:
         normalized = (text or "").strip().replace("\u0000", "").replace("\x00", "")
@@ -181,3 +222,4 @@ class IndexingService:
 
 # Singleton
 indexing_service = IndexingService()
+

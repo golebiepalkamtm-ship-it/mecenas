@@ -50,6 +50,21 @@ def _tags(text: str, query: str) -> List[str]:
         blob, re.I
     ):
         tags.append("police_misconduct")
+    # === NOWE TAGI DLA MCP BRIDGE ===
+    if re.search(r"rodo|gdpr|dane osobow|ochrona danych|uodo|iod\b|prezes urzędu ochrony", blob, re.I):
+        tags.append("gdpr")
+    if re.search(r"\bkrs\b|krajow.*rejestr.*sądow|ceidg|spółk|spółdziel|komandyt|jawna|z o\.?o|S\.\s*A\b|rejestr przedsięb", blob, re.I):
+        tags.append("corporate")
+    if re.search(r"zamów.*publicz|pzp|przetarg|ofert.*publicz|siwz|kio\b|krajow.*izb.*odwoł|specyfikacj.*istot", blob, re.I):
+        tags.append("public_procurement")
+    if re.search(r"administracyjn|starosta|wójt|burmistrz|prezydent\s+miast|decyzj.*administr|wsa\b|nsa\b|samorząd|organ\s+administr|wojewod", blob, re.I):
+        tags.append("administrative")
+    if re.search(r"projekt\s+ustaw|druk\s+sejmow|interpelacj|komisj.*sejmow|głosowan.*sejm|posie[łl]|legislacj|nowelizacj", blob, re.I):
+        tags.append("legislative")
+    if re.search(r"głosowan.*sejm|głosował|poseł|posłowie|parlamentar|klub\s+poselski|sejm\b", blob, re.I):
+        tags.append("sejm_voting")
+    if re.search(r"internet|wyszukaj w internecie|google|duckduckgo|znajdź w sieci|sprawdź online", blob, re.I):
+        tags.append("internet_search")
     return tags
 
 

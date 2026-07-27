@@ -85,11 +85,14 @@ async def run_verbatim_vision_ocr(
 
     b64 = base64.b64encode(raw).decode("utf-8")
     from database import get_setting
-    assigned_ocr = get_setting("assigned_model_ocr", "")
-    if assigned_ocr:
-        vision_models = [assigned_ocr]
-    else:
-        vision_models = list(settings.vision_ocr_models)
+    from config import settings
+    assigned_ocr = settings.resolve_model_id(get_setting("assigned_model_ocr", ""))
+    vision_models = [
+        m for m in [assigned_ocr, "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite", "openai/gpt-5-mini"]
+        if m
+    ]
+    # Usunięcie ewentualnych dubli
+    vision_models = list(dict.fromkeys(vision_models))
     max_tokens = settings.vision_ocr_max_tokens
     max_rounds = max(1, settings.vision_ocr_max_continuations + 1)
     temperature = settings.vision_ocr_temperature

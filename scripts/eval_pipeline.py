@@ -108,7 +108,7 @@ async def run_evaluation_for_case(eval_client: Any, case: Dict[str, Any]) -> Dic
     )
     
     from config import settings
-    # Używamy modelu ewaluacyjnego (np. claude-3-5-sonnet lub gpt-4o)
+    # Używamy modelu ewaluacyjnego (np. claude-3-5-sonnet lub deepseek-v4-flash)
     eval_model = settings.default_models[0] 
     
     messages = [

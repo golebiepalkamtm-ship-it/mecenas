@@ -335,7 +335,7 @@ export function TrialRoomPanel() {
           </div>
         </div>
         {progressMessage && (
-          <p className="hidden md:block text-[8px] font-bold text-black/45 uppercase tracking-widest truncate max-w-[280px]">
+          <p className="hidden md:block text-[8px] font-bold text-black/45 uppercase tracking-widest truncate max-w-70">
             {progressMessage}
           </p>
         )}

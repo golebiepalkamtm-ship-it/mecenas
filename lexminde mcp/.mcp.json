@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "lexminde": {
+      "command": "node",
+      "args": [
+        "C:/Users/manta/.gemini/antigravity-ide/scratch/lexminde/dist/index.js"
+      ]
+    }
+  }
+}

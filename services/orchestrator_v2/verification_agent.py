@@ -28,8 +28,9 @@ class VerificationAgent:
         """
         logger.info("[VerificationAgent] Weryfikacja logiczno-prawna argumentów ekspertów...")
         from database import get_setting
+        from config import settings
         import asyncio
-        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
         
         async def verify_single(op: Dict[str, Any]) -> Dict[str, Any]:
             prompt = (
@@ -55,8 +56,12 @@ class VerificationAgent:
                     log_context="VerificationAgent"
                 )
                 if "BŁĄD:" in res.upper():
-                    op["verification_flag"] = res.strip()
-                    logger.warning(f"[VerificationAgent] Wykryto błąd u eksperta {op.get('role')}: {res.strip()}")
+                    import re
+                    # Extract the error message starting from BŁĄD:
+                    match = re.search(r'(?i)(BŁĄD:.*?)(?:\n|$)', res)
+                    error_msg = match.group(1).strip() if match else res.strip()
+                    op["verification_flag"] = error_msg
+                    logger.warning(f"[VerificationAgent] Wykryto błąd u eksperta {op.get('role')}: {error_msg}")
                 else:
                     op["verification_flag"] = "ZATWIERDZONO"
             except Exception as e:
@@ -66,3 +71,4 @@ class VerificationAgent:
 
         coros = [verify_single(op) for op in expert_opinions]
         return await asyncio.gather(*coros)
+

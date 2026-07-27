@@ -32,7 +32,7 @@ ENVIRONMENT_SCHEMA = {
         "profile": "core",
         "type": "json_list",
         "required": False,
-        "default": '["google/gemini-2.5-flash", "openai/gpt-4o-mini"]',
+        "default": '["google/gemini-2.5-flash", "openai/gpt-5-mini"]',
         "description": "Lista domyślnych modeli LLM (JSON array)",
     },
     "LEXMIND_FEATURE_INVESTIGATION_V2": {

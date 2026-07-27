@@ -90,6 +90,8 @@ export function useChatRetrievalState() {
       setUseRagLegal: state.setUseRagLegal,
       useRagUser: state.useRagUser,
       setUseRagUser: state.setUseRagUser,
+      useLexmindeMcp: state.useLexmindeMcp,
+      setUseLexmindeMcp: state.setUseLexmindeMcp,
     })),
   );
 }

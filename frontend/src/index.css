@@ -104,9 +104,7 @@
   text-rendering: optimizeLegibility;
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
+
 
 html,
 body {
@@ -135,8 +133,8 @@ body {
 :focus-visible {
   outline: none !important;
   box-shadow:
-    0 0 0 2px #000000 !important,
-    0 0 0 4px var(--lex-gold) !important,
+    0 0 0 2px #000000,
+    0 0 0 4px var(--lex-gold),
     0 0 15px rgba(212, 175, 55, 0.55) !important;
   transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
@@ -158,27 +156,24 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #f0cc5a 0%, #d4af37 100%) !important;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
   border-radius: 10px;
-  border: 2px solid rgba(0, 0, 0, 0.9) !important;
+  border: none !important;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #fff 0%, #f0cc5a 100%) !important;
-  box-shadow: 0 0 30px rgba(212, 175, 55, 0.8);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .custom-scrollbar {
   overflow-y: auto !important;
-  scrollbar-width: auto;
-  scrollbar-color: #d4af37 rgba(0, 0, 0, 0.35);
   pointer-events: auto !important;
 }
 
 @utility panel-scrollbar-gold {
   overflow-y: auto !important;
-  scrollbar-width: auto;
-  scrollbar-color: #d4af37 rgba(0, 0, 0, 0.35);
 }
 
 .panel-scrollbar-gold::-webkit-scrollbar {
@@ -191,21 +186,18 @@ body {
 }
 
 .panel-scrollbar-gold::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #f0cc5a 0%, #d4af37 100%) !important;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
   border-radius: 10px;
-  border: 2px solid rgba(0, 0, 0, 0.9) !important;
+  border: none !important;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .panel-scrollbar-gold::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #fff 0%, #f0cc5a 100%) !important;
-  box-shadow: 0 0 30px rgba(212, 175, 55, 0.8);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
-.panel-scrollbar-gold,
-.panel-scrollbar-gold * {
-  scrollbar-width: auto !important;
-  scrollbar-color: #d4af37 rgba(0, 0, 0, 0.35) !important;
-}
+
 
 .panel-scrollbar-gold *::-webkit-scrollbar {
   width: 8px !important;
@@ -217,21 +209,21 @@ body {
 }
 
 .panel-scrollbar-gold *::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #f0cc5a 0%, #d4af37 100%) !important;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
   border-radius: 10px;
-  border: 2px solid rgba(0, 0, 0, 0.9) !important;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.4);
+  border: none !important;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .panel-scrollbar-gold *::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #fff 0%, #f0cc5a 100%) !important;
-  box-shadow: 0 0 30px rgba(212, 175, 55, 0.8);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 *::-webkit-scrollbar-thumb.panel-scrollbar-gold,
 .panel-scrollbar-gold *::-webkit-scrollbar-thumb,
 .panel-scrollbar-gold::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #f0cc5a 0%, #d4af37 100%) !important;
+  background: linear-gradient(90deg, #6b7280 0%, #4b5563 50%, #374151 100%) !important;
 }
 
 @utility keycap-highlight {
@@ -645,6 +637,7 @@ body {
 /* ── Monolithic Frame component (Clean Unified Look) ── */
 @utility monolithic-glass-prestige {
   background: transparent;
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   border: none;
   box-shadow: none;
@@ -872,7 +865,6 @@ html.landing-active body {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .landing-scroll-content {
@@ -884,7 +876,6 @@ html.landing-active body {
   min-height: 100vh;
   overflow-x: hidden;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 @media (min-width: 1024px) {
@@ -916,6 +907,7 @@ html.landing-active body {
 
 @utility glass-prestige-shell {
   background: transparent; /* Background now provided by monolith */
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   border: none;
   box-shadow: none;
@@ -925,6 +917,7 @@ html.landing-active body {
 
 @utility glass-monolithic-sidebar {
   background: transparent; /* Background now provided by monolith */
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   border: none;
   box-shadow: none;
@@ -1016,6 +1009,7 @@ html.landing-active body {
 /* ── Mercury Platinum Modal and Cards ── */
 @utility glass-mercury-platinum {
   background: rgba(10, 10, 10, 0.98);
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-top: 1px solid rgba(255, 255, 255, 0.4);
@@ -1031,6 +1025,7 @@ html.landing-active body {
 @utility glass-mercury-card {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: none;
   backdrop-filter: none;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -1933,17 +1928,20 @@ html.landing-active body {
   }
 
   *::-webkit-scrollbar {
-    width: 3px;
+    width: 8px;
   }
   *::-webkit-scrollbar-track {
     background: transparent;
   }
   *::-webkit-scrollbar-thumb {
-    background: rgba(var(--gold-rgb), 0.18);
-    border-radius: 20px;
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+    border-radius: 10px;
+    border: none !important;
+    box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: rgba(var(--gold-rgb), 0.35);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+    box-shadow: inset 1px 1px 2px rgba(255, 255, 255, 0.3), inset -1px -1px 2px rgba(0, 0, 0, 0.5) !important;
   }
 }
 
@@ -2460,11 +2458,15 @@ html.landing-active body {
 
 /* ─── Text mask reveal ─── */
 .text-reveal {
+  -webkit-mask-image: linear-gradient(to right, white 50%, transparent 100%);
   mask-image: linear-gradient(to right, white 50%, transparent 100%);
+  -webkit-mask-size: 200% 100%;
   mask-size: 200% 100%;
+  -webkit-mask-position: 100% 0;
   mask-position: 100% 0;
   transition: mask-position 0.6s var(--ease-out);
   &:hover {
+    -webkit-mask-position: 0% 0;
     mask-position: 0% 0;
   }
 }
@@ -2691,7 +2693,6 @@ html.landing-active body {
 /* ── Definitive fix for ghost scrollbars on characters ── */
 .char,
 .char * {
-  scrollbar-width: none !important;
   -ms-overflow-style: none !important;
   overflow: visible !important;
 }

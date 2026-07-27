@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any, Callable, Optional, Tuple
 
 from tenacity import (
@@ -20,9 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 def effective_max_tokens(model_id: str, max_tokens: int) -> int:
-    """OpenRouter/Azure dla GPT-5 wymaga max_tokens >= 16."""
-    if "gpt-5" in (model_id or "").lower() and max_tokens < 16:
+    """Zapewnia dostateczny budżet tokenów dla modeli z rozumowaniem/CoT i ucinaniem tekstu."""
+    mid = (model_id or "").lower()
+    if "gpt-5" in mid and max_tokens < 16:
         return 16
+    if any(k in mid for k in ["r1", "pro", "gemini", "o1", "o3", "deepseek", "qwen", "glm", "grok", "nemotron"]) and max_tokens < 8192:
+        return max(max_tokens, 8192)
     return max_tokens
 
 
@@ -53,6 +57,15 @@ def is_transient_error(exc: BaseException) -> bool:
     return True
 
 
+def _extract_affordable_tokens(exc: BaseException) -> Optional[int]:
+    """Parsuje błąd OpenRouter 402: 'You requested up to X tokens, but can only afford Y'."""
+    msg = str(exc)
+    m = re.search(r"can\s+only\s+afford\s+(\d+)", msg, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
+
+
 class LLMClientService:
     def __init__(
         self,
@@ -69,31 +82,16 @@ class LLMClientService:
     def fallbacks(self) -> list[str]:
         if self._explicit_fallbacks is not None:
             return self._explicit_fallbacks
-        try:
-            from moa.config import get_admin_models
+        from config import settings
 
-            admin_models = get_admin_models()
-            if admin_models:
-                # Bierzemy 3 pierwsze modele zatwierdzone przez admina jako zapasowe
-                return [m for m in admin_models[:3] if isinstance(m, str)]
-        except Exception as e:
-            logger.warning("Błąd pobierania modeli administratora: %s", e)
         return list(settings.fallback_models)
 
     def _resolve(self, model_id: Optional[str]) -> str:
         if self._explicit_resolve:
             return self._explicit_resolve(model_id)
-        if model_id:
-            return model_id
-        try:
-            from moa.config import get_admin_models
+        from config import settings
 
-            admin_models = get_admin_models()
-            if admin_models and isinstance(admin_models[0], str):
-                return admin_models[0]
-        except Exception:
-            pass
-        return settings.default_models[0]
+        return settings.resolve_model_id(model_id)
 
     async def call(
         self,
@@ -127,7 +125,7 @@ class LLMClientService:
                         "temperature": temperature,
                     }
                     if response_format:
-                        # Jeśli model to o1/o3/gpt-4o i nowsze, stosujemy structured outputs przez parse (albo response_format)
+                        # Jeśli model to o1/o3/deepseek-v4-flash i nowsze, stosujemy structured outputs przez parse (albo response_format)
                         import pydantic
 
                         if isinstance(response_format, type) and issubclass(
@@ -142,16 +140,25 @@ class LLMClientService:
                                     ),
                                     timeout=max(call_timeout, 20.0),
                                 )
-                                content = completion.choices[0].message.content or ""
+                                if hasattr(completion, "choices") and completion.choices:
+                                    content = completion.choices[0].message.content or ""
+                                elif isinstance(completion, dict) and completion.get("choices"):
+                                    content = completion["choices"][0].get("message", {}).get("content", "") or ""
+                                else:
+                                    raise ValueError(f"Oczekiwano choices, ale otrzymano: {completion}")
                                 result = content.strip()
                                 if not result:
                                     raise ValueError("Model zwrócił pustą odpowiedź (parse format).")
                                 _log_model_response(model_id, result, log_context)
                                 return result, model_id
-                            except AttributeError:
-                                # Fallback do starszego SDK / innych dostawców (Gemini/OpenRouter) gdzie zrobimy {"type": "json_object"}
+                            except Exception as parse_err:
+                                logger.warning(
+                                    "[llm] beta.parse nie powiódł się dla %s (%s). Przełączam na format json_object...",
+                                    model_id,
+                                    parse_err,
+                                )
                                 kwargs["response_format"] = {"type": "json_object"}
-                                # Dodajemy informację do prompta
+                                kwargs["max_tokens"] = max(kwargs.get("max_tokens", 4000), 8192)
                                 messages.append(
                                     {
                                         "role": "system",
@@ -163,13 +170,27 @@ class LLMClientService:
                         self._client.chat.completions.create(**kwargs),
                         timeout=max(call_timeout, 20.0),
                     )
-                    content = completion.choices[0].message.content or ""
+                    if hasattr(completion, "choices") and completion.choices:
+                        content = completion.choices[0].message.content or ""
+                    elif isinstance(completion, dict) and completion.get("choices"):
+                        content = completion["choices"][0].get("message", {}).get("content", "") or ""
+                    else:
+                        raise ValueError(f"Oczekiwano choices, ale otrzymano: {completion}")
                     result = content.strip()
                     if not result:
                         raise ValueError("Model zwrócił pustą odpowiedź.")
                     _log_model_response(model_id, result, log_context)
                     return result, model_id
                 except Exception as exc:
+                    affordable = _extract_affordable_tokens(exc)
+                    if affordable and affordable > 16 and max_tokens > affordable:
+                        new_max = max(16, affordable - 20)
+                        logger.warning(
+                            "OpenRouter 402: Model %s wymaga zredukowania max_tokens z %d do %d (dopuszczalne: %d). Ponawiam...",
+                            model_id, max_tokens, new_max, affordable
+                        )
+                        max_tokens = new_max
+                        continue
                     logger.warning(
                         "Model %s failed (attempt): %s",
                         model_id,
@@ -313,6 +334,15 @@ class LLMClientService:
                 model_id,
                 format_call_error(exc),
             )
+            # Obsługa błędu 402 w strumieniowaniu głównym
+            afford = _extract_affordable_tokens(exc)
+            if afford and afford > 16 and max_tokens > afford:
+                new_max = max(16, afford - 20)
+                logger.warning("[llm] OpenRouter 402 na strumieniu głównym %s: zredukowano max_tokens z %d do %d", model_id, max_tokens, new_max)
+                return await self.call_with_fallback_stream(
+                    model_id, messages, max_tokens=new_max, temperature=temperature, timeout=timeout, status_callback=status_callback
+                )
+
             if status_callback:
                 await status_callback(
                     f"Główny model {model_id} nie odpowiada. Przełączanie na darmowy strumień zapasowy..."
@@ -357,6 +387,30 @@ class LLMClientService:
                         )
                     return fb_wrapped_stream(), fb_model
                 except Exception as fb_err:
+                    fb_afford = _extract_affordable_tokens(fb_err)
+                    if fb_afford and fb_afford > 16 and max_tokens > fb_afford:
+                        fb_max = max(16, fb_afford - 20)
+                        logger.warning("[llm] OpenRouter 402 na strumieniu zapasowym %s: ponawiam z max_tokens=%d", fb_model, fb_max)
+                        try:
+                            fb_raw = await asyncio.wait_for(
+                                self._client.chat.completions.create(
+                                    model=fb_model,
+                                    messages=messages,
+                                    max_tokens=effective_max_tokens(fb_model, fb_max),
+                                    temperature=temperature,
+                                    stream=True,
+                                ),
+                                timeout=fallback_timeout,
+                            )
+                            fb_chunk1 = await asyncio.wait_for(fb_raw.__anext__(), timeout=15.0)
+                            async def fb_wrap():
+                                yield fb_chunk1
+                                async for c in fb_raw:
+                                    yield c
+                            return fb_wrap(), fb_model
+                        except Exception:
+                            pass
+
                     logger.warning(
                         "[llm] stream_fallback_failed model=%s error=%s",
                         fb_model,

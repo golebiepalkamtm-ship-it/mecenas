@@ -27,6 +27,7 @@ export type LexIconName =
   | "scale"
   | "documents"
   | "file"
+  | "library"
   | "prompts"
   | "brain"
   | "ai"
@@ -51,6 +52,7 @@ const lexIconMap: Record<LexIconName, IconComponent> = {
   scale: JudgmentsIcon,
   documents: DocumentsIcon,
   file: DocumentsIcon,
+  library: DocumentsIcon,
   prompts: PromptsIcon,
   brain: PromptsIcon,
   ai: PromptsIcon,

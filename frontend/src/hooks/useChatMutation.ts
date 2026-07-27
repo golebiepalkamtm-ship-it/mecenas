@@ -52,6 +52,7 @@ interface ChatMutationData {
   use_eli?: boolean;
   use_rag_legal?: boolean;
   use_rag_user?: boolean;
+  use_lexminde_mcp?: boolean;
   act_terms?: string[];
 }
 
@@ -129,7 +130,7 @@ export const useChatMutation = () => {
 
   const mutation = useMutation({
     mutationFn: async (data: ChatMutationData): Promise<ChatMutationResult> => {
-      const { message, history, attachments, sessionId, document_text, onChunk, onMetadata, use_saos, use_eli, use_rag_legal, use_rag_user, act_terms } = data;
+      const { message, history, attachments, sessionId, document_text, onChunk, onMetadata, use_saos, use_eli, use_rag_legal, use_rag_user, use_lexminde_mcp, act_terms } = data;
       
       // Stop any previous generation
       stopGeneration();
@@ -178,6 +179,7 @@ export const useChatMutation = () => {
           use_eli,
           use_rag_legal,
           use_rag_user,
+          use_lexminde_mcp,
           act_terms,
         },
         {

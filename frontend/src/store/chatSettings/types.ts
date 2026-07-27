@@ -85,6 +85,8 @@ export interface ChatRetrievalSettingsState {
   setUseRagLegal: (enabled: boolean) => void;
   useRagUser: boolean;
   setUseRagUser: (enabled: boolean) => void;
+  useLexmindeMcp: boolean;
+  setUseLexmindeMcp: (enabled: boolean) => void;
 }
 
 export interface ChatSettingsResetState {
@@ -103,7 +105,7 @@ export const DEFAULT_CHAT_SETTINGS = {
   mode: 'single' as ChatSettingMode,
   responseMode: 'strategic' as ResponseMode,
   selectedSingleModel: 'google/gemini-2.5-flash-lite',
-  selectedExperts: [] as string[],
+  selectedExperts: [],
   selectedJudge: 'google/gemini-2.5-flash-lite',
   favoriteModels: [] as string[],
   recentModelIds: [] as string[],
@@ -121,6 +123,7 @@ export const DEFAULT_CHAT_SETTINGS = {
   useEli: true,
   useRagLegal: true,
   useRagUser: false,
+  useLexmindeMcp: true,
 } as const;
 
 export type ChatSettingsSliceCreator<TSlice> = StateCreator<ChatSettingsState, [], [], TSlice>;

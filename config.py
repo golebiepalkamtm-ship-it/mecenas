@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,30 +18,26 @@ class Settings(BaseSettings):
 
     default_models: List[str] = Field(
         default=[
-            "google/gemini-2.5-pro",
-            "openai/gpt-4o",
-            "google/gemini-2.5-flash",
-            "google/gemini-2.5-flash-lite",
-            "openai/gpt-4o-mini",
-            "openrouter/owl-alpha",
-            "z-ai/glm-5.1",
-            "xiaomi/mimo-v2-flash",
-            "deepseek/deepseek-r1",
+            "deepseek/deepseek-v4-pro",
+            "deepseek/deepseek-v4-flash",
+            "qwen/qwen3.5-flash",
+            "openai/gpt-oss-120b",
+            "google/gemini-3.1-flash-lite",
+            "openai/gpt-5-nano",
+            "inclusionai/ling-2.6-flash",
         ]
     )
     fallback_models: List[str] = Field(
         default=[
-            "google/gemini-2.5-pro",
-            "openai/gpt-4o",
-            "google/gemini-2.5-flash",
-            "google/gemini-2.5-flash-lite",
-            "openai/gpt-4o-mini",
+            "openai/gpt-5-nano",
+            "qwen/qwen3.5-flash",
+            "deepseek/deepseek-v4-flash",
         ]
     )
     deprecated_model_aliases: Dict[str, str] = Field(
         default={
-            "anthropic/claude-3.5-sonnet": "google/gemini-2.5-flash",
-            "anthropic/claude-3-sonnet": "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro": "deepseek/deepseek-v4-pro",
+            "google/gemini-2.5-flash": "google/gemini-3.1-flash-lite"
         }
     )
 
@@ -64,10 +60,10 @@ class Settings(BaseSettings):
     rag_user_top_k: int = Field(default=4)
     rag_user_top_k_with_document: int = Field(default=16)
 
-    llm_timeout_primary: float = 60.0
-    llm_timeout_fallback: float = 90.0
-    llm_stream_timeout_primary: float = 45.0
-    llm_stream_timeout_fallback: float = 60.0
+    llm_timeout_primary: float = 180.0
+    llm_timeout_fallback: float = 240.0
+    llm_stream_timeout_primary: float = 120.0
+    llm_stream_timeout_fallback: float = 180.0
     llm_retry_attempts: int = 3
 
     chat_history_max_messages: int = 50
@@ -81,8 +77,8 @@ class Settings(BaseSettings):
     vision_ocr_models: List[str] = Field(
         default=[
             "google/gemini-2.5-flash",
-            "google/gemini-2.5-flash-lite",
-            "openai/gpt-4o-mini",
+            "google/gemini-3.1-flash-lite",
+            "openai/gpt-5-mini",
             "openrouter/owl-alpha",
         ]
     )
@@ -144,7 +140,7 @@ class Settings(BaseSettings):
     # Long-context single pass
     feature_long_context_path: bool = Field(default=True)
     long_context_max_chars: int = Field(default=300_000)
-    long_context_model: str = Field(default="google/gemini-2.5-pro")
+    long_context_model: str = Field(default="deepseek/deepseek-v4-flash")
 
     # Citation ELI L1 cache TTL (sekundy)
     eli_citation_cache_ttl: int = Field(default=3600)
@@ -195,6 +191,12 @@ class Settings(BaseSettings):
     trial_position_synthesis_max_tokens: int = Field(default=2500)
     trial_position_parallel: int = Field(default=4)
     trial_max_brief_chars: int = Field(default=50_000)
+
+    def resolve_model_id(self, model_id: Optional[str]) -> str:
+        """Zwraca zaktualizowane ID modelu, obsługując deprecację."""
+        if not model_id:
+            return self.default_models[0] if self.default_models else ""
+        return self.deprecated_model_aliases.get(model_id, model_id)
 
 
 settings = Settings()

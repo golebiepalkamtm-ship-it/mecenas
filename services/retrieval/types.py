@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from typing import Any, Mapping, Sequence, TypedDict
 
 
 class RetrievalItem(TypedDict, total=False):
@@ -39,11 +39,11 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
-def get_retrieval_title(row: dict[str, Any]) -> str:
+def get_retrieval_title(row: Mapping[str, Any]) -> str:
     return _as_str(row.get("title") or row.get("tytul"))
 
 
-def get_retrieval_score(row: dict[str, Any]) -> float:
+def get_retrieval_score(row: Mapping[str, Any]) -> float:
     for key in ("rerank_score", "score", "similarity", "rrf_score"):
         val = _as_float(row.get(key))
         if val is not None:
@@ -51,7 +51,7 @@ def get_retrieval_score(row: dict[str, Any]) -> float:
     return 0.0
 
 
-def get_retrieval_source(row: dict[str, Any]) -> str:
+def get_retrieval_source(row: Mapping[str, Any]) -> str:
     source = _as_str(row.get("source"))
     if source:
         return source
@@ -66,7 +66,7 @@ def get_retrieval_source(row: dict[str, Any]) -> str:
     return _as_str(row.get("source_type"))
 
 
-def infer_retrieval_source_type(row: dict[str, Any]) -> str:
+def infer_retrieval_source_type(row: Mapping[str, Any]) -> str:
     source_type = _as_str(row.get("source_type"))
     if source_type:
         return source_type
@@ -87,12 +87,26 @@ def infer_retrieval_source_type(row: dict[str, Any]) -> str:
         return "SAOS"
     if source.startswith("ELI"):
         return "ELI"
+    if source.startswith("CBOSA"):
+        return "CBOSA"
+    if source.startswith("KRS"):
+        return "KRS"
+    if source.startswith("UODO"):
+        return "UODO"
+    if source.startswith("KIO"):
+        return "KIO"
+    if source.startswith("TSUE"):
+        return "TSUE"
+    if source.startswith("SEJM") or source.startswith("ISAP"):
+        return "ISAP"
+    if source.startswith("CEIDG"):
+        return "CEIDG"
     if row.get("sygnatura") or row.get("full_text"):
         return "SAOS"
     return ""
 
 
-def normalize_retrieval_row(row: dict[str, Any]) -> RetrievalItem:
+def normalize_retrieval_row(row: Mapping[str, Any]) -> RetrievalItem:
     out: dict[str, Any] = dict(row)
 
     content = out.get("content")
@@ -127,5 +141,6 @@ def normalize_retrieval_row(row: dict[str, Any]) -> RetrievalItem:
     return out  # type: ignore[return-value]
 
 
-def normalize_retrieval_rows(rows: list[dict[str, Any]]) -> list[RetrievalItem]:
-    return [normalize_retrieval_row(r) for r in rows if isinstance(r, dict)]
+def normalize_retrieval_rows(rows: Sequence[Mapping[str, Any]]) -> list[RetrievalItem]:
+    return [normalize_retrieval_row(r) for r in rows if isinstance(r, (dict, Mapping))]
+

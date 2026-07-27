@@ -40,7 +40,7 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
     try:
         # We only take the first 4000 bytes as rough text approximation if it's text,
         # but for PDFs/images we might need to rely on the filename first to be really fast.
-        # However, calling gpt-4o-mini is fast enough.
+        # However, calling gpt-5-mini is fast enough.
         prompt = f"Przeanalizuj nazwę pliku '{filename}' i jeśli to możliwe, wyciągnij sygnaturę akt i nazwę sądu/organu. Zwróć jako JSON z polami 'sygnatura' i 'sad'."
         
         # This is a very simplified fast metadata step to optimize TTFT
@@ -48,7 +48,8 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
         if hasattr(openai_client, "_client") and not hasattr(openai_client, "chat"):
             openai_client = openai_client._client
         from database import get_setting
-        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        from config import settings
+        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
         res = await openai_client.chat.completions.create(
             model=fast_model,
             messages=[
@@ -227,3 +228,4 @@ async def extract_all_attachments_text(attachments: Optional[List[Dict[str, Any]
             elif isinstance(chunk, str) and chunk:
                 parts.append(chunk)
     yield "".join(parts)
+

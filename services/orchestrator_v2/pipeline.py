@@ -93,7 +93,7 @@ class OrchestrationPipeline:
                 logger.exception("[PIPELINE] Krytyczny błąd asynchronicznej debaty ekspertów")
                 from .debate_engine import DebateResult
                 from database import get_setting
-                fallback_m = get_setting("assigned_model_fast", "google/gemini-2.5-flash-lite")
+                fallback_m = get_setting("assigned_model_fast")
                 debate_result = DebateResult(
                     expert_opinions=[{
                         "role": "Ekspert Rezerwowy",
@@ -119,7 +119,8 @@ class OrchestrationPipeline:
                 user_query=params.user_query,
                 context_text=context_result.combined_full_text,
                 llm_service=llm_service,
-                threshold=settings.reflection_score_threshold
+                threshold=settings.reflection_score_threshold,
+                hallucination_rate=getattr(debate_result, "hallucination_rate", 0.0)
             )
             
             if reflection_result.needs_regeneration:
@@ -128,7 +129,7 @@ class OrchestrationPipeline:
                 
                 correction_prompt = f"Twoja poprzednia odpowiedź otrzymała ocenę {reflection_result.score:.2f} z powodu następujących braków:\n" + "\n".join([f"- {issue}" for issue in reflection_result.issues]) + "\nNapisz zwięzłe uzupełnienie, które adresuje WYŁĄCZNIE te braki. Zacznij od słów np. 'Tytułem uzupełnienia...'."
                 from database import get_setting
-                advocate_model = params.aggregator_model or params.selected_model or get_setting("assigned_model_judge", "openai/gpt-4o")
+                advocate_model = params.aggregator_model or params.selected_model or get_setting("assigned_model_judge")
                 
                 try:
                     correction_text, _ = await llm_service.call_with_fallback(
@@ -208,3 +209,4 @@ class OrchestrationPipeline:
         }
             
         logger.info("[PIPELINE] Przetwarzanie zakończone sukcesem.")
+

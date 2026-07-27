@@ -1,6 +1,6 @@
 import type { LexIconName } from "../Layout/LexIcon";
 
-export type AdminTab = "system" | "users" | "security" | "models" | "debugger";
+export type AdminTab = "system" | "users" | "security" | "models" | "payments" | "analytics" | "messaging" | "debugger";
 
 export interface UserProfile {
   id: string;

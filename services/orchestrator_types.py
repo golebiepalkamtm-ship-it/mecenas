@@ -41,6 +41,7 @@ class OrchestratorInputParams:
     use_eli: bool = False
     use_rag_legal: bool = False
     use_rag_user: bool = False
+    use_lexminde_mcp: bool = False
     act_terms: List[str] = field(default_factory=list)
     architect_prompt: str = ""
     system_role_prompt: str = ""

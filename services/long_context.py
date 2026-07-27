@@ -16,7 +16,7 @@ def long_context_model_id() -> str:
     assigned = get_setting("assigned_model_long_context", "").strip()
     if assigned:
         return assigned
-    return settings.long_context_model.strip() or "google/gemini-2.5-pro"
+    return settings.long_context_model.strip() or "deepseek/deepseek-v4-flash"
 
 
 def long_context_expert_chunk_note() -> str:

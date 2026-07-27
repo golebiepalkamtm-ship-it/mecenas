@@ -85,7 +85,7 @@ Deno.serve(async (req: Request) => {
     if (primaryModelId.includes(':free') || primaryModelId.includes('qwen') || primaryModelId.includes('deepseek')) {
         modelsToTry.push("google/gemini-2.1-flash-thinking-preview:free"); // Try another free one
         modelsToTry.push("google/gemini-2.5-flash"); // Then a paid reliable one
-        modelsToTry.push("openai/gpt-4o-mini");
+        modelsToTry.push("openai/gpt-5-mini");
     }
 
     const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {

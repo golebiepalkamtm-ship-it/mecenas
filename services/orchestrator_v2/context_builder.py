@@ -1,7 +1,7 @@
 import asyncio
 import logging
-from typing import Any, List, Tuple, Optional
-from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple, Optional
+from dataclasses import dataclass, field
 
 from services.orchestrator_types import OrchestratorInputParams
 from services.orchestrator_v2.history_formatter import format_chat_history
@@ -14,6 +14,8 @@ from services.pipeline.attachments import extract_all_attachments_text
 from services.pipeline.fast_path import is_fast_statutory_query, fast_path_keywords
 from services.query_planner import QueryPlan, plan_query, apply_plan_to_retrieval_counts
 from services.legal_basis_validator import ValidArticlesCache
+from services.mcp_tool_bridge import call_mcp_tool, get_tools_for_tags, format_tool_results_as_context, SPECIALIZED_TOOLS
+from services.investigation.agent_router import detect_problem_tags
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -36,6 +38,9 @@ class InvestigationContext:
     skip_debate: bool = False
     route_reason: str = ""
     use_fast_path: bool = False
+    specialized_blocks: str = ""
+    mcp_tools_used: List[str] = field(default_factory=list)
+    problem_tags: List[str] = field(default_factory=list)
 
 class LegalContextBuilder:
     """
@@ -66,7 +71,7 @@ class LegalContextBuilder:
             logger.warning(f"[ContextBuilder] Błąd sprawdzania semantic cache: {cache_err}")
 
         # 1b. Semantic routing — fast path / QueryPlanner
-        use_fast_path = bool(
+        use_fast_path = (
             settings.feature_fast_statutory_path
             and is_fast_statutory_query(
                 params.user_query,
@@ -111,10 +116,11 @@ class LegalContextBuilder:
 
                     fallback_kw = fast_path_keywords(params.user_query) or params.user_query[:120]
                     from database import get_setting
-                    planner_model = get_setting("assigned_model_query_planner", "google/gemini-2.5-flash-lite")
+                    raw_planner = params.selected_model or get_setting("assigned_model_query_planner")
+                    planner_model = settings.resolve_model_id(raw_planner)
                     query_plan = await plan_query(
                         call_llm=_planner_llm,
-                        model_id=params.selected_model or planner_model,
+                        model_id=planner_model,
                         user_query=params.user_query,
                         document_excerpt=doc_text[:1200],
                         history_snippet=masked_history[:800],
@@ -158,14 +164,21 @@ class LegalContextBuilder:
             case_brief = CaseBrief(**cached_brief_dict)
             logger.info("[ContextBuilder] Wykorzystano Kartę Sprawy z semantic cache.")
         else:
-            case_brief = await self.briefing_engine.generate_brief(params, llm_service, raw_materials)
+            try:
+                case_brief = await self.briefing_engine.generate_brief(params, llm_service, raw_materials)
+            except Exception as e:
+                logger.error(f"[ContextBuilder] Błąd generowania Karty Sprawy: {e}. Zwracam pustą Kartę Sprawy.")
+                from services.orchestrator_v2.briefing_engine import CaseBrief
+                case_brief = CaseBrief()
+                
             # Jeśli nie było trafienia w cache, zapisujemy nowo wygenerowany plan i brief
-            if query_emb and not cached_payload:
+            if query_emb and not cached_payload and case_brief:
                 try:
                     from services.semantic_cache import set_semantic_cache
+                    import dataclasses
                     cache_data = {
-                        "query_plan": query_plan.model_dump() if query_plan and hasattr(query_plan, "model_dump") else (query_plan.dict() if query_plan else None),
-                        "case_brief": case_brief.model_dump() if case_brief and hasattr(case_brief, "model_dump") else (case_brief.dict() if case_brief else None)
+                        "query_plan": dataclasses.asdict(query_plan) if query_plan else None,
+                        "case_brief": case_brief.model_dump() if case_brief and hasattr(case_brief, "model_dump") else None
                     }
                     set_semantic_cache(params.user_query, query_emb, cache_data)
                 except Exception as save_err:
@@ -175,9 +188,7 @@ class LegalContextBuilder:
         if case_brief and getattr(case_brief, 'wykryte_przepisy_prawne', None):
             saos_eli_keywords = ", ".join(case_brief.wykryte_przepisy_prawne[:8])
         else:
-            import re
-            matches = re.findall(r'(?i)(?:art\.|artyku[łl]|§)\s*\d+[a-z]*', params.user_query)
-            saos_eli_keywords = ", ".join(matches[:8]) if matches else ""
+            saos_eli_keywords = fast_path_keywords(params.user_query)
             
         logger.info(f"   -> Wyekstrahowane słowa kluczowe SAOS/ELI z Karty Sprawy: {saos_eli_keywords}")
         
@@ -199,6 +210,34 @@ class LegalContextBuilder:
                 document_text=masked_doc,
             )
         
+        # 5c. [MCP BRIDGE] Specjalistyczne źródła na podstawie wykrytych tagów problemu
+        problem_tags = detect_problem_tags(masked_doc + " " + user_blocks, params.user_query)
+        specialized_blocks, mcp_tools_used = await self._gather_specialized_mcp_intelligence(
+            params, problem_tags, saos_eli_keywords,
+        )
+        
+        # 5d. [FALLBACK] Automatyczny internet search gdy RAG/SAOS/ELI zwracają 0 wyników
+        if not res_legal and not res_saos and not res_eli and not use_fast_path:
+            logger.info("[ContextBuilder] Wszystkie źródła (RAG/SAOS/ELI) zwróciły 0 wyników. Uruchamiam automatyczny internet search...")
+            try:
+                search_query = saos_eli_keywords or params.user_query[:120]
+                inet_result = await call_mcp_tool("internet_search", query=search_query, limit=5)
+                if isinstance(inet_result, dict) and inet_result.get("status") == "ok":
+                    inet_items = inet_result.get("items", [])
+                    if inet_items:
+                        inet_text_parts = []
+                        for item in inet_items[:5]:
+                            title = item.get("title", "")
+                            body = item.get("body", "")
+                            href = item.get("href", "")
+                            inet_text_parts.append(f"[{title}]({href})\n{body}")
+                        inet_block = "\n\n=== INTERNET SEARCH (automatyczny fallback) ===\n" + "\n---\n".join(inet_text_parts) + "\n" + "=" * 40
+                        specialized_blocks = (specialized_blocks or "") + inet_block
+                        mcp_tools_used.append("internet_search (auto-fallback)")
+                        logger.info(f"[ContextBuilder] Internet search fallback: {len(inet_items)} wyników.")
+            except Exception as inet_err:
+                logger.warning(f"[ContextBuilder] Internet search fallback error: {inet_err}")
+        
         # 6. Kompilacja i formatowanie ostatecznego kontekstu badawczego
         return self._compile_investigation_context(
             case_brief=case_brief,
@@ -213,6 +252,9 @@ class LegalContextBuilder:
             skip_debate=skip_debate,
             route_reason=route_reason,
             use_fast_path=use_fast_path,
+            specialized_blocks=specialized_blocks,
+            mcp_tools_used=mcp_tools_used,
+            problem_tags=problem_tags,
         )
 
     async def _process_attachments_and_history(self, params: OrchestratorInputParams, llm_service: Any) -> Tuple[str, str, str, str]:
@@ -298,7 +340,7 @@ class LegalContextBuilder:
         saos_limit = mapped.get("saos_n", 2 if use_fast_path else 3)
         eli_limit = mapped.get("eli_n", 0 if use_fast_path else 3)
         use_saos_eff = mapped.get("use_saos_eff", params.use_saos)
-        use_eli_eff = mapped.get("use_eli_eff", params.use_eli) and not use_fast_path
+        use_eli_eff = mapped.get("use_eli_eff", params.use_eli)
         rerank_k = min(settings.rerank_top_k, mapped.get("rag_n", settings.rerank_top_k))
         external_k = min(settings.external_rerank_top_k, max(saos_limit, eli_limit, 3))
         
@@ -382,27 +424,124 @@ class LegalContextBuilder:
             res_eli_raw = []
 
         if res_legal_raw:
-            res_legal = await rerank_legal_chunks(
-                res_legal_raw, 
-                query_for_rag, 
-                provider=settings.rerank_provider,
-                top_k=rerank_k,
-            )
+            try:
+                res_legal = await rerank_legal_chunks(
+                    res_legal_raw, 
+                    query_for_rag, 
+                    provider=settings.rerank_provider,
+                    top_k=rerank_k,
+                )
+            except Exception as e:
+                logger.error(f"[ContextBuilder] Błąd podczas rerank_legal_chunks: {e}. Używam nieposortowanych wyników.")
+                res_legal = res_legal_raw[:rerank_k]
         else:
             res_legal = []
             
         if res_saos_raw or res_eli_raw:
-            res_saos, res_eli = await rerank_external_sources(
-                res_saos_raw, 
-                res_eli_raw, 
-                query_for_rag, 
-                provider=settings.rerank_provider,
-                top_k=external_k,
-            )
+            try:
+                res_saos, res_eli = await rerank_external_sources(
+                    res_saos_raw, 
+                    res_eli_raw, 
+                    query_for_rag, 
+                    provider=settings.rerank_provider,
+                    top_k=external_k,
+                )
+            except Exception as e:
+                logger.error(f"[ContextBuilder] Błąd podczas rerank_external_sources: {e}. Używam nieposortowanych wyników.")
+                res_saos = res_saos_raw[:external_k] if res_saos_raw else []
+                res_eli = res_eli_raw[:external_k] if res_eli_raw else []
         else:
             res_saos, res_eli = [], []
             
         return res_legal, res_saos, res_eli
+
+    async def _gather_specialized_mcp_intelligence(
+        self,
+        params: OrchestratorInputParams,
+        problem_tags: List[str],
+        keywords: str,
+    ) -> Tuple[str, List[str]]:
+        """[MCP BRIDGE] Wywołuje specjalistyczne narzędzia MCP na podstawie wykrytych tagów problemu.
+        
+        Dzięki temu pipeline automatycznie sięga po:
+        - CBOSA (NSA/WSA) gdy wykryto tag 'tax' lub 'administrative'
+        - TSUE gdy wykryto tag 'eu'
+        - UODO gdy wykryto tag 'gdpr' / dane osobowe
+        - KIO gdy wykryto tag 'public_procurement'
+        - KRS gdy wykryto numer KRS lub tag 'corporate'
+        - Sejm (druki/interpelacje) gdy wykryto tag 'legislative'
+        """
+        tools_to_call = get_tools_for_tags(problem_tags)
+        
+        # Jeśli użytkownik włączył przycisk 'Lexminde MCP Server' w UI — dodaj podstawowe narzędzia MCP
+        if getattr(params, "use_lexminde_mcp", False):
+            for default_tool in ["isap_search_acts", "saos_search_judgments", "sejm_search_interpellations", "internet_search"]:
+                if default_tool not in tools_to_call:
+                    tools_to_call.append(default_tool)
+
+        # Zawsze dodaj CBOSA dla spraw administracyjnych/podatkowych
+        if any(t in problem_tags for t in ["tax", "procedural"]) and "cbosa_search_judgments" not in tools_to_call:
+            tools_to_call.append("cbosa_search_judgments")
+        
+        # Wykryj numery KRS w tekście
+        from services.retrieval.providers.krs_provider import extract_krs_numbers
+        krs_numbers = extract_krs_numbers(params.user_query + " " + (params.document_text or ""))
+        if krs_numbers and "krs_get_company" not in tools_to_call:
+            tools_to_call.append("krs_get_company")
+        
+        if not tools_to_call:
+            return "", []
+        
+        logger.info(f"[MCP Bridge] Wykryto tagi: {problem_tags} → wywołuję narzędzia: {tools_to_call}")
+        
+        tool_results: Dict[str, Any] = {}
+        tasks = []
+        
+        for tool_name in tools_to_call:
+            if tool_name == "krs_get_company":
+                if krs_numbers:
+                    for krs_num in krs_numbers[:2]:
+                        tasks.append((f"{tool_name}_{krs_num}", call_mcp_tool(tool_name, krs=krs_num)))
+                continue  # Skip if krs_numbers is empty, do not fall back to query
+            elif tool_name in ("cbosa_search_judgments", "tsue_search_judgments", "kio_search_judgments", "uodo_search_decisions"):
+                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords)))
+            elif tool_name == "sejm_list_prints":
+                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords, limit=5)))
+            elif tool_name == "sejm_search_interpellations":
+                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords, limit=5)))
+            else:
+                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords)))
+        
+        if not tasks:
+            return "", []
+        
+        # Wykonaj równolegle z timeoutem
+        async def _safe_call(name: str, coro):
+            try:
+                return name, await asyncio.wait_for(coro, timeout=12.0)
+            except Exception as e:
+                logger.warning(f"[MCP Bridge] Tool '{name}' error: {e}")
+                return name, {"status": "error", "message": str(e)}
+        
+        gathered = await asyncio.gather(
+            *[_safe_call(name, coro) for name, coro in tasks],
+            return_exceptions=True,
+        )
+        
+        tools_used: List[str] = []
+        for result in gathered:
+            if isinstance(result, tuple) and len(result) == 2:
+                name, data = result
+                if isinstance(data, dict) and data.get("status") == "ok":
+                    tool_results[name] = data
+                    tools_used.append(name)
+        
+        specialized_text = format_tool_results_as_context(tool_results)
+        
+        if tools_used:
+            logger.info(f"[MCP Bridge] [OK] Pobrano dane z {len(tools_used)} narzędzi MCP: {tools_used}")
+        
+        return specialized_text, tools_used
 
     def _compile_investigation_context(
         self,
@@ -419,6 +558,9 @@ class LegalContextBuilder:
         skip_debate: bool = False,
         route_reason: str = "",
         use_fast_path: bool = False,
+        specialized_blocks: str = "",
+        mcp_tools_used: Optional[List[str]] = None,
+        problem_tags: Optional[List[str]] = None,
     ) -> InvestigationContext:
         """Formatuje wyniki ze wszystkich źródeł w jeden potężny string do podpięcia jako prompt LLM."""
         
@@ -471,6 +613,8 @@ class LegalContextBuilder:
             combined_parts.append(f"=== ORZECZNICTWO SAOS ===\n{saos_block}\n==================================")
         if eli_block:
             combined_parts.append(f"=== AKTY PRAWNE ELI ===\n{eli_block}\n==================================")
+        if specialized_blocks:
+            combined_parts.append(f"=== SPECJALISTYCZNE ŹRÓDŁA MCP ===\n{specialized_blocks}\n==================================")
             
         combined = "\n\n".join(combined_parts)
         
@@ -484,6 +628,9 @@ class LegalContextBuilder:
             user_blocks=user_blocks,
             saos_blocks=saos_block,
             eli_blocks=eli_block,
+            specialized_blocks=specialized_blocks,
+            mcp_tools_used=mcp_tools_used or [],
+            problem_tags=problem_tags or [],
             chat_history=masked_history,
             document_text=masked_doc,
             combined_full_text=combined,
@@ -497,3 +644,4 @@ class LegalContextBuilder:
             route_reason=route_reason,
             use_fast_path=use_fast_path,
         )
+

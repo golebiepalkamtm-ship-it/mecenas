@@ -11,6 +11,13 @@
 - `frontend/src/services/chatPayloadFactory.ts` — jedna fabryka payloadu dla czatu.
 - Minimalne testy: `tests/test_chat_contract.py`, `tests/test_message_builder.py`.
 
+### Fixed
+- **VerificationAgent**: Poprawa logiki parsowania flag z błędami (`verification_flag`), by ignorowała redundantne tagi `ZATWIERDZONO`, gdy wystąpi `BŁĄD:`.
+- **SynthesisEngine**: Wymuszono zablokowanie syntezy w przypadku, gdy współczynnik halucynacji (hallucination rate) > 30%.
+- **ReflectionLoop**: Sprzężenie self-critic ze współczynnikiem halucynacji oraz zastosowanie ostrego progu `<` (teraz `<=`) przy decydowaniu o regeneracji opinii.
+- **Wydajność LLM**: Zwiększenie domyślnych limitów czasowych na timeouty połączeń (primary i fallback) w `config.py`.
+- **Parsowanie wyników (Nemotron)**: Dodanie `nemotron` do wyjątków na większy limit `max_tokens` w `llm_client.py`.
+
 ### Changed
 - `/chat`: adapter legacy → v2; MOA nie przekazuje `system_role_prompt` do sędzia (tylko tryb single).
 - Orchestrator: `process_side` zamiast `.find("prosecutor")` w treści promptu.

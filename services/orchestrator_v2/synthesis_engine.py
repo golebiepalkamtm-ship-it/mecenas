@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import AsyncGenerator, Dict, Any
 
 from services.orchestrator_types import OrchestratorInputParams
@@ -39,7 +40,8 @@ class SeniorAdvocateSynthesis:
             logger.info("[SynthesisEngine] Rozpoczynam wczesne strumieniowanie wstępu (Early Synthesis)...")
             try:
                 from database import get_setting
-                fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+                from config import settings
+                fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
                 
                 intro_prompt = (
                     "Jesteś wybitnym Głównym Adwokatem, mistrzem strategii procesowej. "
@@ -93,25 +95,38 @@ class SeniorAdvocateSynthesis:
             }
             
         # 1. Weryfikacja metryk debaty (Zabezpieczenie przed halucynacjami LLM)
-        await self._verify_hallucinations(context, debate_result, llm_service)
+        try:
+            await self._verify_hallucinations(context, debate_result, llm_service)
+            if getattr(debate_result, 'hallucination_rate', 0.0) > 30.0:
+                logger.error(f"[SynthesisEngine] Zatrzymuję generowanie: Hallucination rate {debate_result.hallucination_rate:.1f}% przekracza 30.0%.")
+                yield {"type": "chunk", "text": f"\n\n*[Przerwano: Zbyt wysoki wskaźnik halucynacji ({debate_result.hallucination_rate:.1f}%). System wymusza regenerację.]*"}
+                return
+        except Exception as e:
+            logger.error(f"[SynthesisEngine] Błąd weryfikacji halucynacji: {e}. Pomijam weryfikację.")
         
         # 2. Składanie wniosków ekspertów
         all_expert_opinions = ""
         for expert in debate_result.expert_opinions:
             role = expert.get("role", "Ekspert")
             resp = expert.get("response", "")
-            all_expert_opinions += f"--- OPINIA: {role} ---\n{resp}\n\n"
+            ver_flag = expert.get("verification_flag", "")
+            flag_str = f" [UWAGA: {ver_flag}]" if ver_flag and ver_flag.upper().startswith("BŁĄD") else ""
+            all_expert_opinions += f"--- OPINIA: {role}{flag_str} ---\n{resp}\n\n"
             
         # Generowanie Consensus Report lub Conflict Resolution Matrix
         conflict_matrix = ""
         if debate_result.expert_opinions:
             from config import settings
-            if settings.feature_consensus_engine:
-                from services.orchestrator_v2.consensus_engine import ConsensusEngine
-                ce = ConsensusEngine()
-                conflict_matrix = await ce.generate_consensus(debate_result.expert_opinions, params.user_query, llm_service)
-            else:
-                conflict_matrix = await self._generate_conflict_resolution_matrix(all_expert_opinions, llm_service)
+            try:
+                if settings.feature_consensus_engine:
+                    from services.orchestrator_v2.consensus_engine import ConsensusEngine
+                    ce = ConsensusEngine()
+                    conflict_matrix = await ce.generate_consensus(debate_result.expert_opinions, params.user_query, llm_service)
+                else:
+                    conflict_matrix = await self._generate_conflict_resolution_matrix(all_expert_opinions, llm_service)
+            except Exception as e:
+                logger.error(f"[SynthesisEngine] Błąd generowania macierzy konfliktów/konsensusu: {e}. Zwracam pustą macierz.")
+                conflict_matrix = ""
             
         default_advocate_prompt = (
             "Jesteś wybitnym Głównym Adwokatem, mistrzem strategii procesowej i osobistym obrońcą klienta. "
@@ -138,6 +153,13 @@ class SeniorAdvocateSynthesis:
                 "Rozpocznij swoją wypowiedź bezpośrednio od analizy zebranych argumentów prawnych i opinii ekspertów (bez ponownego przywitania czy streszczenia stanu faktycznego)."
             )
             
+        if context.mcp_tools_used:
+            default_advocate_prompt += (
+                "\n8. W swojej obszernej odpowiedzi koniecznie zaznacz, że podczas przygotowywania opinii przeprowadzono "
+                "zaawansowany wywiad w rejestrach specjalistycznych (" + ", ".join(context.mcp_tools_used) + ") "
+                "co gwarantuje najwyższą dokładność i aktualność ustaleń faktycznych."
+            )
+            
         from moa.prompt_builder import get_task_prompt
         task_prompt = ""
         if params.current_task and params.current_task != "general":
@@ -148,18 +170,19 @@ class SeniorAdvocateSynthesis:
             
         base_prompt = params.judge_system_prompt or default_advocate_prompt
         
-        # Wczytanie strażników wsparcia klienta (Client-centric Guards) dla trybów innych niż formalny draft
+        # Wczytanie strażników wsparcia klienta i pełnych tekstów prawnych (Client-centric & Full Legal Text Guards)
         client_guards = ""
-        if params.response_mode != "draft":
-            from prompts.loader import load_prompt
-            try:
+        from prompts.loader import load_prompt
+        try:
+            client_guards += "\n\n" + load_prompt("strict_no_quote_guard")
+            if params.response_mode != "draft":
                 client_guards += "\n\n" + load_prompt("user_priority_guard")
                 client_guards += "\n\n" + load_prompt("concrete_client_actions_guard")
                 client_guards += "\n\n" + load_prompt("helpful_synthesis_guard")
                 client_guards += "\n\n" + load_prompt("humanized_output_guard")
                 client_guards += "\n\n" + load_prompt("client_plain_language_guard")
-            except Exception as e:
-                logger.warning("[SynthesisEngine] Błąd wczytywania strażników klienta: %s", e)
+        except Exception as e:
+            logger.warning("[SynthesisEngine] Błąd wczytywania strażników klienta: %s", e)
  
         anti_xml_leak = (
             "\n\nUWAGA KRYTYCZNA DOTYCZĄCA TWOJEJ ODPOWIEDZI (NAJWYŻSZY PRIORYTET):\n"
@@ -179,8 +202,10 @@ class SeniorAdvocateSynthesis:
             )
         
         from database import get_setting
-        assigned_judge = get_setting("assigned_model_judge", "openai/gpt-4o")
-        model_to_use = params.aggregator_model or params.selected_model or assigned_judge
+        from config import settings
+        assigned_judge = get_setting("assigned_model_judge")
+        raw_model = params.aggregator_model or params.selected_model or assigned_judge
+        model_to_use = settings.resolve_model_id(raw_model)
         
         from services.orchestrator_v2.token_budget import allocate_synthesis_context
         expert_context_str = all_expert_opinions + conflict_matrix + hallucination_warning
@@ -257,7 +282,7 @@ class SeniorAdvocateSynthesis:
             return ""
             
         from database import get_setting
-        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        fast_model = get_setting("assigned_model_fast")
         
         matrix_prompt = (
             "Przeanalizuj poniższe opinie ekspertów z debaty prawnej i stwórz zwięzły Conflict Resolution Matrix.\n"
@@ -307,7 +332,7 @@ class SeniorAdvocateSynthesis:
         async def mock_call_llm(prompt: str) -> str:
             try:
                 from database import get_setting
-                fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+                fast_model = get_setting("assigned_model_fast")
                 res, _ = await llm_service.call_with_fallback(
                     fast_model,
                     [{"role": "user", "content": prompt}]
@@ -370,3 +395,4 @@ class SeniorAdvocateSynthesis:
             debate.counter_argument_quality = 0.0
             
         logger.info(f"[SynthesisEngine] Dynamiczna ocena jakości debaty (Counter-Argument Quality): {debate.counter_argument_quality:.2f}")
+

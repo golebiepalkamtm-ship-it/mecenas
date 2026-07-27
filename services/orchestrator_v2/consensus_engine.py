@@ -25,14 +25,18 @@ class ConsensusEngine:
         logger.info("[ConsensusEngine] Generowanie Consensus Report z opinii ekspertów...")
             
         from database import get_setting
-        fast_model = get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        from config import settings
+        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
         
         # Przygotowanie wsadu
         expert_texts = []
         for i, expert in enumerate(expert_opinions, 1):
             role = expert.get("role", f"Ekspert {i}")
             resp = expert.get("response", "")
-            expert_texts.append(f"--- OPINIA: {role} ---\n{resp}\n")
+            ver_flag = expert.get("verification_flag", "")
+            
+            flag_str = f" [UWAGA: OPINIA ZAWIERA BŁĄD: {ver_flag}]" if ver_flag and ver_flag.upper().startswith("BŁĄD") else ""
+            expert_texts.append(f"--- OPINIA: {role}{flag_str} ---\n{resp}\n")
             
         all_expert_opinions = "\n".join(expert_texts)
         
@@ -64,3 +68,4 @@ class ConsensusEngine:
         except Exception as e:
             logger.warning(f"[ConsensusEngine] Błąd generowania raportu: {e}")
             return ""
+

@@ -13,4 +13,6 @@ export const createChatRetrievalSlice: ChatSettingsSliceCreator<ChatRetrievalSet
   setUseRagLegal: (useRagLegal) => set({ useRagLegal }),
   useRagUser: DEFAULT_CHAT_SETTINGS.useRagUser,
   setUseRagUser: (useRagUser) => set({ useRagUser }),
+  useLexmindeMcp: DEFAULT_CHAT_SETTINGS.useLexmindeMcp,
+  setUseLexmindeMcp: (useLexmindeMcp) => set({ useLexmindeMcp }),
 });

@@ -26,15 +26,12 @@ DEFAULT_JUDGE_MODEL = "deepseek/deepseek-r1"
 
 # Modele zawsze widoczne w UI (łączone z listą OpenRouter + cache)
 CURATED_MODELS = [
-    {"id": "deepseek/deepseek-r1", "name": "DeepSeek R1", "provider": "deepseek"},
-    {"id": "openai/gpt-4o-mini", "name": "GPT-4o Mini", "provider": "openai"},
-    {"id": "openai/gpt-4o", "name": "GPT-4o", "provider": "openai"},
-    {"id": "anthropic/claude-3-opus", "name": "Claude 3 Opus", "provider": "anthropic"},
-    {
-        "id": "anthropic/claude-3-sonnet",
-        "name": "Claude 3 Sonnet",
-        "provider": "anthropic",
-    },
+    {"id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "provider": "deepseek"},
+    {"id": "qwen/qwen3.7-plus", "name": "Qwen 3.7 Plus", "provider": "qwen"},
+    {"id": "z-ai/glm-5.2", "name": "GLM 5.2", "provider": "z-ai"},
+    {"id": "google/gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite", "provider": "google"},
+    {"id": "openai/gpt-5-mini", "name": "GPT-5 Mini", "provider": "openai"},
+    {"id": "deepseek/deepseek-v4-pro", "name": "DeepSeek V4 Pro", "provider": "deepseek"},
 ]
 
 
@@ -66,42 +63,7 @@ def _model_list_entry(raw: dict) -> dict:
 
 
 MODELS_LIST = [
-    *[_model_list_entry(m) for m in CURATED_MODELS],
-    _model_list_entry(
-        {
-            "id": "deepseek/deepseek-r1",
-            "name": "DeepSeek R1 (Reasoning Judge)",
-            "provider": "deepseek",
-        }
-    ),
-    _model_list_entry(
-        {
-            "id": "anthropic/claude-3.5-sonnet",
-            "name": "Claude 3.5 Sonnet (Legal Draft)",
-            "provider": "anthropic",
-        }
-    ),
-    _model_list_entry(
-        {
-            "id": "google/gemini-2.5-flash",
-            "name": "Gemini 2.5 Flash (Vision OCR)",
-            "provider": "google",
-        }
-    ),
-    _model_list_entry(
-        {
-            "id": "google/gemini-2.5-flash-lite",
-            "name": "Gemini 2.5 Flash Lite (Fast Vision)",
-            "provider": "google",
-        }
-    ),
-    _model_list_entry(
-        {
-            "id": "openai/gpt-4o-mini",
-            "name": "GPT-4o Mini (Economical)",
-            "provider": "openai",
-        }
-    ),
+    *[_model_list_entry(m) for m in CURATED_MODELS]
 ]
 
 
@@ -135,30 +97,30 @@ PRESETS_LIST = [
     {
         "id": "legal-war-machine",
         "name": "Legal War Machine - Premium",
-        "description": "Najwyższa precyzja i głębokie rozumowanie: DeepSeek R1 jako sędzia reasoning, Claude 3.5 Sonnet do pism procesowych, Gemini 2.5 Flash do wizyjnego OCR.",
+        "description": "Najwyższa precyzja i głębokie rozumowanie: DeepSeek V4 Pro jako sędzia reasoning, Qwen 3.7 Plus do pism procesowych, GLM 5.2 do wizyjnego OCR.",
         "icon": "shield-check",
         "color": "#9b5de5",
-        "judge": "deepseek/deepseek-r1",
-        "judge_model": "deepseek/deepseek-r1",
-        "vision_model": "google/gemini-2.5-flash",
-        "draft_model": "anthropic/claude-3.5-sonnet",
+        "judge": "deepseek/deepseek-v4-pro",
+        "judge_model": "deepseek/deepseek-v4-pro",
+        "vision_model": "z-ai/glm-5.2",
+        "draft_model": "qwen/qwen3.7-plus",
         "models": [
-            "deepseek/deepseek-r1",
-            "anthropic/claude-3.5-sonnet",
-            "google/gemini-2.5-flash",
+            "deepseek/deepseek-v4-pro",
+            "qwen/qwen3.7-plus",
+            "z-ai/glm-5.2",
         ],
     },
     {
         "id": "lexmind-speed",
         "name": "LexMind - Ekonomiczny",
-        "description": "Zoptymalizowany pod kątem szybkości i minimalnych kosztów, ale bez utraty zdolności analitycznych: GPT-4o Mini oraz Gemini 2.5 Flash.",
+        "description": "Zoptymalizowany pod kątem szybkości i minimalnych kosztów: GPT-5 Mini oraz Gemini 3.1 Flash Lite.",
         "icon": "zap",
         "color": "#00f5d4",
-        "judge": "openai/gpt-4o-mini",
-        "judge_model": "openai/gpt-4o-mini",
-        "vision_model": "google/gemini-2.5-flash",
-        "draft_model": "openai/gpt-4o-mini",
-        "models": ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "google/gemini-2.5-pro"],
+        "judge": "openai/gpt-5-mini",
+        "judge_model": "openai/gpt-5-mini",
+        "vision_model": "google/gemini-3.1-flash-lite",
+        "draft_model": "openai/gpt-5-mini",
+        "models": ["openai/gpt-5-mini", "google/gemini-3.1-flash-lite"],
     },
 ]
 

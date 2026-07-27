@@ -10,10 +10,10 @@ from services.orchestrator_types import OrchestratorInputParams
 logger = logging.getLogger(__name__)
 
 class CaseBrief(BaseModel):
-    analiza_wstepna: str = Field(description="Głęboka analiza detektywistyczna (Chain-of-Thought) - przemyśl logikę, powiązania faktów i domniemane przepisy ZANIM wypełnisz kolejne pola. Zawsze uzupełniaj to pole jako pierwsze.")
-    stan_faktyczny: str = Field(description="Zwięzłe streszczenie stanu faktycznego na podstawie załączników i zapytania.")
-    cele_analizy: str = Field(description="Główne problemy prawne i tezy do udowodnienia przez ekspertów.")
-    wykryte_przepisy_prawne: List[str] = Field(description="Lista konkretnych przepisów prawnych powołanych w dokumentach. MUSI TO BYĆ WYŁĄCZNIE zapis typu 'art 155 kpk', 'art. 286 Kodeksu karnego', '§ 12'. ZABRONIONE jest dodawanie tu słów opisowych, haseł i wyrazów ogólnych! Zwróć pustą listę, jeśli brak konkretnych artykułów.")
+    analiza_wstepna: str = Field(default="", description="Głęboka analiza detektywistyczna (Chain-of-Thought) - przemyśl logikę, powiązania faktów i domniemane przepisy ZANIM wypełnisz kolejne pola. Zawsze uzupełniaj to pole jako pierwsze.")
+    stan_faktyczny: str = Field(default="", description="Zwięzłe streszczenie stanu faktycznego na podstawie załączników i zapytania.")
+    cele_analizy: str = Field(default="", description="Główne problemy prawne i tezy do udowodnienia przez ekspertów.")
+    wykryte_przepisy_prawne: List[str] = Field(default_factory=list, description="Lista konkretnych przepisów prawnych powołanych w dokumentach. MUSI TO BYĆ WYŁĄCZNIE zapis typu 'art 155 kpk', 'art. 286 Kodeksu karnego', '§ 12'. ZABRONIONE jest dodawanie tu słów opisowych, haseł i wyrazów ogólnych! Zwróć pustą listę, jeśli brak konkretnych artykułów.")
 
 class BriefingEngine:
     """
@@ -24,7 +24,9 @@ class BriefingEngine:
         logger.info("[BriefingEngine] Rozpoczynam generowanie Karty Sprawy (Case Brief)...")
         
         from database import get_setting
-        model_to_use = params.aggregator_model or params.selected_model or get_setting("assigned_model_fast", "openai/gpt-4o-mini")
+        from config import settings
+        raw_model = params.aggregator_model or params.selected_model or get_setting("assigned_model_fast")
+        model_to_use = settings.resolve_model_id(raw_model)
         
         if max_context_chars is None:
             from services.orchestrator_v2.token_budget import calculate_char_budget
@@ -51,9 +53,6 @@ class BriefingEngine:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ]
-        
-        from database import get_setting
-        model_to_use = params.aggregator_model or params.selected_model or get_setting("assigned_model_fast", "openai/gpt-4o-mini")
         
         try:
             result_json, used_model = await llm_service.call_with_fallback(
@@ -99,3 +98,4 @@ class BriefingEngine:
                 cele_analizy="Przeanalizuj dostępne materiały zgodnie z zapytaniem użytkownika.",
                 wykryte_przepisy_prawne=[]
             )
+

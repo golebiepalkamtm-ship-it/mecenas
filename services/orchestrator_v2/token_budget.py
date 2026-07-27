@@ -6,23 +6,14 @@ logger = logging.getLogger(__name__)
 # Conservative Polish-language character-to-token ratio (1 token ≈ 3.0 characters)
 CHARS_PER_TOKEN = 3.0
 
-# Known model limits in tokens.
-# For high-context models like Gemini, we cap the processed token limit to 300,000 tokens
-# to ensure reasonable response times and API costs while still being huge compared to static limits.
-MODEL_TOKEN_LIMITS = {
-    "gemini": 300000,
-    "gpt-4o": 120000,
-    "deepseek": 64000,
-    "default": 64000
-}
-
 def get_model_context_limit(model_id: str) -> int:
-    """Returns context window token limit for a given model ID."""
-    model_lower = (model_id or "").lower()
-    for key, limit in MODEL_TOKEN_LIMITS.items():
-        if key != "default" and key in model_lower:
-            return limit
-    return MODEL_TOKEN_LIMITS["default"]
+    """Returns context window token limit for a given model ID dynamically from settings."""
+    from database import get_setting
+    # Fetch from settings or fallback to a safe 64000 token limit if undefined
+    try:
+        return int(get_setting("default_context_tokens", "64000"))
+    except ValueError:
+        return 64000
 
 def calculate_char_budget(model_id: str, reserve_output_tokens: int, safety_margin_tokens: int = 2000) -> int:
     """

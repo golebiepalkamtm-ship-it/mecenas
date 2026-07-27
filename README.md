@@ -1,10 +1,10 @@
 # LexMind AI — Radca Prawny
 
-![Version](https://img.shields.io/badge/version-4.1-blue)
+![Version](https://img.shields.io/badge/version-4.2%20--%20MoA%20v2.5-blue)
 ![Status](https://img.shields.io/badge/status-online-green)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Android%20%7C%20iOS%20%7C%20Web-lightgrey)
 
-**LexMind AI** to inteligentny asystent prawny oparty na sztucznej inteligencji, stworzony dla **Kancelarii Pałka & Kaźmierczak**. System wykorzystuje najnowsze modele językowe (LLM) oraz techniki RAG (Retrieval-Augmented Generation) do analizy i odpowiadania na pytania prawne na podstawie polskiego prawodawstwa.
+**LexMind AI** to inteligentny asystent prawny oparty na sztucznej inteligencji, stworzony dla **Kancelarii Pałka & Kaźmierczak**. System wykorzystuje architektury wieloagentowe (Mixture of Agents v2.5), zaawansowany RAG (Retrieval-Augmented Generation), hybrydowe wyszukiwanie oraz walidatory prawne w czasie rzeczywistym do precyzyjnej analizy i odpowiadania na pytania prawne na podstawie polskiego i unijnego prawodawstwa.
 
 > ⚠️ **Disclaimer**: Serwis ma charakter wyłącznie informacyjny. Wygenerowane treści nie stanowią porady prawnej.
 
@@ -31,15 +31,16 @@
 
 ### 🎯 Główne Funkcje
 
-- **Orchestrator v2 (Quick Intelligence)**: Zaawansowany wieloetapowy potok myślowy z wewnętrznym systemem debaty (Debate Engine) i precyzyjną syntezą (Synthesis Engine)
-- **Podgląd Procesu Myślowego**: Dedykowany interfejs (Quick Intelligence Panel) pokazujący krok po kroku na żywo jak AI analizuje problem
-- **Czaty z AI**: Rozmowa z wieloma modelami AI jednocześnie (Gemini, GPT-4o, Claude, Llama)
-- **Konsensus Modeli**: Synteza odpowiedzi z wielu modeli AI dla najlepszej jakości
-- **Wyszukiwanie Prawne**: System RAG do przeszukiwania bazy dokumentów prawnych
-- **Kreator Pism**: Generowanie pism procesowych
-- **Zarządzanie Sesjami**: Historia czatów z możliwością archiwizacji
-- **Biblioteka Dokumentów**: Zarządzanie bazą wiedzy prawnej (PDF)
-- **System Promptów**: Konfigurowalne prompty systemowe dla agenta AI
+- **Orchestrator v2.5 (Quick Intelligence & MoA)**: Zaawansowany wieloetapowy potok myślowy z wewnętrznym systemem debaty ekspertów (Debate Engine z 11 rolamis specjalistycznymi) i precyzyjną syntezą radcowską (Synthesis Engine).
+- **Wymóg Pełnych Oryginalnych Tekstów (`strict_no_quote_guard`)**: Bezwzględne wyświetlanie w czacie pełnych, dosłownych brzmień cytowanych artykułów ustaw oraz pełnych tez i uzasadnień orzeczeń sądowych.
+- **Potrójna Weryfikacja & Zero Halucynacji**: Real-time Legal Basis Validator weryfikujący autentyczność sygnatur i przepisów w SAOS, ISAP oraz bazach wiedzy.
+- **Wsparcie Linii Orzeczniczej**: Prezentacja jednolitej linii orzeczniczej (SN, NSA, WSA) oraz analiza ewentualnych rozbieżności.
+- **Podgląd Procesu Myślowego**: Dedykowany interfejs (Quick Intelligence Panel) pokazujący krok po kroku na żywo jak AI analizuje problem.
+- **Czaty z AI**: Rozmowa z wieloma modelami AI jednocześnie (Gemini 2.5/3, GPT-4o, Claude 3.5, Llama).
+- **Konsensus Modeli**: Synteza odpowiedzi z wielu modeli AI dla najwyższej jakości opinii.
+- **Wyszukiwanie Prawne RAG & Hybrid Search**: Połączenie wyszukiwania wektorowego (Supabase/FAISS) z SAOS i ELI.
+- **Kreator Pism**: Generowanie kompletnych projektów pism procesowych (KPC, KPK, KPA).
+- **Zarządzanie Sesjami i Dokumentami**: Historia czatów, załączniki, OCR i analiza dokumentów PDF.
 
 ### 🛠️ Narzędzia AI (MCP)
 
@@ -493,4 +494,4 @@ rm -rf cache/
 - Email: biuro@kancelaria.pl
 - WWW: https://kancelaria.pl
 
-**LexMind AI** — Inteligentny System Prawny v4.1
+**LexMind AI** — Inteligentny System Prawny v4.2 (MoA Pipeline v2.5)

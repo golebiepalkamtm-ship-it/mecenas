@@ -1,6 +1,5 @@
 import { useMemo, useEffect, useState, useRef } from 'react';
 import { 
-  Check, 
   X,
   ChevronDown,
   Sparkles,
@@ -9,12 +8,12 @@ import {
   Shield,
   Gavel
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { LexIcon, type LexIconName } from '../../Layout/LexIcon';
 import { cn } from '../../../utils/cn';
 import { useQuickIntelligenceState } from '../../../hooks/chatSettingsSelectors';
-import { useModelHealth } from '../../../hooks/useModelHealth';
-import { useSelectableChatModels } from '../../../hooks/useSelectableChatModels';
+
+
 import { SelectionModal } from '../../UI/SelectionModal';
 import { Tooltip } from '../../UI/Tooltip';
 import {
@@ -160,8 +159,7 @@ export function QuickIntelligencePanel() {
     activeModels, 
     toggleActiveModel, 
     setMode, 
-    selectedJudge, 
-    setSelectedJudge,
+
     setIsOpen,
     expertRoleByModel,
     setExpertRoleForModel,
@@ -172,11 +170,11 @@ export function QuickIntelligencePanel() {
     setCurrentTask,
     responseMode,
     setResponseMode,
-    favoriteModels,
+
   } = useQuickIntelligenceState();
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [roleModalOpenFor, setRoleModalOpenFor] = useState<string | null>(null);
+
 
   const { applyServerPreset, loading: presetsLoading } = usePromptPresets();
 
@@ -235,13 +233,7 @@ export function QuickIntelligencePanel() {
       }));
   }, [taskPrompts]);
 
-  const { healthData } = useModelHealth();
-  const { models: availableModels } = useSelectableChatModels(
-    'all',
-    favoriteModels,
-    '',
-    'all',
-  );
+
 
   const prevTaskRef = useRef(currentTask);
 
@@ -294,7 +286,7 @@ export function QuickIntelligencePanel() {
       });
     }
     
-  }, [currentTask, activeUniverse, unitSystemRoles, availableModels, activeModels, expertRoleByModel]);
+  }, [currentTask, activeUniverse, unitSystemRoles, activeModels, expertRoleByModel]);
 
   return (
     <motion.div 
@@ -405,15 +397,20 @@ export function QuickIntelligencePanel() {
                 </div>
              )}
              {roleList.map((role) => {
-               const isRoleActiveInState = Object.entries(expertRoleByModel || {}).some(([mid, rid]) => 
-                  activeModels.includes(mid) && rid === role.id
-               );
+               // Roles are now tracked as their IDs in activeModels, mapped 1:1 in expertRoleByModel
+               const isRoleActiveInState = activeModels.includes(role.id);
+               
                return (
                  <Tooltip key={role.id} title={role.label} content={role.description} impact={role.impact} position="top">
-                   <motion.div 
-                     layout
+                   <button 
+                     onClick={() => {
+                       toggleActiveModel(role.id);
+                       if (!activeModels.includes(role.id)) {
+                         setExpertRoleForModel(role.id, role.id);
+                       }
+                     }}
                      className={cn(
-                       "group flex items-center gap-3 p-3 rounded-2xl transition-all duration-500 w-full",
+                       "group flex items-center gap-3 p-3 rounded-2xl transition-all duration-500 w-full text-left outline-none",
                        isRoleActiveInState ? "glass-liquid-convex border border-gold-primary/20 scale-[1.01]" : "bg-black/5 border border-black/10 opacity-70 hover:opacity-100"
                      )}
                    >
@@ -426,7 +423,7 @@ export function QuickIntelligencePanel() {
                      {isRoleActiveInState && (
                          <span className="shrink-0 text-[7px] font-bold tracking-widest uppercase bg-gold-primary/20 text-black px-2 py-0.5 rounded-lg border border-gold-primary/30">AKTYWNA</span>
                      )}
-                   </motion.div>
+                   </button>
                  </Tooltip>
                );
              })}
@@ -434,7 +431,7 @@ export function QuickIntelligencePanel() {
         </section>
 
         {taskOptions.length > 0 && (
-          <section>
+          <section className="pb-6">
              <h4 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-2">Zadanie AI</h4>
              <Tooltip 
                title="Zadanie AI" 
@@ -456,116 +453,6 @@ export function QuickIntelligencePanel() {
              </Tooltip>
           </section>
         )}
-
-        <section>
-           <h4 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-2">Dobór Modeli ({availableModels.length})</h4>
-
-           <div className="space-y-2">
-             {availableModels.length === 0 && (
-                <div className="py-6 text-center glass-liquid-convex rounded-2xl px-4 border border-black/5">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-black/40">Brak dostępnych modeli.</p>
-                </div>
-             )}
-             {availableModels.map((m) => {
-               const isSelected = activeModels.includes(m.id);
-               const assignedRole = expertRoleByModel?.[m.id] || "";
-               const health = healthData[m.id];
-
-               return (
-                <div key={m.id} className={cn("rounded-2xl transition-all duration-500 overflow-hidden", isSelected ? "glass-liquid-convex border border-gold-primary/20 scale-[1.01]" : "bg-black/5 border border-black/10 opacity-70 hover:opacity-100")}>
-                    <Tooltip title={m.name} content={`Kliknij, aby włączyć lub wyłączyć ten model. Stan serwera: ${health?.status || 'Nieznany'}.`} impact="Modele połączone debacie tworzą potężne konsylium MOA." position="top">
-                      <button 
-                        onClick={() => {
-                          const newState = !isSelected;
-                          toggleActiveModel(m.id);
-                          if (newState && (!expertRoleByModel?.[m.id])) {
-                            const assignedRoles = Object.entries(expertRoleByModel || {}).filter(([mid]) => activeModels.includes(mid)).map(([, rid]) => rid);
-                            const nextRole = roleList.find(r => !assignedRoles.includes(r.id)) || roleList[0];
-                            if (nextRole) setExpertRoleForModel(m.id, nextRole.id);
-                          }
-                        }} 
-                        className="flex items-center gap-3 p-3 w-full text-left outline-none"
-                      >
-                         <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors border", isSelected ? "bg-gold-primary text-black border-gold-primary/50" : "bg-transparent border-black/20 text-transparent")}>
-                           <Check size={12} strokeWidth={3} />
-                         </div>
-                         <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border", isSelected ? "bg-black/10 border-black/10 text-black" : "bg-black/5 border-black/5 text-black/30")}>
-                           <LexIcon name="ai" size={14} />
-                         </div>
-                         <span className={cn("text-[9px] uppercase font-black tracking-wider truncate flex-1", isSelected ? "text-black" : "text-black/60")}>{m.name}</span>
-                         {health && (
-                           <div className={cn("text-[8px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-lg border", 
-                              health.status === 'online' ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" : 
-                              health.status === 'degraded' ? "bg-amber-500/10 text-amber-700 border-amber-500/20" : "bg-red-500/10 text-red-700 border-red-500/20"
-                           )}>
-                             {health.status === 'online' ? `${health.latency_ms}ms` : health.status === 'degraded' ? `${health.latency_ms}ms` : 'OFF'}
-                           </div>
-                         )}
-                      </button>
-                    </Tooltip>
-                  <AnimatePresence>
-                    {isSelected && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="px-3 pb-3"
-                      >
-                        <div className="flex items-center gap-2 bg-black/5 border border-black/10 rounded-xl p-2 relative z-10">
-                          <span className="text-[9px] font-black text-black/50 px-1 uppercase tracking-widest">Rola</span>
-                          <div className="flex-1">
-                            <Tooltip 
-                              title="Przypisana Rola" 
-                              content={roleList.find(r => r.id === assignedRole)?.description || 'Model pracuje bez przypisanej sztywnej roli.'} 
-                              impact={roleList.find(r => r.id === assignedRole)?.impact}
-                              position="top"
-                            >
-                              <button
-                                onClick={() => setRoleModalOpenFor(m.id)}
-                                className="w-full flex items-center justify-between bg-black/5 border border-black/10 rounded-lg px-2 py-1.5 text-left hover:bg-black/10 transition-colors"
-                              >
-                                <span className="text-[9px] font-black uppercase tracking-wider text-black truncate">
-                                  {assignedRole ? roleList.find(r => r.id === assignedRole)?.label : "-- Pasywny Obserwator --"}
-                                </span>
-                                <ChevronDown size={10} className="text-black/40 shrink-0" />
-                              </button>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-               );
-             })}
-           </div>
-        </section>
-
-        <section className="pb-6">
-             <h4 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-2">Główny Arbiter</h4>
-
-           <div className="space-y-2">
-             {availableModels.map(m => {
-               const isFinalJudge = selectedJudge === m.id;
-               return (
-                 <Tooltip key={m.id} title={`Arbiter: ${m.name}`} content="Ten model będzie zarządzał podsumowaniem pracy całego zespołu." impact="Wydaje werdykt i skleja argumenty w jeden spójny dokument." position="top">
-                   <button 
-                     onClick={() => setSelectedJudge(m.id)} 
-                     className={cn(
-                       "flex items-center gap-3 p-3 w-full text-left outline-none rounded-2xl border transition-all duration-500", 
-                       isFinalJudge ? "glass-liquid-convex border-emerald-500/30 scale-[1.01]" : "bg-black/5 border-black/10 opacity-70 hover:opacity-100"
-                     )}
-                   >
-                       <div className={cn("w-5 h-5 rounded-full flex items-center justify-center shrink-0 border transition-all", isFinalJudge ? "border-emerald-500 bg-emerald-500/10" : "border-black/20 bg-transparent")}>
-                         {isFinalJudge && <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
-                       </div>
-                       <span className={cn("text-[9px] uppercase font-black tracking-wider truncate flex-1", isFinalJudge ? "text-black" : "text-black/60")}>{m.name}</span>
-                   </button>
-                 </Tooltip>
-               );
-             })}
-           </div>
-        </section>
       </div>
 
       {/* Modals */}
@@ -577,21 +464,6 @@ export function QuickIntelligencePanel() {
         options={taskOptions}
         value={currentTask || ""}
         onChange={setCurrentTask}
-      />
-
-      <SelectionModal
-        isOpen={!!roleModalOpenFor}
-        onClose={() => setRoleModalOpenFor(null)}
-        title="Rola Eksperta"
-        subtitle="Zmień specjalizację i zachowanie tego modelu w dyskusji"
-        options={[
-          { id: '', label: '-- Pasywny Obserwator --', description: 'Model jedynie przysłuchuje się debacie i asystuje. Włączy się tylko zapytany wprost przez arbitra.', impact: 'Neutralny.' },
-          ...roleList
-        ]}
-        value={roleModalOpenFor ? (expertRoleByModel?.[roleModalOpenFor] || "") : ""}
-        onChange={(val) => {
-          if (roleModalOpenFor) setExpertRoleForModel(roleModalOpenFor, val);
-        }}
       />
     </motion.div>
   );

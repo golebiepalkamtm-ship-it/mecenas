@@ -15,17 +15,17 @@ class OrchestratorV2Service:
         **kwargs: Any,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         from database import get_setting
-        assigned_judge = get_setting("assigned_model_judge", "deepseek/deepseek-r1")
         params = OrchestratorInputParams(
             user_query=kwargs.get("user_query", ""),
             attachments=kwargs.get("attachments") or [],
-            selected_model=kwargs.get("selected_model") or assigned_judge,
+            selected_model=kwargs.get("selected_model") or "",
             selected_models=kwargs.get("selected_models") or [],
-            aggregator_model=kwargs.get("aggregator_model") or assigned_judge,
+            aggregator_model=kwargs.get("aggregator_model") or "",
             use_saos=kwargs.get("use_saos", True),
             use_eli=kwargs.get("use_eli", True),
             use_rag_legal=kwargs.get("use_rag_legal", True),
             use_rag_user=bool(kwargs.get("use_rag_user")),
+            use_lexminde_mcp=bool(kwargs.get("use_lexminde_mcp")),
             act_terms=kwargs.get("act_terms") or [],
             architect_prompt=kwargs.get("architect_prompt") or "",
             system_role_prompt=kwargs.get("system_role_prompt") or "",
@@ -55,3 +55,4 @@ class OrchestratorV2Service:
 
 
 orchestrator_v2_service = OrchestratorV2Service()
+

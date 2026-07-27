@@ -1,0 +1,43 @@
+{
+  "mcpServers": {
+    "lexminde mcp": {
+      "command": "node",
+      "args": ["${workspaceFolder}/lexminde mcp/dist/index.js"]
+    },
+    "lexmind-math": {
+      "command": "python",
+      "args": ["${workspaceFolder}/math_server.py"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    "lexmind-legal-search": {
+      "command": "python",
+      "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "legal"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    "lexmind-chat-history": {
+      "command": "python",
+      "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "chat"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    "lexmind-document-manager": {
+      "command": "python",
+      "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "docs"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    },
+    "lexmind-code-navigator": {
+      "command": "python",
+      "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "code"],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}"
+      }
+    }
+  }
+}

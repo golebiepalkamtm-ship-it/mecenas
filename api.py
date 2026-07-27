@@ -86,6 +86,7 @@ async def host_validation_middleware(request: Request, call_next):
 # Routes (V2)
 from config import settings
 from routes.admin import router as admin_router
+from routes.admin_extended import router as admin_extended_router
 from routes.analytics import router as analytics_router
 from routes.chat_v2 import router as chat_router
 from routes.core import router as core_router
@@ -94,6 +95,7 @@ from routes.documents import router as documents_router
 from routes.health import router as health_router
 from routes.judgments import router as judgments_router
 from routes.models import router as models_router
+from routes.profile import router as profile_router
 
 app.include_router(core_router, tags=["core"])
 app.include_router(chat_router, tags=["chat"])
@@ -102,8 +104,10 @@ app.include_router(models_router, prefix="/models", tags=["models"])
 app.include_router(database_router, tags=["database"])
 app.include_router(health_router, prefix="/health", tags=["health"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
+app.include_router(admin_extended_router, tags=["admin-extended"])
 app.include_router(documents_router, prefix="/documents", tags=["documents"])
 app.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
+app.include_router(profile_router, tags=["profile"])
 
 if settings.trial_enabled:
     from routes.trial_room import router as trial_room_router

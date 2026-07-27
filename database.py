@@ -220,6 +220,9 @@ def init_db():
             load_dotenv()
             default_prompt = os.getenv("SYSTEM_PROMPT", "Jesteś polskim prawnikiem (Radcą AI). Służysz fachową poradą prawną na podstawie dostarczonego kontekstu z bazy wiedzy.")
             cursor.execute("INSERT INTO settings (key, value) VALUES ('system_prompt', ?)", (default_prompt,))
+
+        # Seed domyślnego modelu embeddingów (1536d — kompatybilny z Supabase vector(1536))
+        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('assigned_model_embedding', 'openai/text-embedding-3-small')")
             
         # Profiles table
         cursor.execute('''

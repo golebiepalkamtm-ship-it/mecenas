@@ -73,6 +73,7 @@ export function buildChatPayload(
     use_eli: extras.use_eli !== false,
     use_rag_legal: extras.use_rag_legal,
     use_rag_user: extras.use_rag_user,
+    use_lexminde_mcp: extras.use_lexminde_mcp !== false,
     model_latencies: options.modelLatencies,
     active_prompt_preset_id: store.activePromptPresetId,
   };

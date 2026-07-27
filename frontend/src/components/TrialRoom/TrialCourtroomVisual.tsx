@@ -253,9 +253,9 @@ export function TrialCourtroomVisual({
           <p className="text-[9px] font-black uppercase tracking-widest text-white/70 truncate drop-shadow-md">
             {roleLabel(roleId)}
           </p>
-          <p className="text-[8px] text-white/50 font-medium truncate max-w-[100px]">
+          <div className="mt-1 text-[8px] text-white/50 font-medium truncate max-w-[100px]" title={modelName}>
             {assigned ? modelName.split('/').pop() : 'Nieobsadzony'}
-          </p>
+          </div>
         </div>
       </div>
     );
@@ -263,7 +263,7 @@ export function TrialCourtroomVisual({
 
   return (
     <div
-      className="w-full rounded-2xl border border-white/5 p-8 relative overflow-hidden transition-all duration-700"
+      className="relative min-h-[500px] rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl flex flex-col p-8 shadow-2xl overflow-hidden transition-all duration-700"
       style={{
         background:
           'radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.12) 0%, transparent 50%), ' +
@@ -271,7 +271,6 @@ export function TrialCourtroomVisual({
         boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
       }}
     >
-      {/* Cinematic Spotlight */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen"
         style={{
@@ -279,17 +278,14 @@ export function TrialCourtroomVisual({
         }}
       />
 
-      {/* Realistic wood panels background */}
       <div 
         className="absolute inset-0 opacity-[0.25] mix-blend-multiply pointer-events-none"
         style={{
           backgroundImage: `repeating-linear-gradient(90deg, #2a1f1a 0px, #2a1f1a 80px, #1a1310 80px, #1a1310 84px)`
         }}
       />
-      {/* Horizontal wainscoting line */}
       <div className="absolute top-1/2 left-0 right-0 h-2 bg-[#0a0705] opacity-50 border-y border-white/5 pointer-events-none" />
 
-      {/* Vignette */}
       <div 
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -297,7 +293,6 @@ export function TrialCourtroomVisual({
         }}
       />
 
-      {/* Polish Coat of Arms (Eagle) Wall */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-[0.9] pointer-events-none z-0">
         <svg
           className="w-20 h-20 text-[#d4af37]"
@@ -311,15 +306,13 @@ export function TrialCourtroomVisual({
           <circle cx="50" cy="12" r="3" fill="currentColor" />
           <path d="M50 70 L50 90 M40 90 L60 90" strokeWidth="2" />
         </svg>
-        <span className="text-[9px] font-black uppercase tracking-[0.5em] text-[#d4af37] mt-3 drop-shadow-md">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.5em] text-[#d4af37] mt-3 drop-shadow-md">
           Rzeczpospolita Polska
         </span>
       </div>
 
-      {/* COURTROOM STAGE */}
       <div className="grid grid-cols-[1fr_2fr_1fr] gap-6 min-h-[420px] items-stretch relative z-10 mt-8">
         
-        {/* LEFT COLUMN: DEFENSE BENCH */}
         <div className="flex flex-col justify-end items-center pb-4">
           <div
             className={cn(
@@ -337,10 +330,8 @@ export function TrialCourtroomVisual({
               borderLeft: '1px solid rgba(255,255,255,0.05)'
             }}
           >
-            {/* Leather top trim */}
             <div className="absolute top-0 left-0 right-0 h-3 bg-[#1a0f0c] rounded-t-xl opacity-90 border-b border-white/5" />
             
-            {/* Table label */}
             <div className="flex items-center gap-2 mt-1 pb-3 border-b border-emerald-500/10">
               <Shield size={14} className="text-emerald-500" />
               <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 drop-shadow-sm">
@@ -348,7 +339,6 @@ export function TrialCourtroomVisual({
               </span>
             </div>
             
-            {/* Slots */}
             <div className="flex flex-col gap-3">
               {defenseTeam.models.length === 0 ? (
                 <p className="text-[9px] text-white/30 italic uppercase tracking-wider text-center py-4">
@@ -364,10 +354,8 @@ export function TrialCourtroomVisual({
           </div>
         </div>
 
-        {/* CENTER COLUMN: JUDGE BENCH, WITNESS PODIUM & AUDIENCE */}
         <div className="flex flex-col justify-between items-center py-2 relative">
           
-          {/* JUDGE BENCH */}
           <div
             className={cn(
               'w-full max-w-[360px] rounded-2xl px-6 py-5 relative flex flex-col items-center justify-center transition-all duration-700 z-10',
@@ -384,10 +372,8 @@ export function TrialCourtroomVisual({
               borderRight: '2px solid rgba(212, 175, 55, 0.05)'
             }}
           >
-            {/* Wooden panel framing */}
             <div className="absolute inset-x-3 top-3 bottom-3 border border-[#4a2f23] rounded-xl pointer-events-none shadow-inner" />
             
-            {/* Desk Nameplate */}
             <div className="bg-[#1a0f0c] border border-[#d4af37]/30 rounded px-4 py-1.5 mb-4 shadow-inner flex items-center gap-2">
               <Gavel size={12} className="text-[#d4af37]" />
               <span className="text-[9px] font-black uppercase tracking-[0.3em] text-[#d4af37]">
@@ -404,9 +390,7 @@ export function TrialCourtroomVisual({
               </p>
             </div>
 
-            {/* DYNAMIC COURTROOM OBJECTS */}
             <div className="flex items-center gap-12 mt-5 border-t border-[#4a2f23]/50 pt-4 w-full justify-center z-10">
-              {/* Scales of Justice */}
               <div className="flex flex-col items-center group">
                 <svg
                   className="w-14 h-14 text-[#d4af37] transition-transform duration-700 drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]"
@@ -435,7 +419,6 @@ export function TrialCourtroomVisual({
                 </span>
               </div>
 
-              {/* Clickable Gavel */}
               <div className="flex flex-col items-center group">
                 <motion.div
                   onClick={handleGavelClick}
@@ -462,10 +445,8 @@ export function TrialCourtroomVisual({
             </div>
           </div>
 
-          {/* WITNESS STAND / ACTIVE SPEAKER SCREEN */}
           <div className="my-8 flex flex-col items-center justify-center relative w-full px-2 z-30">
             
-            {/* Mównica (Podium stand) */}
             <div
               className={cn(
                 'w-16 h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-500 relative',
@@ -480,7 +461,6 @@ export function TrialCourtroomVisual({
                 borderBottom: '4px solid #0a0503'
               }}
             >
-              {/* Subtle wood grain on podium */}
               <div className="absolute inset-0 opacity-10 pointer-events-none bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,#fff_2px,#fff_4px)] rounded-xl mix-blend-overlay" />
               
               {speakerSide ? (
@@ -496,7 +476,6 @@ export function TrialCourtroomVisual({
               )}
             </div>
 
-            {/* Micro speech ripple line */}
             {speakerSide && (
               <div className="flex gap-1.5 items-center justify-center my-3">
                 {[...Array(5)].map((_, i) => (
@@ -516,7 +495,6 @@ export function TrialCourtroomVisual({
               </div>
             )}
 
-            {/* Speech bubble overlay containing active text arguments - GLASSMORPHISM */}
             <AnimatePresence>
               {speechText && (
                 <motion.div
@@ -572,7 +550,6 @@ export function TrialCourtroomVisual({
                     {speechText}
                   </p>
                   
-                  {/* Bubble pointer */}
                   <div 
                     className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 border-l border-t"
                     style={{
@@ -585,7 +562,6 @@ export function TrialCourtroomVisual({
             </AnimatePresence>
           </div>
 
-          {/* COURT CLERK & STENOGRAPHER */}
           <div className="w-24 h-12 rounded-lg flex flex-col items-center justify-center z-10"
             style={{
               background: 'linear-gradient(180deg, #2a1a14 0%, #170d0a 100%)',
@@ -602,7 +578,6 @@ export function TrialCourtroomVisual({
 
         </div>
 
-        {/* RIGHT COLUMN: PROSECUTION BENCH */}
         <div className="flex flex-col justify-end items-center pb-4">
           <div
             className={cn(
@@ -620,10 +595,8 @@ export function TrialCourtroomVisual({
               borderRight: '1px solid rgba(255,255,255,0.05)'
             }}
           >
-            {/* Leather top trim */}
             <div className="absolute top-0 left-0 right-0 h-3 bg-[#1a0f0c] rounded-t-xl opacity-90 border-b border-white/5" />
             
-            {/* Table label */}
             <div className="flex items-center gap-2 mt-1 pb-3 border-b border-rose-500/10 justify-end">
               <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 drop-shadow-sm">
                 Oskarżenie
@@ -631,7 +604,6 @@ export function TrialCourtroomVisual({
               <Scale size={14} className="text-rose-500" />
             </div>
             
-            {/* Slots */}
             <div className="flex flex-col gap-3">
               {prosecutionTeam.models.length === 0 ? (
                 <p className="text-[9px] text-white/30 italic uppercase tracking-wider text-center py-4">
@@ -649,7 +621,6 @@ export function TrialCourtroomVisual({
 
       </div>
 
-      {/* TOOLTIP POPUP OVERLAY - GLASSMORPHISM */}
       <AnimatePresence>
         {activeTooltip && (
           <motion.div

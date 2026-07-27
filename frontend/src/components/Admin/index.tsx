@@ -7,6 +7,9 @@ import { ModelsPanel } from './components/ModelsPanel';
 import { SystemPanel } from './components/SystemPanel';
 import { UsersPanel } from './components/UsersPanel';
 import { DebuggerPanel } from './components/DebuggerPanel';
+import { PaymentsPanel } from './components/PaymentsPanel';
+import { MessagingPanel } from './components/MessagingPanel';
+import { AnalyticsPanel } from './components/AnalyticsPanel';
 import type { AdminTab, AdminTabConfig } from './types';
 import { formatNumber } from './utils';
 import { cn } from '../../utils/cn';
@@ -24,7 +27,10 @@ const TABS: AdminTabConfig[] = [
   { id: 'security', label: 'Klucze API', lexIcon: 'shield' },
   { id: 'models', label: 'Modele AI', lexIcon: 'ai' },
   { id: 'users', label: 'Użytkownicy', lexIcon: 'user' },
-  { id: 'debugger', label: 'Diagnostyka', lexIcon: 'prompts' },
+  { id: 'payments', label: 'Płatności', lexIcon: 'library' },
+  { id: 'messaging', label: 'Komunikacja', lexIcon: 'chat' },
+  { id: 'analytics', label: 'Analityka', lexIcon: 'prompts' },
+  { id: 'debugger', label: 'Diagnostyka', lexIcon: 'shield' },
 ];
 
 const TAB_COPY: Record<AdminTab, { title: string; subtitle: string }> = {
@@ -43,6 +49,18 @@ const TAB_COPY: Record<AdminTab, { title: string; subtitle: string }> = {
   users: {
     title: 'Admin',
     subtitle: 'Baza użytkowników · role i uprawnienia',
+  },
+  payments: {
+    title: 'Admin',
+    subtitle: 'Rozliczenia · transakcje i raporty przychodów',
+  },
+  messaging: {
+    title: 'Admin',
+    subtitle: 'Komunikacja · wysyłaj wiadomości do użytkowników',
+  },
+  analytics: {
+    title: 'Admin',
+    subtitle: 'Analityka · raporty i metryki platformy',
   },
   debugger: {
     title: 'Admin',
@@ -127,6 +145,9 @@ export function AdminView() {
                   onDelete={deleteUser}
                 />
               )}
+              {activeTab === 'payments' && <PaymentsPanel transactions={[]} metrics={null} report={null} />}
+              {activeTab === 'messaging' && <MessagingPanel messages={[]} />}
+              {activeTab === 'analytics' && <AnalyticsPanel analytics={[]} report={null} />}
               {activeTab === 'debugger' && <DebuggerPanel />}
             </motion.div>
           </AnimatePresence>

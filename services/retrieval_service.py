@@ -43,20 +43,88 @@ def _as_plain_str(val: Any, *, empty_for_bool: bool = True) -> str:
     return str(val)
 
 
+
+_CRIMINAL_CONTEXT_RE = re.compile(
+    r"(?:k\.?k\.?|kodeks(?:u|em)?\s+karn|karne(?:go|mu)?|recydyw|wyrok\s+(?:karn|więzien)|grzywn|wymiar\s+kar|nadzwyczajn\w*\s+(?:złagodz|obostrzeni)|recydywist|powrót\s+do\s+przestępst)",
+    re.IGNORECASE,
+)
+
+_CIVIL_CONTEXT_RE = re.compile(
+    r"(?:k\.?c\.?|kodeks(?:u|em)?\s+cywiln|cywilne(?:go|mu)?|oświadczeni\w*\s+woli|zobowiązan|umow|pozew|powód|pozwan)",
+    re.IGNORECASE,
+)
+
+
+def _enrich_query_with_legal_branch(query: str, keywords: str) -> str:
+    """Wzbogaca query SAOS o kontekst gałęzi prawa, żeby art. 64 KK nie zwracał wyników z KC."""
+    blob = f"{query} {keywords}"
+    # Jeśli wykryto kontekst karny, a query wygląda na sam numer artykułu — dodaj kontekst
+    if _CRIMINAL_CONTEXT_RE.search(blob):
+        if not re.search(r"\b(?:karn|k\.?k\.?)\b", query, re.IGNORECASE):
+            return f"{query} prawo karne"
+    if _CIVIL_CONTEXT_RE.search(blob):
+        if not re.search(r"\b(?:cywiln|k\.?c\.?)\b", query, re.IGNORECASE):
+            return f"{query} prawo cywilne"
+    return query
+
+
+_SAOS_STOPWORDS_RE = re.compile(
+    r"\b(?:"
+    r"znajd[zź]|znjdz|szukam|podaj|poka[zż]|wygeneruj|napisz|wyszukaj|znale[zź][cć]|chc[eę]|prosz[eę]|"
+    r"mi|dla\s+mnie|ka[zż]de|kazde|mo[zż]liwe|mozliwe|wszystkie|jakie[sś]|wszelkie|"
+    r"orzeczen[iea]*|wyrok[i]*|postanowien[iea]*|s[aą]du|sadu|kt[oó]re|ktore|m[oó]wi[aą]*|mowi|"
+    r"o|w|na|ze|do|z|po|dla|temat|kontekst|kontekscie|w\s+sprawie"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _clean_saos_query(raw_query: str) -> str:
+    """Oczyszcza surowe zapytanie potoczne ze słów-wypełniaczy, literówek i stop-words dla SAOS."""
+    if not raw_query:
+        return ""
+    q = raw_query.strip()
+    # Korekta częstych literówek prawniczych
+    q = re.sub(r"\brecedyw\w*", "recydywa", q, flags=re.I)
+    q = re.sub(r"\bpostepow\w*", "postępowanie", q, flags=re.I)
+    
+    # Usuń stop-words
+    cleaned = _SAOS_STOPWORDS_RE.sub(" ", q)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    
+    return cleaned if len(cleaned) >= 3 else q
+
+
 def _external_search_queries(keywords: Any, user_query: Any = "", max_queries: int = 3) -> List[str]:
     """Hasła dla SAOS / ogólnego routingu na podstawie słów kluczowych."""
     keys = _as_plain_str(keywords, empty_for_bool=True)
     uq_base = _as_plain_str(user_query, empty_for_bool=True)
-    parts = [p.strip() for p in re.split(r"[,;]+", keys) if p.strip() and len(p.strip()) > 2]
+    raw_parts = [p.strip() for p in re.split(r"[,;]+", keys) if p.strip() and len(p.strip()) > 2]
     queries: List[str] = []
 
-    for p in parts[:max_queries]:
-        if p not in queries:
-            queries.append(p)
+    combined_context = f"{keys} {uq_base}"
+    
+    # Przygotuj zarowno surowe jak i oczyszczone frazy
+    clean_parts: List[str] = []
+    for p in raw_parts:
+        c = _clean_saos_query(p)
+        if c and c not in clean_parts:
+            clean_parts.append(c)
+        if p not in clean_parts:
+            clean_parts.append(p)
 
-    uq = uq_base.strip()
-    if uq and 8 < len(uq) < 60 and uq not in queries:
-        queries.append(uq)
+    for p in clean_parts:
+        enriched = _enrich_query_with_legal_branch(p, combined_context)
+        if enriched not in queries:
+            queries.append(enriched)
+        if len(queries) >= max_queries:
+            break
+
+    uq_clean = _clean_saos_query(uq_base)
+    if uq_clean and 3 <= len(uq_clean) < 60 and uq_clean not in queries:
+        enriched_uq = _enrich_query_with_legal_branch(uq_clean, combined_context)
+        if enriched_uq not in queries:
+            queries.append(enriched_uq)
 
     return queries[:max_queries]
 
@@ -96,10 +164,12 @@ def _eli_act_titles_from_context(blob: str) -> List[str]:
         add("Ustawa o postępowaniu egzekucyjnym w administracji")
     if re.search(r"\bkodeks pracy\b", blob_l):
         add("Kodeks pracy")
-    if re.search(r"\bkodeks karn\b(?!\w*postępowania)", blob_l):
+    if re.search(r"\bkodeks\w*\s+karn\w*\b(?!\w*postępowania)", blob_l):
         add("Kodeks karny")
-    if re.search(r"\bkodeks cywiln\b(?!\w*postępowania)", blob_l):
+    if re.search(r"\bkodeks\w*\s+cywiln\w*\b(?!\w*postępowania)", blob_l):
         add("Kodeks cywilny")
+    if re.search(r"\bk\.?\s*k\.?\b", blob_l) and not re.search(r"\bk\.?\s*p\.?\s*k\.?\b", blob_l):
+        add("Kodeks karny")
     if "ustawy z dnia 14 czerwca 1960" in blob_l or "p.p.s.a" in blob_l or "ustawę ppsa" in blob_l:
         add("ustawa Prawo o postępowaniu przed sądami administracyjnymi")
     if re.search(r"\buopn\b|\bupn\b|u\.?p\.?n\.?|przeciwdziałaniu narkomanii|ustawa o przeciwdziałaniu narkomanii", blob_l):
@@ -158,7 +228,7 @@ class PostgresHybridSearch:
         limit: int = 15,
         vector_weight: float = 0.5,
         k_rrf: int = 60
-    ) -> List[Dict[str, Any]]:
+    ) -> List[RetrievalItem]:
         """
         Wykonuje wyszukiwanie hybrydowe z fuzją RRF.
         Jeśli pool jest skonfigurowany (asyncpg), wykonuje bezpośrednie zapytanie SQL,
@@ -211,7 +281,7 @@ class PostgresHybridSearch:
                         LIMIT $3 / 3;
                     """
                     rows = await conn.fetch(sql_query, *params, vector_weight)
-                    return [dict(row) for row in rows]
+                    return normalize_retrieval_rows([dict(row) for row in rows])
             except Exception as e:
                 logger.warning("[HYBRID DB ERR] Fallback HTTP: %s", e)
 
