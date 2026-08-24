@@ -22,16 +22,15 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Models
-DEFAULT_JUDGE_MODEL = "deepseek/deepseek-r1"
+DEFAULT_JUDGE_MODEL = "qwen/qwen3.8-max"
 
-# Modele zawsze widoczne w UI (łączone z listą OpenRouter + cache)
 CURATED_MODELS = [
-    {"id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "provider": "deepseek"},
-    {"id": "qwen/qwen3.7-plus", "name": "Qwen 3.7 Plus", "provider": "qwen"},
-    {"id": "z-ai/glm-5.2", "name": "GLM 5.2", "provider": "z-ai"},
-    {"id": "google/gemini-3.1-flash-lite", "name": "Gemini 3.1 Flash Lite", "provider": "google"},
-    {"id": "openai/gpt-5-mini", "name": "GPT-5 Mini", "provider": "openai"},
-    {"id": "deepseek/deepseek-v4-pro", "name": "DeepSeek V4 Pro", "provider": "deepseek"},
+    {"id": "~deepseek/deepseek-v4-flash-latest", "name": "DeepSeek V4 Flash", "provider": "deepseek"},
+    {"id": "google/gemini-3.7-flash", "name": "Gemini 3.7 Flash", "provider": "google"},
+    {"id": "openai/gpt-5.4-nano", "name": "GPT-5.4 Nano", "provider": "openai"},
+    {"id": "z-ai/glm-5.3", "name": "GLM 5.3", "provider": "z-ai"},
+    {"id": "x-ai/grok-4.6", "name": "Grok 4.6", "provider": "x-ai"},
+    {"id": "qwen/qwen3.8-max", "name": "Qwen 3.8 Max", "provider": "qwen"},
 ]
 
 
@@ -113,14 +112,14 @@ PRESETS_LIST = [
     {
         "id": "lexmind-speed",
         "name": "LexMind - Ekonomiczny",
-        "description": "Zoptymalizowany pod kątem szybkości i minimalnych kosztów: GPT-5 Mini oraz Gemini 3.1 Flash Lite.",
+        "description": "Zoptymalizowany pod kątem szybkości i minimalnych kosztów: GPT-4o Mini oraz Gemini 2.5 Flash Lite.",
         "icon": "zap",
         "color": "#00f5d4",
-        "judge": "openai/gpt-5-mini",
-        "judge_model": "openai/gpt-5-mini",
-        "vision_model": "google/gemini-3.1-flash-lite",
-        "draft_model": "openai/gpt-5-mini",
-        "models": ["openai/gpt-5-mini", "google/gemini-3.1-flash-lite"],
+        "judge": "openai/gpt-4o-mini",
+        "judge_model": "openai/gpt-4o-mini",
+        "vision_model": "google/gemini-2.5-flash-lite",
+        "draft_model": "openai/gpt-4o-mini",
+        "models": ["openai/gpt-4o-mini", "google/gemini-2.5-flash-lite"],
     },
 ]
 

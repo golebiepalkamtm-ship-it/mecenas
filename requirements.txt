@@ -17,8 +17,8 @@ mcp>=1.26.0
 fastmcp>=3.1.0
 
 # --- Agents ---
-crewai>=0.11.0
-crewai-tools>=0.0.1
+# crewai>=0.11.0
+# crewai-tools>=0.0.1
 
 # --- Vector Store & Embeddings ---
 sentence-transformers>=2.7.0
@@ -59,3 +59,4 @@ httpx>=0.27.0
 aiohttp>=3.10.0
 openai>=1.50.0
 marker-pdf
+sse-starlette

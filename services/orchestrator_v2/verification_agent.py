@@ -55,13 +55,20 @@ class VerificationAgent:
                     timeout=20.0,
                     log_context="VerificationAgent"
                 )
-                if "BŁĄD:" in res.upper():
-                    import re
+                res_upper = res.upper()
+                import re
+                
+                # Ulepszone parsowanie - szukamy czy odpowiedź celowo zaczyna się od BŁĄD
+                # lub czy ZATWIERDZONO jest wykluczone przez obecność BŁĄD
+                if "BŁĄD:" in res_upper and not res_upper.strip().startswith("ZATWIERDZONO"):
                     # Extract the error message starting from BŁĄD:
                     match = re.search(r'(?i)(BŁĄD:.*?)(?:\n|$)', res)
                     error_msg = match.group(1).strip() if match else res.strip()
-                    op["verification_flag"] = error_msg
-                    logger.warning(f"[VerificationAgent] Wykryto błąd u eksperta {op.get('role')}: {error_msg}")
+                    
+                    # Usunięcie mylących słów, jeśli model dodał je na końcu
+                    error_msg_clean = re.sub(r'(?i)ZATWIERDZONO', '', error_msg).strip()
+                    op["verification_flag"] = error_msg_clean
+                    logger.warning(f"[VerificationAgent] Wykryto błąd u eksperta {op.get('role')}: {error_msg_clean}")
                 else:
                     op["verification_flag"] = "ZATWIERDZONO"
             except Exception as e:

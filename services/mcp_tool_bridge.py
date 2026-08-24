@@ -96,18 +96,47 @@ async def isap_search_acts(*, publisher: str = "DU", year: int = 2024, query: st
     return {"status": "ok", "count": len(items), "items": items[:limit]}
 
 
-async def isap_get_act_details(*, publisher: str = "DU", year: int = 2024, pos: int = 1, **_) -> Dict[str, Any]:
+def _parse_eli(eli: str, default_pub: str = "DU", default_year: int = 2024, default_pos: int = 1):
+    """Parsuje ciąg ELI np. 'DU/2018/1000' lub 'Dz.U. 2018 poz. 1000' na publisher, year, pos."""
+    if not eli:
+        return default_pub, default_year, default_pos
+    m = re.search(r"(?:ELI/)?(DU|MP)/(\d{4})/(\d+)", eli, re.IGNORECASE)
+    if m:
+        return m.group(1).upper(), int(m.group(2)), int(m.group(3))
+    m2 = re.search(r"(?:Dz\.?\s*U\.?|M\.?\s*P\.?)\s*(\d{4})\s*(?:poz\.?|nr)\s*(\d+)", eli, re.IGNORECASE)
+    if m2:
+        pub = "MP" if "m.p" in eli.lower() or "mp" in eli.lower() else "DU"
+        return pub, int(m2.group(1)), int(m2.group(2))
+    return default_pub, default_year, default_pos
+
+
+async def isap_get_act_details(*, publisher: str = "DU", year: int = 2024, pos: int = 1, eli: str = "", **_) -> Dict[str, Any]:
+    if eli:
+        publisher, year, pos = _parse_eli(eli, publisher, year, pos)
     data = await _http_get(f"{SEJM_ELI_BASE}/acts/{publisher}/{year}/{pos}")
-    return {"status": "ok", "details": data}
+    return {"status": "ok", "eli": f"{publisher}/{year}/{pos}", "details": data}
 
 
-async def isap_get_act_text(*, publisher: str = "DU", year: int = 2024, pos: int = 1, **_) -> Dict[str, Any]:
+async def isap_get_act_text(*, publisher: str = "DU", year: int = 2024, pos: int = 1, eli: str = "", search_text: str = "", **_) -> Dict[str, Any]:
+    if eli:
+        publisher, year, pos = _parse_eli(eli, publisher, year, pos)
     raw = await _http_get(
         f"{SEJM_ELI_BASE}/acts/{publisher}/{year}/{pos}/text.html",
         headers={"Accept": "text/html"},
     )
     clean = _strip_html(raw)
-    return {"status": "ok", "text": clean[:20000]}
+    
+    # Jeśli podano search_text (np. 'Art. 118.'), znajdź i zwróć kontekst wokół trafienia
+    if search_text:
+        st_lower = search_text.lower()
+        idx = clean.lower().find(st_lower)
+        if idx != -1:
+            start = max(0, idx - 200)
+            end = min(len(clean), idx + 2500)
+            clean = f"... {clean[start:end]} ..."
+
+    return {"status": "ok", "eli": f"{publisher}/{year}/{pos}", "search_text": search_text, "text": clean[:25000]}
+
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -145,6 +174,117 @@ async def saos_list_courts(**_) -> Dict[str, Any]:
     data = await _http_get(f"{SAOS_API_BASE}/commonCourts", headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"})
     items = data.get("items", data) if isinstance(data, dict) else data if isinstance(data, list) else []
     return {"status": "ok", "courts": items}
+
+
+_STRONG_OVERRULE_PATTERNS = [
+    (re.compile(r"odst(?:[ęe]puj[a-ząćęłńóśźż]*|[ąa]pi[a-ząćęłńóśźż]*)\s+od\s+(?:pogl[ąa]d[a-ząćęłńóśźż]*|stanowisk[a-ząćęłńóśźż]*|wyk[łl]adni|dotychczasow[a-ząćęłńóśźż]*|linii)", re.I), "odstapienie_od_pogladu"),
+    (re.compile(r"nie\s+podziela(?:j[ąa]c[a-ząćęłńóśźż]*|[łl][a-ząćęłńóśźż]*|my)?\s+(?:pogl[ąa]d|stanowisk)[a-ząćęłńóśźż]*", re.I), "nie_podziela_pogladu"),
+    (re.compile(r"utraci[a-ząćęłńóśźż]*\s+(?:na\s+)?aktualno[a-ząćęłńóśźż]*", re.I), "utrata_aktualnosci"),
+    (re.compile(r"zdezaktualizowa", re.I), "zdezaktualizowanie"),
+    (re.compile(r"traci\s+moc\s+uchwa[łl][a-ząćęłńóśźż]*", re.I), "utrata_mocy_uchwaly"),
+    (re.compile(r"nie\s+zas[łl]uguje\s+na\s+aprobat[ęe]", re.I), "brak_aprobaty"),
+    (re.compile(r"odmiennie\s+ni[żz]\s+w\s+(?:wyroku|uchwale|postanowieniu)", re.I), "rozbieznosc_orzecznicza"),
+]
+
+_CAUTION_OVERRULE_PATTERNS = [
+    (re.compile(r"uchwa[łl][a-ząćęłńóśźż]*\s+sk[łl]adu\s+(?:siedmiu|7)\s+s[ęe]dzi[oó]w", re.I), "uchwala_7_sedziow"),
+    (re.compile(r"uchwa[łl][a-ząćęłńóśźż]*\s+sk[łl]adu\s+powi[ęe]kszonego", re.I), "uchwala_skladu_powiekszonego"),
+    (re.compile(r"rozbie[żz]no[sś][ćc]\s+w\s+orzecznictwie", re.I), "rozbieznosc_w_orzecznictwie"),
+]
+
+
+async def saos_cite_check(*, case_number: str, limit: int = 10, **_) -> Dict[str, Any]:
+    """Citator Shepard's dla polskiego orzecznictwa (mcp-saos). Sprawdza czy orzeczenie jest nadal aktualne."""
+    clean_case = case_number.strip()
+    if not clean_case:
+        return {"status": "error", "message": "Brak sygnatury do sprawdzenia (case_number)"}
+
+    try:
+        search_res = await saos_search_judgments(query=f'"{clean_case}"', page_size=limit)
+        items = search_res.get("items", [])
+    except Exception as e:
+        return {"status": "error", "message": f"Błąd odpytania SAOS: {e}"}
+
+    if not items:
+        return {
+            "status": "ok",
+            "case_number": clean_case,
+            "verdict": "brak_cytowan_w_saos",
+            "verdict_pl": "Brak późniejszych cytowań w bazie SAOS (wymaga weryfikacji w SN/NSA)",
+            "citing_count": 0,
+            "hits": [],
+            "disclaimer": "Brak trafień w SAOS nie oznacza automatycznie, że orzeczenie zachowuje moc.",
+        }
+
+    hits = []
+    has_strong = False
+    has_caution = False
+
+    for it in items:
+        judg_id = it.get("id")
+        text_content = ""
+        try:
+            full_det = await saos_get_judgment_details(id=judg_id)
+            data = full_det.get("data", {}).get("data", {})
+            text_content = _strip_html(data.get("textContent", "") or data.get("reasoning", ""))
+        except Exception:
+            text_content = _strip_html(it.get("textContent", ""))
+
+        if not text_content:
+            continue
+
+        for m in re.finditer(re.escape(clean_case), text_content, re.IGNORECASE):
+            pos = m.start()
+            window_start = max(0, pos - 400)
+            window_end = min(len(text_content), pos + 400)
+            window_text = text_content[window_start:window_end]
+
+            for pat, label in _STRONG_OVERRULE_PATTERNS:
+                if pat.search(window_text):
+                    has_strong = True
+                    hits.append({
+                        "judgment_id": judg_id,
+                        "court_type": it.get("courtType"),
+                        "judgment_date": it.get("judgmentDate"),
+                        "label": label,
+                        "severity": "strong",
+                        "snippet": f"...{window_text.strip()}...",
+                    })
+                    break
+
+            for pat, label in _CAUTION_OVERRULE_PATTERNS:
+                if pat.search(window_text):
+                    has_caution = True
+                    hits.append({
+                        "judgment_id": judg_id,
+                        "court_type": it.get("courtType"),
+                        "judgment_date": it.get("judgmentDate"),
+                        "label": label,
+                        "severity": "caution",
+                        "snippet": f"...{window_text.strip()}...",
+                    })
+                    break
+
+    if has_strong:
+        verdict = "przelamanie_wykryte"
+        verdict_pl = "Wykryto potencjalne przełamanie linii orzeczniczej lub odstąpienie od poglądu!"
+    elif has_caution:
+        verdict = "uchwala_skladu_powiekszonego"
+        verdict_pl = "Wykryto uchwałę składu powiększonego lub rozbieżność w orzecznictwie."
+    else:
+        verdict = "nadal_cytowany"
+        verdict_pl = "Orzeczenie jest cytowane w SAOS bez wykrycia fraz przełamania linii."
+
+    return {
+        "status": "ok",
+        "case_number": clean_case,
+        "verdict": verdict,
+        "verdict_pl": verdict_pl,
+        "citing_count": len(items),
+        "hits_count": len(hits),
+        "hits": hits,
+        "disclaimer": "Wynik oparty na analizie okien tekstowych SAOS. Zawsze weryfikuj stan orzeczenia z bazą SN/NSA.",
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -221,6 +361,23 @@ async def cbosa_search_judgments(*, query: str = "", symbol: str = "", limit: in
     async with httpx.AsyncClient(timeout=15.0) as client:
         results = await fetch_cbosa_once(client, query or symbol, limit)
     return {"status": "ok", "count": len(results), "items": results}
+
+
+async def cbosa_search_by_case(*, case_number: str, limit: int = 5, **_) -> Dict[str, Any]:
+    """Wyszukuje orzeczenie sądu administracyjnego bezpośrednio po sygnaturze (mcp-nsa)."""
+    return await cbosa_search_judgments(query=case_number, limit=limit)
+
+
+async def cbosa_get_judgment(*, doc_id: str, **_) -> Dict[str, Any]:
+    """Pobiera pełną treść orzeczenia sądu administracyjnego z bazy CBOSA po identyfikatorze dokumentu (mcp-nsa)."""
+    clean_id = doc_id.strip().replace("/doc/", "")
+    url = f"https://orzeczenia.nsa.gov.pl/doc/{clean_id}"
+    try:
+        raw_html = await _http_get(url, headers={"Referer": "https://orzeczenia.nsa.gov.pl/"})
+        text = _strip_html(raw_html)
+        return {"status": "ok", "doc_id": clean_id, "url": url, "text": text[:30000]}
+    except Exception as e:
+        return {"status": "error", "doc_id": clean_id, "message": str(e)}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -418,8 +575,131 @@ async def search_code(*, keyword: str, file_pattern: str = "**/*.py", **_) -> Di
     return {"status": "ok", "count": len(results), "results": results}
 
 
+_EU_COMPLIANCE_KNOWLEDGE = [
+    {
+        "act": "AI Act (Rozporządzenie 2024/1689)",
+        "article": "Art. 12",
+        "title": "Rejestrowanie zdarzeń (Record-keeping)",
+        "content": "Systemy AI wysokiego ryzyka muszą technicznie umożliwiać automatyczną rejestrację zdarzeń (logów) przez cały cykl życia systemu, zapewniając identyfikowalność i rozliczalność.",
+    },
+    {
+        "act": "AI Act (Rozporządzenie 2024/1689)",
+        "article": "Art. 50",
+        "title": "Obowiązki w zakresie przejrzystości",
+        "content": "Dostawcy systemów AI wchodzących w interakcję z osobami fizycznymi zapewniają, by systemy te informowały użytkownika, że wchodzi w interakcję z systemem AI.",
+    },
+    {
+        "act": "RODO (Rozporządzenie 2016/679)",
+        "article": "Art. 5",
+        "title": "Zasady dotyczące przetwarzania danych osobowych",
+        "content": "Dane osobowe muszą być przetwarzane zgodnie z prawem, rzetelnie i w sposób przejrzysty; zbierane w konkretnych celach (ograniczenie celu) i ograniczone do tego, co niezbędne (minimalizacja).",
+    },
+    {
+        "act": "RODO (Rozporządzenie 2016/679)",
+        "article": "Art. 82",
+        "title": "Prawo do odszkodowania i odpowiedzialność",
+        "content": "Każda osoba, która poniosła szkodę majątkową lub niemajątkową w wyniku naruszenia niniejszego rozporządzenia, ma prawo uzyskać od administratora lub podmiotu przetwarzającego odszkodowanie.",
+    },
+    {
+        "act": "DORA (Rozporządzenie 2022/2554)",
+        "article": "Art. 5",
+        "title": "Zarządzanie ryzykiem ICT",
+        "content": "Podmioty finansowe muszą posiadać wewnętrzne ramy zarządzania ryzykiem technologii informacyjno-komunikacyjnych (ICT) i zapewnić cyfrową odporność operacyjną.",
+    },
+    {
+        "act": "NIS 2 (Dyrektywa 2022/2555)",
+        "article": "Art. 21",
+        "title": "Środki zarządzania ryzykiem w cyberbezpieczeństwie",
+        "content": "Podmioty kluczowe i ważne wdrażają odpowiednie i proporcjonalne środki techniczne, operacyjne i organizacyjne w celu zarządzania ryzykiem dla bezpieczeństwa sieci.",
+    },
+]
+
+
+async def eureka_search_interpretations(*, query: str, limit: int = 5, **_) -> Dict[str, Any]:
+    """Przeszukuje bazę interpretacji podatkowych Ministerstwa Finansów / KIS (Patron EUREKA connector)."""
+    from services.retrieval.providers.duckduckgo_provider import duckduckgo_search
+    try:
+        search_query = f"site:eureka.mf.gov.pl {query}"
+        res = await duckduckgo_search(search_query, max_results=limit)
+        return {
+            "status": "ok",
+            "source": "EUREKA (KIS/MF)",
+            "query": query,
+            "count": len(res.get("items", [])),
+            "items": res.get("items", []),
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+async def eu_compliance_search(*, query: str = "", act: str = "", **_) -> Dict[str, Any]:
+    """Przeszukuje korpus prawa zgodności UE (Patron EU-Compliance: RODO, AI Act, DORA, NIS 2)."""
+    items = _EU_COMPLIANCE_KNOWLEDGE
+    q = query.lower()
+    filtered = []
+    for item in items:
+        if act and act.lower() not in item["act"].lower():
+            continue
+        if not q or q in item["act"].lower() or q in item["article"].lower() or q in item["title"].lower() or q in item["content"].lower():
+            filtered.append(item)
+    return {"status": "ok", "source": "Patron EU-Compliance Corpus", "count": len(filtered), "items": filtered}
+
+
+async def patron_scan_document(*, text: str, file_name: Optional[str] = None, **_) -> Dict[str, Any]:
+    """Skanuje dokument za pomocą silnika Patron Input Security (detekcja prompt injection, zero-width, obfuskacji)."""
+    from services.patron_security import analyze_input_security
+    res = analyze_input_security(text, file_name=file_name)
+    return {
+        "status": "ok",
+        "action": res.action,
+        "risk_score": res.risk_score,
+        "threat_level": res.threat_level,
+        "audit_hash": res.audit_hash,
+        "findings_count": len(res.findings),
+        "findings": [
+            {
+                "detector": f.detector,
+                "technique": f.technique,
+                "severity": f.severity,
+                "snippet": f.snippet,
+                "impact": f.impact,
+            }
+            for f in res.findings
+        ],
+    }
+
+
+async def nalegalu_article_lookup(*, citation: str, fetch_judgments: bool = True, limit: int = 5, **_) -> Dict[str, Any]:
+    """Wyszukuje treść przepisu oraz automatycznie powiązane orzecznictwo sądowe z SAOS w formacie NaLegalu Markdown."""
+    from services.nalegalu_bridge import parse_legal_citation
+    parsed = parse_legal_citation(citation)
+    if not parsed:
+        return {"status": "error", "message": f"Nie udało się sparsować sygnatury przepisu: {citation}"}
+
+    result: Dict[str, Any] = {
+        "status": "ok",
+        "act_code": parsed.act_code,
+        "act_name": parsed.act_name,
+        "article": parsed.article,
+        "paragraph": parsed.paragraph,
+        "point": parsed.point,
+        "markdown_header": parsed.markdown_header,
+        "saos_search_query": parsed.saos_search_query,
+        "judgments": [],
+    }
+
+    if fetch_judgments:
+        try:
+            saos_res = await saos_search_judgments(law_clause=parsed.saos_search_query, page_size=limit)
+            result["judgments"] = saos_res.get("items", [])
+        except Exception:
+            pass
+
+    return result
+
+
 # ═══════════════════════════════════════════════════════════════════════════
-#  MASTER DISPATCHER — call any of 29 tools by name
+#  MASTER DISPATCHER — call any of 35 tools by name
 # ═══════════════════════════════════════════════════════════════════════════
 
 TOOL_REGISTRY: Dict[str, Any] = {
@@ -428,12 +708,13 @@ TOOL_REGISTRY: Dict[str, Any] = {
     "isap_search_acts": isap_search_acts,
     "isap_get_act_details": isap_get_act_details,
     "isap_get_act_text": isap_get_act_text,
-    # SAOS (5-8)
+    # SAOS (5-9)
     "saos_search_judgments": saos_search_judgments,
     "saos_get_judgment_details": saos_get_judgment_details,
     "saos_search_by_article": saos_search_by_article,
     "saos_list_courts": saos_list_courts,
-    # Sejm (9-15)
+    "saos_cite_check": saos_cite_check,
+    # Sejm (10-16)
     "sejm_list_prints": sejm_list_prints,
     "sejm_get_print_details": sejm_get_print_details,
     "sejm_list_mps": sejm_list_mps,
@@ -441,18 +722,25 @@ TOOL_REGISTRY: Dict[str, Any] = {
     "sejm_list_committees": sejm_list_committees,
     "sejm_list_votings": sejm_list_votings,
     "sejm_get_voting_details": sejm_get_voting_details,
-    # KRS / CEIDG (16-17)
+    # KRS / CEIDG (17-18)
     "krs_get_company": krs_get_company,
     "ceidg_search_business": ceidg_search_business,
-    # CBOSA (18)
+    # CBOSA (19-21)
     "cbosa_search_judgments": cbosa_search_judgments,
-    # UODO (19)
+    "cbosa_search_by_case": cbosa_search_by_case,
+    "cbosa_get_judgment": cbosa_get_judgment,
+    # UODO (22)
     "uodo_search_decisions": uodo_search_decisions,
-    # KIO (20)
+    # KIO (23)
     "kio_search_judgments": kio_search_judgments,
-    # TSUE (21)
+    # TSUE (24)
     "tsue_search_judgments": tsue_search_judgments,
-    # Python MCP (22-29)
+    # Patron & NaLegalu Tools (25-28)
+    "eureka_search_interpretations": eureka_search_interpretations,
+    "eu_compliance_search": eu_compliance_search,
+    "patron_scan_document": patron_scan_document,
+    "nalegalu_article_lookup": nalegalu_article_lookup,
+    # Python MCP (29-36)
     "search_legal_acts": search_legal_acts,
     "search_judgments": search_judgments,
     "search_supabase_rag": search_supabase_rag,
@@ -462,8 +750,8 @@ TOOL_REGISTRY: Dict[str, Any] = {
     "get_document_info": get_document_info,
     "find_files": find_files,
     "search_code": search_code,
-    # Inne (30)
-    "internet_search": None, # Zostanie obsłużone specjalnym importem wewnątrz call_mcp_tool lub dodane wyżej
+    # Inne (33)
+    "internet_search": None,
 }
 
 # Listy narzędzi pogrupowane tematycznie — do użycia w context_builder/debate_engine

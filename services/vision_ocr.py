@@ -87,12 +87,23 @@ async def run_verbatim_vision_ocr(
     from database import get_setting
     from config import settings
     assigned_ocr = settings.resolve_model_id(get_setting("assigned_model_ocr", ""))
-    vision_models = [
-        m for m in [assigned_ocr, "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite", "openai/gpt-5-mini"]
-        if m
-    ]
-    # Usunięcie ewentualnych dubli
-    vision_models = list(dict.fromkeys(vision_models))
+    
+    # Do OCR wizyjnego dopuszczamy wyłącznie modele multimodalne (Vision)
+    candidate_models = [assigned_ocr, "google/gemini-3.7-flash", "google/gemini-2.5-flash", "openai/gpt-4o-mini"]
+    vision_models = []
+    for m in candidate_models:
+        if not m:
+            continue
+        m_lower = m.lower()
+        # Wyklucz modele czysto tekstowe (deepseek, glm, grok tekstowy)
+        if any(k in m_lower for k in ["deepseek", "glm-5", "grok-4"]):
+            continue
+        if m not in vision_models:
+            vision_models.append(m)
+            
+    if not vision_models:
+        vision_models = ["google/gemini-3.7-flash", "google/gemini-2.5-flash", "openai/gpt-4o-mini"]
+        
     max_tokens = settings.vision_ocr_max_tokens
     max_rounds = max(1, settings.vision_ocr_max_continuations + 1)
     temperature = settings.vision_ocr_temperature

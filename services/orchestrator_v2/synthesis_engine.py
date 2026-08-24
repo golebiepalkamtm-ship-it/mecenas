@@ -100,9 +100,15 @@ class SeniorAdvocateSynthesis:
             if getattr(debate_result, 'hallucination_rate', 0.0) > 30.0:
                 logger.error(f"[SynthesisEngine] Zatrzymuję generowanie: Hallucination rate {debate_result.hallucination_rate:.1f}% przekracza 30.0%.")
                 yield {"type": "chunk", "text": f"\n\n*[Przerwano: Zbyt wysoki wskaźnik halucynacji ({debate_result.hallucination_rate:.1f}%). System wymusza regenerację.]*"}
-                return
+                # Zamiast return, wywołujemy twardy wyjątek, by orchestrator wszedł w recovery/reflection
+                raise ValueError(f"High hallucination rate: {debate_result.hallucination_rate:.1f}%")
+        except ValueError as ve:
+            # Re-raise the hallucination block
+            raise ve
         except Exception as e:
-            logger.error(f"[SynthesisEngine] Błąd weryfikacji halucynacji: {e}. Pomijam weryfikację.")
+            logger.error(f"[SynthesisEngine] Błąd krytyczny weryfikacji halucynacji: {e}.")
+            yield {"type": "chunk", "text": f"\n\n*[Przerwano: Błąd systemu weryfikacji faktów ({e}). System wymusza regenerację.]*"}
+            raise RuntimeError(f"Weryfikacja halucynacji nie powiodła się: {e}")
         
         # 2. Składanie wniosków ekspertów
         all_expert_opinions = ""

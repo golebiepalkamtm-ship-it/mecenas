@@ -18,26 +18,25 @@ class Settings(BaseSettings):
 
     default_models: List[str] = Field(
         default=[
-            "deepseek/deepseek-v4-pro",
-            "deepseek/deepseek-v4-flash",
-            "qwen/qwen3.5-flash",
-            "openai/gpt-oss-120b",
-            "google/gemini-3.1-flash-lite",
-            "openai/gpt-5-nano",
-            "inclusionai/ling-2.6-flash",
+            "~deepseek/deepseek-v4-flash-latest",
+            "google/gemini-3.7-flash",
+            "openai/gpt-5.4-nano",
+            "z-ai/glm-5.3",
+            "x-ai/grok-4.6",
+            "qwen/qwen3.8-max",
         ]
     )
     fallback_models: List[str] = Field(
         default=[
-            "openai/gpt-5-nano",
-            "qwen/qwen3.5-flash",
+            "google/gemini-3.7-flash",
+            "openai/gpt-5.4-nano",
             "deepseek/deepseek-v4-flash",
         ]
     )
     deprecated_model_aliases: Dict[str, str] = Field(
         default={
-            "google/gemini-2.5-pro": "deepseek/deepseek-v4-pro",
-            "google/gemini-2.5-flash": "google/gemini-3.1-flash-lite"
+            "google/gemini-3.1-flash": "google/gemini-3.7-flash",
+            "deepseek/deepseek-v4-flash-latest": "~deepseek/deepseek-v4-flash-latest",
         }
     )
 
@@ -76,10 +75,8 @@ class Settings(BaseSettings):
     # Vision / OCR (Etap 1 — obrazy dokumentów przez OpenRouter)
     vision_ocr_models: List[str] = Field(
         default=[
-            "google/gemini-2.5-flash",
-            "google/gemini-3.1-flash-lite",
-            "openai/gpt-5-mini",
-            "openrouter/owl-alpha",
+            "google/gemini-3.7-flash",
+            "qwen/qwen3.8-max",
         ]
     )
     vision_ocr_max_tokens: int = 16_384
@@ -103,7 +100,7 @@ class Settings(BaseSettings):
 
     # Debata ekspertów przy trybie single (domyślnie wyłączona — szybsze odpowiedzi)
     debate_on_single: bool = Field(default=False)
-    debate_expert_timeout_sec: float = Field(default=75.0)
+    debate_expert_timeout_sec: float = Field(default=180.0)
     debate_slow_multiplier: float = Field(default=2.2, ge=1.1, le=4.0)
     debate_min_cutoff_ms: int = Field(default=25_000, ge=3000)
 
@@ -140,7 +137,7 @@ class Settings(BaseSettings):
     # Long-context single pass
     feature_long_context_path: bool = Field(default=True)
     long_context_max_chars: int = Field(default=300_000)
-    long_context_model: str = Field(default="deepseek/deepseek-v4-flash")
+    long_context_model: str = Field(default="google/gemini-2.5-flash")
 
     # Citation ELI L1 cache TTL (sekundy)
     eli_citation_cache_ttl: int = Field(default=3600)

@@ -37,6 +37,19 @@ class AnalyzeDocumentUseCase:
                     "error": "Pytanie nie może być puste.",
                 }
 
+            from services.patron_security import analyze_input_security
+            sec_scan = analyze_input_security(f"{document_text}\n{question}")
+            if sec_scan.action == "blocked":
+                return {
+                    "success": False,
+                    "answer": "Dokument lub zapytanie zostało zablokowane ze względów bezpieczeństwa (wykryto próbę nadpisania instrukcji / prompt injection).",
+                    "sources": [],
+                    "document_length": len(document_text),
+                    "context_length": 0,
+                    "rag_used": False,
+                    "error": "Wykryto zagrożenie bezpieczeństwa tekstu wejściowego (Patron Input Security).",
+                }
+
             rag_context = ""
             sources: list[str] = []
 
@@ -155,8 +168,8 @@ def _build_draft_user_prompt(request: DraftRequest, rag_context: str = "") -> st
     if rag_context:
         parts.append(f"### KONTEKST Z BAZY WIEDZY RAG:\n{rag_context}\n\n")
     parts.append(
-        "[WYMAGANIE]: Wygeneruj wyłącznie gotowy dokument w formacie Markdown. "
-        "Zachowaj profesjonalny układ (miejsce na podpis, załączniki)."
+        "[WYMAGANIE]: Wygeneruj profesjonalny dokument prawny/urzędowy w formacie Markdown. "
+        "Zachowaj poprawną strukturę procesową (miejsce na podpis, załączniki, petitum, uzasadnienie)."
     )
     return "".join(parts)
 

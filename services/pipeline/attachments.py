@@ -40,7 +40,7 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
     try:
         # We only take the first 4000 bytes as rough text approximation if it's text,
         # but for PDFs/images we might need to rely on the filename first to be really fast.
-        # However, calling gpt-5-mini is fast enough.
+        # However, calling gpt-4o-mini is fast enough.
         prompt = f"Przeanalizuj nazwę pliku '{filename}' i jeśli to możliwe, wyciągnij sygnaturę akt i nazwę sądu/organu. Zwróć jako JSON z polami 'sygnatura' i 'sad'."
         
         # This is a very simplified fast metadata step to optimize TTFT

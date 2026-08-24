@@ -1,39 +1,57 @@
 {
   "mcpServers": {
-    "lexminde mcp": {
-      "command": "node",
-      "args": ["${workspaceFolder}/lexminde mcp/dist/index.js"]
+    "lexmind-cloud-railway": {
+      "url": "https://mcp-lex-pl-production.up.railway.app/sse"
     },
-    "lexmind-math": {
-      "command": "python",
-      "args": ["${workspaceFolder}/math_server.py"],
+    "lexmind-master-sse": {
+      "url": "http://localhost:8005/sse"
+    },
+    "lexmind-master": {
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
+      "args": ["${workspaceFolder}/mcp_master_server.py"],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
     },
+    "mcp-isap": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/lexmcp/mcp-isap/dist/index.js"]
+    },
+    "mcp-saos": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/lexmcp/mcp-saos/dist/index.js"]
+    },
+    "mcp-krs": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/lexmcp/mcp-krs/dist/index.js"]
+    },
+    "mcp-nsa": {
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-nsa/dist/index.js"]
+    },
     "lexmind-legal-search": {
-      "command": "python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "legal"],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
     },
     "lexmind-chat-history": {
-      "command": "python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "chat"],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
     },
     "lexmind-document-manager": {
-      "command": "python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "docs"],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"
       }
     },
     "lexmind-code-navigator": {
-      "command": "python",
+      "command": "${workspaceFolder}/.venv/Scripts/python.exe",
       "args": ["${workspaceFolder}/lexmind_mcp_servers.py", "code"],
       "env": {
         "PYTHONPATH": "${workspaceFolder}"

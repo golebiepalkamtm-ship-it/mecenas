@@ -44,7 +44,7 @@ class DebateEngine:
     async def run_debate(self, params: OrchestratorInputParams, context: InvestigationContext) -> DebateResult:
         logger.info("[DebateEngine] Przygotowanie ról i uruchamianie ekspertów (MOA)...")
         
-        from moa.expert_models_config import get_expert_models
+        from moa.expert_models_config import get_expert_models, get_expert_fallback_chain
 
         # Określamy aktywne role z parametrów
         default_roles = ["inquisitor", "proceduralist", "constitutionalist", "evidencecracker"]
@@ -73,6 +73,7 @@ class DebateEngine:
         expert_specs: List[tuple] = []
         for idx, role_id in enumerate(roles_to_run):
             primary_model, fallback_model = get_expert_models(role_id)
+            fallback_chain = get_expert_fallback_chain(role_id)
             
             prompt = (params.expert_role_prompts or {}).get(role_id, "")
             if not prompt:
@@ -98,12 +99,12 @@ class DebateEngine:
             prompt += "\n\nINSTRUKCJA KRYTYCZNA: Zanim sformułujesz ostateczną opinię, ZAWSZE użyj tagów <thinking>...</thinking>, aby krok po kroku przeanalizować problem, zważyć racje, odszukać luki w rozumowaniu własnym i przeciwników oraz zaplanować żelazną logikę wypowiedzi. Dopiero po zamknięciu tagu </thinking> podaj właściwą opinię ekspercką."
                 
             role_name = role_id or f"Ekspert-{idx+1}"
-            logger.info(f"   -> Planowanie agenta '{role_name}': Primary={primary_model}, Fallback={fallback_model}")
-            expert_specs.append((role_name, prompt, primary_model, fallback_model))
+            logger.info(f"   -> Planowanie agenta '{role_name}': Primary={primary_model}, Fallback chain={fallback_chain}")
+            expert_specs.append((role_name, prompt, primary_model, fallback_chain))
 
         expert_coros = [
-            self._run_single_expert(role_name, prompt, primary_model, fallback_model, params.user_query, context)
-            for role_name, prompt, primary_model, fallback_model in expert_specs
+            self._run_single_expert(role_name, prompt, primary_model, fallback_chain, params.user_query, context)
+            for role_name, prompt, primary_model, fallback_chain in expert_specs
         ]
         labels = [s[0] for s in expert_specs]
 
@@ -156,13 +157,23 @@ class DebateEngine:
         role_name: str,
         prompt: str,
         primary_model: str,
-        fallback_model: str,
+        fallback_chain: List[str],
         query: str,
         context: InvestigationContext,
         max_context_chars: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Izolowane wykonanie jednego agenta z obsługą błędu i dedykowanym modelem zastępczym (fallback)."""
+        """Izolowane wykonanie jednego agenta z dedykowanym łańcuchem fallbacków.
+        
+        Łańcuch: Primary → starszy model tego samego providera → gemini (last resort).
+        Każdy ekspert ma własny LLMClientService z indywidualnym łańcuchem fallbacków.
+        """
         start_time = time.time()
+        
+        # Dedykowany LLMClientService per ekspert z łańcuchem: [starszy_model, gemini]
+        expert_llm = LLMClientService(
+            client=self.client,
+            fallback_models=fallback_chain,
+        )
         
         used_model = primary_model
         try:
@@ -170,7 +181,7 @@ class DebateEngine:
                 from services.orchestrator_v2.token_budget import calculate_char_budget
                 # Reserve 3000 tokens for expert opinion generation
                 max_context_chars = calculate_char_budget(primary_model, reserve_output_tokens=3000)
-                logger.info(f"[DebateEngine] Dynamiczny budżet kontekstu dla eksperta '{role_name}' (Primary={primary_model}, Fallback={fallback_model}): {max_context_chars} znaków.")
+                logger.info(f"[DebateEngine] Dynamiczny budżet kontekstu dla eksperta '{role_name}' (Primary={primary_model}, Fallback chain={fallback_chain}): {max_context_chars} znaków.")
 
             # Ucinamy nadmierny kontekst żeby nie przekroczyć okna
             truncated_context = context.combined_full_text[:max_context_chars] 
@@ -191,31 +202,15 @@ class DebateEngine:
             response = ""
             
             for iteration in range(max_iterations):
-                try:
-                    response, used_model = await self.llm_service.call_with_fallback(
-                        primary_model, 
-                        messages, 
-                        max_tokens=3000, 
-                        temperature=0.2, 
-                        timeout=settings.debate_expert_timeout_sec,
-                        log_context=f"EXPERT_{role_name}_iter{iteration}"
-                    )
-                except Exception as prim_err:
-                    if fallback_model and fallback_model != primary_model:
-                        logger.warning(
-                            f"[DebateEngine] Model główny '{primary_model}' dla roli '{role_name}' zgłosił błąd: {prim_err}. "
-                            f"Przełączam na model zastępczy (Fallback): '{fallback_model}'"
-                        )
-                        response, used_model = await self.llm_service.call_with_fallback(
-                            fallback_model,
-                            messages,
-                            max_tokens=3000,
-                            temperature=0.2,
-                            timeout=settings.debate_expert_timeout_sec,
-                            log_context=f"EXPERT_{role_name}_fallback_iter{iteration}"
-                        )
-                    else:
-                        raise prim_err
+                # expert_llm sam obsługuje cały łańcuch: primary → starszy → gemini
+                response, used_model = await expert_llm.call_with_fallback(
+                    primary_model, 
+                    messages, 
+                    max_tokens=3000, 
+                    temperature=0.2, 
+                    timeout=settings.debate_expert_timeout_sec,
+                    log_context=f"EXPERT_{role_name}_iter{iteration}"
+                )
                 
                 import re
                 search_law_match = re.search(r"<search_law>(.*?)</search_law>", response, re.DOTALL)
@@ -301,6 +296,7 @@ class DebateEngine:
                 "latency_ms": int((time.time() - start_time) * 1000),
                 "error": True
             }
+
 
     async def _score_expert(self, expert_data: Dict[str, Any], user_query: str) -> Dict[str, Any]:
         """Szybka ocena odpowiedzi eksperta (0-100)."""

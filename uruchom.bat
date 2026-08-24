@@ -50,7 +50,7 @@ taskkill /IM python.exe /F >nul 2>&1
 taskkill /IM node.exe /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8003 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
-timeout /t 2 /nobreak >nul
+ping 127.0.0.1 -n 3 >nul
 
 :start_services
 echo [2/3] Uruchamianie backendu FastAPI (port 8003)...
@@ -64,7 +64,7 @@ if exist ".venv\Scripts\python.exe" (
 
 echo        Czekanie na gotowość backendu...
 :wait_backend
-timeout 1 >nul
+ping 127.0.0.1 -n 2 >nul
 netstat -ano | findstr :8003 | findstr LISTENING >nul
 if errorlevel 1 goto wait_backend
 echo        * Backend gotowy.
@@ -82,7 +82,7 @@ start "LexMind-Frontend" /D "%FRONTEND_DIR%" cmd /k "npm.cmd run dev"
 
 echo        Czekanie na gotowosc frontendu...
 :wait_frontend
-timeout 1 >nul
+ping 127.0.0.1 -n 2 >nul
 netstat -ano | findstr :3000 | findstr LISTENING >nul
 if errorlevel 1 goto wait_frontend
 echo        * Frontend gotowy.
@@ -146,7 +146,7 @@ taskkill /FI "WINDOWTITLE eq LexMind-Backend" /F >nul 2>&1
 taskkill /FI "WINDOWTITLE eq LexMind-Frontend" /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8003 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
-timeout /t 2 /nobreak >nul
+ping 127.0.0.1 -n 3 >nul
 echo [RESTART] Ponowne uruchamianie...
 goto start_services
 
@@ -158,5 +158,5 @@ taskkill /FI "WINDOWTITLE eq LexMind-Frontend" /F >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8003 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
 echo  * Serwery wylaczone. Milego dnia!
-timeout /t 2 /nobreak >nul
+ping 127.0.0.1 -n 3 >nul
 popd

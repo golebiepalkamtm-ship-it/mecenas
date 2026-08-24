@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def effective_max_tokens(model_id: str, max_tokens: int) -> int:
     """Zapewnia dostateczny budżet tokenów dla modeli z rozumowaniem/CoT i ucinaniem tekstu."""
     mid = (model_id or "").lower()
-    if "gpt-5" in mid and max_tokens < 16:
+    if "gpt-4o" in mid and max_tokens < 16:
         return 16
     if any(k in mid for k in ["r1", "pro", "gemini", "o1", "o3", "deepseek", "qwen", "glm", "grok", "nemotron"]) and max_tokens < 8192:
         return max(max_tokens, 8192)
@@ -153,16 +153,17 @@ class LLMClientService:
                                 return result, model_id
                             except Exception as parse_err:
                                 logger.warning(
-                                    "[llm] beta.parse nie powiódł się dla %s (%s). Przełączam na format json_object...",
+                                    "[llm] beta.parse nie powiódł się dla %s (%s). Przełączam na zwykły text...",
                                     model_id,
                                     parse_err,
                                 )
-                                kwargs["response_format"] = {"type": "json_object"}
+                                kwargs.pop("response_format", None)
                                 kwargs["max_tokens"] = max(kwargs.get("max_tokens", 4000), 8192)
-                                messages.append(
+                                kwargs["messages"] = list(kwargs["messages"])
+                                kwargs["messages"].append(
                                     {
                                         "role": "system",
-                                        "content": f"Zwróć wynik jako poprawny JSON zgodny ze strukturą: {response_format.model_json_schema()}",
+                                        "content": f"Zwróć wynik jako poprawny JSON zgodny ze strukturą (TYLKO JSON, bez znaczników markdown): {response_format.model_json_schema()}",
                                     }
                                 )
 

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "lexmind-master": {
+      "command": "e:/moj prawnik/.venv/Scripts/python.exe",
+      "args": [
+        "e:/moj prawnik/mcp_master_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "e:/moj prawnik"
+      }
+    }
+  }
+}

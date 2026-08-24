@@ -77,6 +77,14 @@ class ReflectionLoop:
                     
             needs_regen = score <= threshold
             
+            # Detekcja słów kluczowych świadczących o krytycznych błędach
+            critical_keywords = ["nieaktualn", "fałszyw", "uchylon", "błędn", "nieistniejąc"]
+            for issue in issues:
+                if any(kw in issue.lower() for kw in critical_keywords):
+                    logger.warning(f"[ReflectionLoop] Wymuszona regeneracja z powodu krytycznego błędu w issues: {issue}")
+                    needs_regen = True
+                    break
+            
             # Wymuś regenerację, jeśli współczynnik halucynacji jest zbyt wysoki
             if hallucination_rate > 30.0:
                 logger.warning(f"[ReflectionLoop] Wymuszona regeneracja: Hallucination rate {hallucination_rate}% przekracza 30.0%")

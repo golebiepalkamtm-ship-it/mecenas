@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
       system_prompt, 
       user_instructions, 
       structured_data,
-      model = 'google/gemini-2.5-flash',
+      model = 'openrouter/free',
       history = []
     } = body;
 

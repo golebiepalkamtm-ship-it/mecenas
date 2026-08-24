@@ -78,14 +78,14 @@ Deno.serve(async (req: Request) => {
 
     // AUTO-FALLBACK: Use an array of models if the selected one is busy/rate-limited
     // We prioritize the user's choice, then fallback to reliable ones.
-    const primaryModelId = model || "google/gemini-2.5-flash";
+    const primaryModelId = model || "openrouter/free";
     const modelsToTry = [primaryModelId];
     
     // If user chose a 'free' model, add reliable fallbacks automatically
     if (primaryModelId.includes(':free') || primaryModelId.includes('qwen') || primaryModelId.includes('deepseek')) {
-        modelsToTry.push("google/gemini-2.1-flash-thinking-preview:free"); // Try another free one
-        modelsToTry.push("google/gemini-2.5-flash"); // Then a paid reliable one
-        modelsToTry.push("openai/gpt-5-mini");
+        modelsToTry.push("nvidia/nemotron-3.5-lightning:free"); // Try another free one
+        modelsToTry.push("google/gemma-4-26b-a4b-it:free"); // Then a paid reliable one
+        modelsToTry.push("openrouter/free");
     }
 
     const openRouterRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
