@@ -31,7 +31,7 @@ def effective_max_tokens(model_id: str, max_tokens: int) -> int:
     # Tylko modele czysto 'reasoning', które nie potrafią skończyć myślenia w 1-2k tokenów,
     # podbijamy do 4096, aby zapobiec ucięciu w połowie. Zbyt duże max_tokens (np. 8192)
     # może powodować zwracanie pustych odpowiedzi przez API (brak obsługi tak długich generacji).
-    if any(k in mid for k in ["r1", "o1", "o3", "qwen3"]) and max_tokens < 4096:
+    if any(k in mid for k in ["r1", "o1", "o3", "qwen3", "sonnet-5", "claude-3-7", "claude-3.7"]) and max_tokens < 4096:
         return max(max_tokens, 4096)
     return max_tokens
 
@@ -222,68 +222,50 @@ class LLMClientService:
         log_context: str = "",
         response_format: Optional[Any] = None,
     ) -> Tuple[str, str]:
-        """Wykonuje wywołanie do API. W razie błędu zawiesza strumień i czeka na wybór użytkownika (IMR)."""
-        current_model = self._resolve(model_id)
-        primary_timeout = max(timeout, 20.0)
+        """Wykonuje wywołanie do API, automatycznie przechodząc po łańcuchu fallbacków."""
+        chain = [model_id] + [m for m in self.fallbacks if m and m != model_id]
+        last_err = None
+        active_status_callback = status_callback or self._status_callback
 
-        while True:
+        for idx, candidate in enumerate(chain):
+            current_model = self._resolve(candidate)
             try:
+                if idx > 0 and active_status_callback:
+                    notify_msg = f"[Fallback] Przełączam na model zapasowy: {current_model}"
+                    try:
+                        if asyncio.iscoroutinefunction(active_status_callback):
+                            await active_status_callback({"type": "metadata", "message": notify_msg})
+                        else:
+                            active_status_callback({"type": "metadata", "message": notify_msg})
+                    except Exception:
+                        pass
+                        
                 return await self.call(
                     current_model,
                     messages,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    timeout=primary_timeout,
+                    timeout=max(timeout, 20.0),
                     log_context=log_context or "ODPOWIEDŹ",
                     response_format=response_format,
                 )
             except Exception as err:
+                last_err = err
                 err_detail = format_call_error(err)
-                logger.warning("[llm] IMR: Model %s failed: %s", current_model, err_detail)
-                
-                active_status_callback = status_callback or self._status_callback
+                logger.warning("[llm] Model %s failed: %s. Próbuję kolejny model...", current_model, err_detail)
                 if active_status_callback:
-                    import uuid
-                    resolution_id = str(uuid.uuid4())
-                    
-                    # Inicjalizujemy obietnicę (Future) w rejestrze
-                    PENDING_RESOLUTIONS[resolution_id] = asyncio.Future()
-                    
-                    # Wysyłamy żądanie akcji do klienta
-                    if asyncio.iscoroutinefunction(active_status_callback):
-                        await active_status_callback({
-                            "type": "action_required",
-                            "action": "select_model",
-                            "failed_model": current_model,
-                            "error_details": err_detail,
-                            "resolution_id": resolution_id
-                        })
-                    else:
-                        active_status_callback({
-                            "type": "action_required",
-                            "action": "select_model",
-                            "failed_model": current_model,
-                            "error_details": err_detail,
-                            "resolution_id": resolution_id
-                        })
-                    
+                    warn_msg = f"[Uwaga: Model {current_model} niedostępny ({err_detail}). Próba modelu zapasowego...]"
                     try:
-                        # Zatrzymujemy to zadanie w pamięci i czekamy na odpowiedź z zewnętrznego endpointu
-                        logger.info(f"[llm] IMR: Wstrzymano zadanie. Oczekuję na rozwiązanie (ID: {resolution_id})...")
-                        new_model_id = await PENDING_RESOLUTIONS[resolution_id]
-                        
-                        logger.info(f"[llm] IMR: Wznawiam z nowym modelem: {new_model_id}")
-                        current_model = self._resolve(new_model_id)
-                        continue # Wznawiamy pętlę z nowym modelem
-                    except Exception as wait_err:
-                        logger.error(f"[llm] IMR: Błąd oczekiwania na model: {wait_err}")
-                        raise
-                    finally:
-                        if resolution_id in PENDING_RESOLUTIONS:
-                            del PENDING_RESOLUTIONS[resolution_id]
-                else:
-                    # Brak status_callback - nie można użyć IMR
-                    raise RuntimeError(f"Błąd modelu {current_model} i brak możliwości IMR: {err_detail}") from err
+                        if asyncio.iscoroutinefunction(active_status_callback):
+                            await active_status_callback({"type": "metadata", "message": warn_msg})
+                        else:
+                            active_status_callback({"type": "metadata", "message": warn_msg})
+                    except Exception:
+                        pass
+                continue
+
+        # Jeśli cały łańcuch zawiódł
+        raise RuntimeError(f"Wszystkie modele w łańcuchu {chain} zawiodły. Ostatni błąd: {last_err}")
 
     async def call_with_fallback_stream(
         self,
@@ -295,13 +277,26 @@ class LLMClientService:
         timeout: float = 30.0,
         status_callback=None,
     ):
-        """Strumień z IMR. W razie błędu zawiesza strumień i czeka na wybór użytkownika."""
-        current_model = self._resolve(model_id)
-        primary_timeout = max(timeout, settings.llm_stream_timeout_primary)
+        """Strumień przechodzący po łańcuchu fallbacków."""
+        chain = [model_id] + [m for m in self.fallbacks if m and m != model_id]
+        last_err = None
+        active_status_callback = status_callback or self._status_callback
 
-        while True:
+        for idx, candidate in enumerate(chain):
+            current_model = self._resolve(candidate)
+            primary_timeout = max(timeout, settings.llm_stream_timeout_primary)
             effective_tokens = effective_max_tokens(current_model, max_tokens)
             try:
+                if idx > 0 and active_status_callback:
+                    notify_msg = f"[Fallback Strumień] Przełączam na model zapasowy: {current_model}"
+                    try:
+                        if asyncio.iscoroutinefunction(active_status_callback):
+                            await active_status_callback({"type": "metadata", "message": notify_msg})
+                        else:
+                            active_status_callback({"type": "metadata", "message": notify_msg})
+                    except Exception:
+                        pass
+
                 raw_stream = await asyncio.wait_for(
                     self._client.chat.completions.create(
                         model=current_model,
@@ -328,61 +323,25 @@ class LLMClientService:
                 logger.info("[llm] stream_started model=%s", current_model)
                 return wrapped_stream(), current_model
             except Exception as exc:
+                last_err = exc
                 err_detail = format_call_error(exc)
                 logger.warning(
-                    "[llm] IMR: stream_primary_failed model=%s error=%s",
+                    "[llm] stream_failed model=%s error=%s. Próbuję kolejny model...",
                     current_model,
                     err_detail,
                 )
-                
-                # Obsługa błędu 402 w strumieniowaniu
-                afford = _extract_affordable_tokens(exc)
-                if afford and afford > 16 and effective_tokens > afford:
-                    new_max = max(16, afford - 20)
-                    logger.warning("[llm] OpenRouter 402 na strumieniu %s: zredukowano max_tokens z %d do %d", current_model, effective_tokens, new_max)
-                    max_tokens = new_max
-                    continue
-                
-                active_status_callback = status_callback or self._status_callback
                 if active_status_callback:
-                    import uuid
-                    resolution_id = str(uuid.uuid4())
-                    
-                    PENDING_RESOLUTIONS[resolution_id] = asyncio.Future()
-                    
-                    # Zamiast wysyłania wyjątku, wstrzymujemy i czekamy na wybór modelu przez status_callback
-                    if asyncio.iscoroutinefunction(active_status_callback):
-                        await active_status_callback({
-                            "type": "action_required",
-                            "action": "select_model",
-                            "failed_model": current_model,
-                            "error_details": err_detail,
-                            "resolution_id": resolution_id
-                        })
-                    else:
-                        active_status_callback({
-                            "type": "action_required",
-                            "action": "select_model",
-                            "failed_model": current_model,
-                            "error_details": err_detail,
-                            "resolution_id": resolution_id
-                        })
-                    
+                    warn_msg = f"[Uwaga: Strumień modelu {current_model} zawiódł ({err_detail}). Przełączam na zapasowy...]"
                     try:
-                        logger.info(f"[llm] IMR: Wstrzymano strumień. Oczekuję na model (ID: {resolution_id})...")
-                        new_model_id = await PENDING_RESOLUTIONS[resolution_id]
-                        
-                        logger.info(f"[llm] IMR: Wznawiam strumień z modelem: {new_model_id}")
-                        current_model = self._resolve(new_model_id)
-                        continue
-                    except Exception as wait_err:
-                        logger.error(f"[llm] IMR: Błąd strumienia przy wznowieniu: {wait_err}")
-                        raise
-                    finally:
-                        if resolution_id in PENDING_RESOLUTIONS:
-                            del PENDING_RESOLUTIONS[resolution_id]
-                else:
-                    raise RuntimeError(f"Błąd strumienia modelu {current_model} i brak możliwości IMR: {err_detail}") from exc
+                        if asyncio.iscoroutinefunction(active_status_callback):
+                            await active_status_callback({"type": "metadata", "message": warn_msg})
+                        else:
+                            active_status_callback({"type": "metadata", "message": warn_msg})
+                    except Exception:
+                        pass
+                continue
+
+        raise RuntimeError(f"Wszystkie modele w strumieniu {chain} zawiodły. Ostatni błąd: {last_err}")
 
 
 def _log_model_response(

@@ -57,6 +57,14 @@ EXPERT_MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "output_cost_1m": 4.25,
         "description": "Obrońca / Strateg obrony i linia procesowa"
     },
+    "narcotics_defense": {
+        "primary": "x-ai/grok-4.3",
+        "fallback": "deepseek/deepseek-v4-pro",
+        "legal_rank": 5,
+        "input_cost_1m": 1.5,
+        "output_cost_1m": 4.25,
+        "description": "Ekspert ds. Przestępczości Narkotykowej / U.p.n. (art. 62, 62a u.p.n.)"
+    },
     "negotiator": {
         "primary": "openai/gpt-5.6-luna",
         "fallback": "minimax/minimax-m2.1",
@@ -99,11 +107,11 @@ EXPERT_MODEL_REGISTRY: Dict[str, ModelConfig] = {
         "description": "Analiza długich akt sprawy / 1M tokenów kontekstu"
     },
     "fast": {
-        "primary": "openai/gpt-5.4-nano",
+        "primary": "qwen/qwen3.8-flash",
         "fallback": "google/gemini-3.7-flash",
         "legal_rank": 11,
         "input_cost_1m": 0.1,
-        "output_cost_1m": 0.4,
+        "output_cost_1m": 0.52,
         "description": "Szybki model pomocniczy (wyciąganie danych, klasyfikacja)"
     },
     "ocr": {

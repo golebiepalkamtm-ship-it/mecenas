@@ -123,11 +123,10 @@ class DebateEngine:
                 
             if settings.feature_iterative_retrieval:
                 prompt += (
-                    "\n\n[KORZYSTANIE Z NARZĘDZI MCP - OBOWIĄZKOWE W RAZIE WĄTPLIWOŚCI]\n"
-                    "Masz dostęp do zaawansowanych narzędzi i baz (KRS, UODO, CBOSA, KIO, TSUE, ISAP, SAOS, Internet). "
-                    "ZAWSZE weryfikuj wiedzę używając dostępnych tagów:\n"
-                    "1. <search_law>czego szukasz</search_law> - podstawowe wyszukiwanie w bazach SAOS i ELI.\n"
-                    "2. <search_mcp tool=\"nazwa_narzedzia\">parametr</search_mcp> - dedykowane zapytanie do konkretnego narzędzia MCP. Dostępne narzędzia to m.in.: cbosa_search_judgments, isap_search_acts, uodo_search_decisions, krs_get_company, kio_search_judgments, tsue_search_judgments.\n"
+                    "\n\n[WYSZUKIWANIE WIEDZY - OBOWIĄZKOWE W RAZIE BRAKU PRZEPISÓW W KONTEKŚCIE]\n"
+                    "Jeśli brakuje Ci konkretnego przepisu prawnego (aktu), MUSISZ użyć tagu <search_law>.\n"
+                    "1. <search_law>czego szukasz (np. art. 62 u.p.n.)</search_law> - przeszukuje WYŁĄCZNIE wewnętrzną bazę RAG w poszukiwaniu treści aktów prawnych.\n"
+                    "2. <search_mcp tool=\"nazwa_narzedzia\">parametr</search_mcp> - zapytanie do baz orzeczniczych MCP (np. saos_search_judgments, cbosa_search_judgments). Używaj TEGO TYLKO do szukania orzecznictwa, gdy znasz już kontekst aktów prawnych.\n"
                     "3. <search_internet>zapytanie</search_internet> - wyszukiwarka internetowa.\n"
                     "Zaczekaj na wynik. Możesz wyszukiwać wielokrotnie w kolejnych krokach."
                 )
@@ -195,7 +194,7 @@ class DebateEngine:
                     res, _ = await self.llm_service.call_with_fallback(
                         model_id=model,
                         messages=messages,
-                        max_tokens=1500,
+                        max_tokens=2000,
                         temperature=0.4,
                         log_context=f"CrossExam-{role}",
                         status_callback=status_callback
@@ -273,6 +272,16 @@ class DebateEngine:
             status_callback=status_callback
         )
         
+        if status_callback:
+            try:
+                start_msg = f"  -> [Agent: {role_name}] Rozpoczynam analizę (model: {primary_model})..."
+                if asyncio.iscoroutinefunction(status_callback):
+                    await status_callback({"type": "metadata", "message": start_msg})
+                else:
+                    status_callback({"type": "metadata", "message": start_msg})
+            except Exception:
+                pass
+        
         used_model = primary_model
         try:
             if max_context_chars is None:
@@ -304,59 +313,87 @@ class DebateEngine:
                 response, used_model = await expert_llm.call_with_fallback(
                     primary_model, 
                     messages, 
-                    max_tokens=8192, 
+                    max_tokens=3000, 
                     temperature=0.2, 
                     timeout=settings.debate_expert_timeout_sec,
                     log_context=f"EXPERT_{role_name}_iter{iteration}"
                 )
                 
                 import re
-                search_law_match = re.search(r"<search_law>(.*?)</search_law>", response, re.DOTALL)
+                search_law_matches = re.findall(r"<search_law>(.*?)</search_law>", response, re.DOTALL)
                 search_int_match = re.search(r"<search_internet>(.*?)</search_internet>", response, re.DOTALL)
                 search_mcp_match = re.search(r'<search_mcp tool="([^"]+)">(.*?)</search_mcp>', response, re.DOTALL)
                 
-                if (search_law_match or search_int_match or search_mcp_match) and iteration < max_iterations - 1:
+                if (search_law_matches or search_int_match or search_mcp_match) and iteration < max_iterations - 1:
                     real_result = ""
                     
-                    if search_law_match:
-                        search_query = search_law_match.group(1).strip()
-                        logger.info(f"[IterativeRetrieval] Agent '{role_name}' szuka prawa: {search_query}")
+                    if search_law_matches:
+                        # Zbieramy WSZYSTKIE zapytania z tagów <search_law> (nie tylko pierwszy)
+                        all_queries = [q.strip() for q in search_law_matches if q.strip()]
+                        # Deduplikacja i limit do 6 zapytań
+                        seen_q = set()
+                        unique_queries = []
+                        for q in all_queries:
+                            q_key = q.lower()[:80]
+                            if q_key not in seen_q:
+                                seen_q.add(q_key)
+                                unique_queries.append(q)
+                        unique_queries = unique_queries[:6]
+                        
+                        logger.info(f"[IterativeRetrieval] Agent '{role_name}' szuka {len(unique_queries)} zapytań prawnych w RAG: {unique_queries}")
                         if status_callback:
                             try:
                                 import asyncio
+                                summary = ", ".join(unique_queries[:3])
+                                if len(unique_queries) > 3:
+                                    summary += f" (+{len(unique_queries)-3} więcej)"
                                 if asyncio.iscoroutinefunction(status_callback):
-                                    await status_callback({"type": "chunk", "text": f"\n\n*[System]* Agent '{role_name}' szuka w aktach prawnych: {search_query}..."})
+                                    await status_callback({"type": "chunk", "text": f"\n\n*[System]* Agent '{role_name}' szuka w bazie RAG: {summary}..."})
                                 else:
-                                    status_callback({"type": "chunk", "text": f"\n\n*[System]* Agent '{role_name}' szuka w aktach prawnych: {search_query}..."})
+                                    status_callback({"type": "chunk", "text": f"\n\n*[System]* Agent '{role_name}' szuka w bazie RAG: {summary}..."})
                             except Exception: pass
                         
-                        from services.mcp_tool_bridge import call_mcp_tool
                         from services.retrieval_service import retrieval_service
                         
-                        search_tasks = [
-                            retrieval_service.search_saos(keywords=search_query, limit=3),
-                            retrieval_service.search_eli(keywords=search_query, limit=3),
-                        ]
+                        # Szukamy w OBIE tabele RAG: knowledge_base_legal (ogólna) + isap (akty prawne/ELI)
+                        search_tasks = []
+                        for q in unique_queries:
+                            search_tasks.append(
+                                retrieval_service.search_supabase(query=q, match_count=4, hybrid=True)
+                            )
+                            search_tasks.append(
+                                retrieval_service.search_eli(keywords=q, limit=3, user_query=q)
+                            )
                         
                         try:
                             search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
                             
                             real_result_parts = []
-                            if isinstance(search_results[0], list) and search_results[0]:
-                                for r in search_results[0][:2]:
-                                    if isinstance(r, dict):
-                                        real_result_parts.append(f"[SAOS] {r.get('source', '')}: {r.get('content', '')[:800]}")
-                            if isinstance(search_results[1], list) and search_results[1]:
-                                for r in search_results[1][:2]:
-                                    if isinstance(r, dict):
-                                        real_result_parts.append(f"[ELI] {r.get('source', '')}: {r.get('content', '')[:800]}")
+                            seen_content_hashes = set()
+                            for res in search_results:
+                                if isinstance(res, list):
+                                    for r in res:
+                                        if isinstance(r, dict):
+                                            content = r.get('content', '')
+                                            if not content:
+                                                continue
+                                            # Deduplikacja po skrócie treści
+                                            content_hash = hash(content[:200])
+                                            if content_hash in seen_content_hashes:
+                                                continue
+                                            seen_content_hashes.add(content_hash)
+                                            
+                                            meta = r.get('metadata', {}) if isinstance(r.get('metadata'), dict) else {}
+                                            source = meta.get('title', r.get('source', r.get('tytul', 'RAG')))
+                                            real_result_parts.append(f"[RAG] {source}: {content[:1200]}")
                             
                             if real_result_parts:
-                                real_result = "WYNIKI PRAWNE:\n" + "\\n\\n".join(real_result_parts)
+                                # Ogranicz do max 8 wyników
+                                real_result = "WYNIKI PRAWNE (z bazy RAG):\n" + "\n\n".join(real_result_parts[:8])
                             else:
-                                real_result = f"Brak wyników prawnych dla '{search_query}'."
+                                real_result = f"Brak wyników prawnych w bazie RAG dla zapytań: {', '.join(unique_queries[:3])}. Baza RAG nie zawiera tych przepisów."
                         except Exception as e:
-                            real_result = f"Błąd wyszukiwania: {e}"
+                            real_result = f"Błąd wyszukiwania w RAG: {e}"
 
                     elif search_mcp_match:
                         tool_name = search_mcp_match.group(1).strip()
@@ -406,6 +443,16 @@ class DebateEngine:
                     messages.append({"role": "user", "content": f"WYNIK WYSZUKIWANIA:\n{real_result}\nKontynuuj analizę z uwzględnieniem powyższych wyników."})
                 else:
                     break
+            
+            if status_callback and response.strip():
+                try:
+                    msg = f"\n\n{'='*50}\n[OPINIA EKSPERTA: {role_name} | Model: {used_model}]\n{response}\n{'='*50}\n"
+                    if asyncio.iscoroutinefunction(status_callback):
+                        await status_callback({"type": "expert_opinion", "text": msg})
+                    else:
+                        status_callback({"type": "expert_opinion", "text": msg})
+                except Exception:
+                    pass
             
             return {
                 "role": role_name,

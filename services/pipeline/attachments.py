@@ -38,9 +38,11 @@ def _attachment_to_bytes(att: Dict[str, Any]) -> tuple[bytes, Optional[Exception
 async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) -> Dict[str, Any]:
     """Szybka ekstrakcja metadanych (sygnatura, sąd) przy użyciu szybkiego modelu."""
     try:
-        # We only take the first 4000 bytes as rough text approximation if it's text,
-        # but for PDFs/images we might need to rely on the filename first to be really fast.
-        # However, calling gpt-4o-mini is fast enough.
+        import re
+        sygn_match = re.search(r'(\d+[\.\-\w\/]*Ds[\.\-\w\/]*|\b[I|V|X]+[\s\w\/]+K[\s\w\/]+)', filename, re.IGNORECASE)
+        if sygn_match:
+            return {"sygnatura": sygn_match.group(0), "sad": "PR Lubań" if "luban" in filename.lower() else "Sąd"}
+            
         prompt = f"Przeanalizuj nazwę pliku '{filename}' i jeśli to możliwe, wyciągnij sygnaturę akt i nazwę sądu/organu. Zwróć jako JSON z polami 'sygnatura' i 'sad'."
         
         # This is a very simplified fast metadata step to optimize TTFT
@@ -96,15 +98,17 @@ async def extract_single_attachment(att: Dict[str, Any] | Any, client: Any):
 
     # Szybka ekstrakcja metadanych (Metadata Extract) i wysłanie do UI (TTFT optimization)
     fast_metadata = await _extract_fast_metadata(file_bytes, client, name_display)
-    if fast_metadata:
-        fast_metadata["filename"] = name_display
-        yield {
-            "type": "metadata",
-            "message": f"Wstępne rozpoznanie pliku: {name_display}",
-            "attachment_metadata": fast_metadata,
-            "preliminary": True,
-            "hint": "Wstępne wykrycie — weryfikuję dokładniej...",
-        }
+    if not isinstance(fast_metadata, dict):
+        fast_metadata = {}
+        
+    fast_metadata["filename"] = name_display
+    yield {
+        "type": "metadata",
+        "message": f"Wstępne rozpoznanie pliku: {name_display}",
+        "attachment_metadata": fast_metadata,
+        "preliminary": True,
+        "hint": "Wstępne wykrycie — weryfikuję dokładniej...",
+    }
 
     source_hash = source_bytes_sha256(file_bytes)
     cached_supabase = await fetch_full_text_by_source_hash(source_hash)

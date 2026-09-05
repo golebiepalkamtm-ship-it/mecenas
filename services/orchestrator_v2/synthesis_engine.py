@@ -141,12 +141,11 @@ class SeniorAdvocateSynthesis:
             "Wykorzystaj w pełni bogaty kontekst prawny i ustalenia ekspertów, aby szczegółowo opisać przepisy, mechanizmy prawne, "
             "kontekst proceduralny, orzecznictwo, możliwe scenariusze i szczegóły sprawy. Każda wypowiedź musi mieć zindywidualizowany, płynny charakter "
             "dostosowany ściśle do specyfiki pytania i dokumentów.\n"
-            "3. BEZWZGLĘDNY PRIORYTET: ODPOWIEDZ DOKŁADNIE NA PYTANIE UŻYTKOWNIKA. "
-            "Odpowiedź musi być bezpośrednio powiązana z ostatnią wiadomością użytkownika. Nie uciekaj w ogólniki.\n"
-            "4. Styl i Ton: Piszesz bezpośrednio do klienta. Bądź profesjonalny, dający ogromne wsparcie, wysoce merytoryczny, "
-            "ale zrozumiały (tłumacz zawiłości prawne, terminy i żargon na prosty język, podając ich praktyczne znaczenie).\n"
-            "5. Zakończ odpowiedź jasną, spersonalizowaną konkluzją lub planem działania dostosowanym do pytania.\n"
-            "6. Bezwzględny zakaz halucynacji. Masz walczyć o interes klienta do granic możliwości prawnych, opierając się na faktach."
+            "3. BEZWZGLĘDNY PRIORYTET: MUSISZ CYTOWAĆ KONKRETNE PRZEPISY (artykuły, paragrafy, ustawy z bazy wiedzy). Prawnicza odpowiedź bez powołania się na dokładne przepisy (np. z KK, KPK, Ustawy o przeciwdziałaniu narkomanii) jest bezwartościowa! Każdą tezę, każdy krok proceduralny (np. zażalenie) poprzyj twardym artykułem.\n"
+            "4. ODPOWIEDZ DOKŁADNIE NA PYTANIE UŻYTKOWNIKA. Odpowiedź musi być bezpośrednio powiązana z ostatnią wiadomością użytkownika. Nie uciekaj w ogólniki.\n"
+            "5. Styl i Ton: Piszesz bezpośrednio do klienta. Bądź profesjonalny, dający ogromne wsparcie, wysoce merytoryczny, ale zrozumiały. Dbaj o perfekcyjne formatowanie (akapity, pogrubienia), żeby nie tworzyć ściany tekstu.\n"
+            "6. Zakończ odpowiedź jasną, spersonalizowaną konkluzją lub planem działania dostosowanym do pytania, opartą o konkretne paragrafy.\n"
+            "7. Bezwzględny zakaz halucynacji. Masz walczyć o interes klienta do granic możliwości prawnych, opierając się na faktach."
         )
         if has_introed:
             default_advocate_prompt += (

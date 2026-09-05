@@ -20,8 +20,9 @@ mcp>=1.26.0
 fastmcp>=3.1.0
 
 # --- Agents (AI orchestration) ---
-crewai>=0.11.0
-crewai-tools>=0.0.1
+# crewai>=0.11.0 (deprecated - project uses native MoA orchestrator_v2)
+# crewai-tools>=0.0.1
+
 
 # --- Vector Store & Embeddings ---
 sentence-transformers>=2.7.0

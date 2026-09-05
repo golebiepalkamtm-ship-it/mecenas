@@ -53,8 +53,15 @@ LexMaind AI/
 LexMind-Fresh/
 ~/ 
 
-# Accidental binaries in static assets
-frontend/public/FOCA-v3.4.7.1/
-frontend/public/FOCA-v3.4.7.1.zip
-frontend/public/SQLEXPRWT_x64_ENU/
-mobile_apps/LexMind_Electron.exe
+# Isolated trash / scrap archive
+_smietnik/
+
+# Heavy dumps, caches and models
+openrouter_models_cache.json
+embeddings_1536d.json
+*.apk
+*.exe
+
+# Frontend build & gradle
+frontend/android/app/build/
+frontend/android/.gradle/

@@ -57,7 +57,7 @@ class LegalContextBuilder:
         logger.info("[ContextBuilder] Rozpoczynam kompletowanie wiedzy...")
         
         # 1. Przetworzenie historii czatu i załączników
-        doc_text, history_str, masked_doc, masked_history = await self._process_attachments_and_history(params, llm_service)
+        doc_text, history_str, masked_doc, masked_history = await self._process_attachments_and_history(params, llm_service, status_callback=status_callback)
 
         # Wyszukiwanie w Semantic Cache
         query_emb = []
@@ -211,33 +211,14 @@ class LegalContextBuilder:
                 document_text=masked_doc,
             )
         
-        # 5c. [MCP BRIDGE] Specjalistyczne źródła na podstawie wykrytych tagów problemu
+        # 5c. [MCP BRIDGE] WYŁĄCZONE z fazy początkowej — MCP jest dostępne tylko 
+        # w iterative retrieval (debate_engine) PO ustaleniu kontekstu prawnego z RAG.
         problem_tags = detect_problem_tags(masked_doc + " " + user_blocks, params.user_query)
-        specialized_blocks, mcp_tools_used = await self._gather_specialized_mcp_intelligence(
-            params, problem_tags, saos_eli_keywords,
-        )
+        specialized_blocks = ""
+        mcp_tools_used = []
         
-        # 5d. [FALLBACK] Automatyczny internet search gdy RAG/SAOS/ELI zwracają 0 wyników
-        if not res_legal and not res_saos and not res_eli and not use_fast_path:
-            logger.info("[ContextBuilder] Wszystkie źródła (RAG/SAOS/ELI) zwróciły 0 wyników. Uruchamiam automatyczny internet search...")
-            try:
-                search_query = saos_eli_keywords or params.user_query[:120]
-                inet_result = await call_mcp_tool("internet_search", query=search_query, limit=5)
-                if isinstance(inet_result, dict) and inet_result.get("status") == "ok":
-                    inet_items = inet_result.get("items", [])
-                    if inet_items:
-                        inet_text_parts = []
-                        for item in inet_items[:5]:
-                            title = item.get("title", "")
-                            body = item.get("body", "")
-                            href = item.get("href", "")
-                            inet_text_parts.append(f"[{title}]({href})\n{body}")
-                        inet_block = "\n\n=== INTERNET SEARCH (automatyczny fallback) ===\n" + "\n---\n".join(inet_text_parts) + "\n" + "=" * 40
-                        specialized_blocks = (specialized_blocks or "") + inet_block
-                        mcp_tools_used.append("internet_search (auto-fallback)")
-                        logger.info(f"[ContextBuilder] Internet search fallback: {len(inet_items)} wyników.")
-            except Exception as inet_err:
-                logger.warning(f"[ContextBuilder] Internet search fallback error: {inet_err}")
+        # 5d. [FALLBACK] Internet search wyłączony z fazy początkowej.
+        # Agenci mogą użyć <search_internet> w debate_engine jeśli RAG nie wystarczy.
         
         # 6. Kompilacja i formatowanie ostatecznego kontekstu badawczego
         return self._compile_investigation_context(
@@ -258,7 +239,7 @@ class LegalContextBuilder:
             problem_tags=problem_tags,
         )
 
-    async def _process_attachments_and_history(self, params: OrchestratorInputParams, llm_service: Any) -> Tuple[str, str, str, str]:
+    async def _process_attachments_and_history(self, params: OrchestratorInputParams, llm_service: Any, status_callback: Optional[Any] = None) -> Tuple[str, str, str, str]:
         """Pobiera i parsuje historię czatu oraz ewentualne załączniki w tle, maskując dane wrażliwe PII."""
         history_str = format_chat_history(params.chat_history)
         doc_text = params.document_text or ""
@@ -269,6 +250,14 @@ class LegalContextBuilder:
                 async for chunk in extract_all_attachments_text(params.attachments, llm_service):
                     if isinstance(chunk, str):
                         extracted_parts.append(chunk)
+                    elif isinstance(chunk, dict) and status_callback:
+                        try:
+                            if asyncio.iscoroutinefunction(status_callback):
+                                await status_callback(chunk)
+                            else:
+                                status_callback(chunk)
+                        except Exception:
+                            pass
                 extracted = "".join(extracted_parts)
                 if extracted:
                     doc_text += "\n" + extracted
@@ -619,11 +608,11 @@ class LegalContextBuilder:
         if user_blocks:
             combined_parts.append(f"=== BAZA WIEDZY UŻYTKOWNIKA (DOKUMENTY SESJI) ===\n{user_blocks}\n==================================")
         if rag_legal_content:
-            combined_parts.append(f"=== PRZEPISY PRAWNE ===\n{rag_legal_content}\n==================================")
+            combined_parts.append(f"<przepisy_z_bazy>\n=== PRZEPISY PRAWNE ===\n{rag_legal_content}\n==================================\n</przepisy_z_bazy>")
         if saos_block:
-            combined_parts.append(f"=== ORZECZNICTWO SAOS ===\n{saos_block}\n==================================")
+            combined_parts.append(f"<orzecznictwo>\n=== ORZECZNICTWO SAOS ===\n{saos_block}\n==================================\n</orzecznictwo>")
         if eli_block:
-            combined_parts.append(f"=== AKTY PRAWNE ELI ===\n{eli_block}\n==================================")
+            combined_parts.append(f"<akty_prawne>\n=== AKTY PRAWNE ELI ===\n{eli_block}\n==================================\n</akty_prawne>")
         if specialized_blocks:
             combined_parts.append(f"=== SPECJALISTYCZNE ŹRÓDŁA MCP ===\n{specialized_blocks}\n==================================")
             
