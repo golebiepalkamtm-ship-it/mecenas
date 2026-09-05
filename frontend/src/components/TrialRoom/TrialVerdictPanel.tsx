@@ -21,11 +21,11 @@ export function TrialVerdictPanel({
   const hasText = text.trim().length > 0;
 
   return (
-    <section className="rounded-2xl border-2 border-gold-primary/35 bg-gradient-to-br from-amber-100/40 via-white to-amber-50/60 p-6 shadow-lg">
+    <section className="rounded-2xl border-2 border-gold-primary/30 bg-black/40 backdrop-blur-md p-6 shadow-[0_0_30px_rgba(212,175,55,0.15)]">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
           <Gavel size={18} className="text-gold-primary" />
-          <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-black">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-gold-primary drop-shadow-md">
             Werdykt sędziego
           </h2>
         </div>
@@ -33,7 +33,7 @@ export function TrialVerdictPanel({
           <button
             type="button"
             onClick={onExport}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest text-black/70 btn-convex-glossy bg-white/80"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest text-gold-primary hover:text-gold-bright hover:bg-white/5 transition-colors border border-gold-primary/20 bg-black/40 backdrop-blur-sm"
           >
             <Download size={12} />
             Pobierz protokół
@@ -52,7 +52,7 @@ export function TrialVerdictPanel({
         </button>
       )}
       {hasText && (
-        <div className="text-sm leading-relaxed text-black/90 whitespace-pre-wrap">{text}</div>
+        <div className="text-sm leading-relaxed text-white/90 whitespace-pre-wrap drop-shadow-md">{text}</div>
       )}
     </section>
   );

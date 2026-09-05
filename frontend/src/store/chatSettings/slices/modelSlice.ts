@@ -90,4 +90,13 @@ export const createChatModelSlice: ChatSettingsSliceCreator<ChatModelSettingsSta
     set((state) => ({
       expertPromptsByModel: { ...state.expertPromptsByModel, [modelId]: prompt },
     })),
+  assignedModels: { ...DEFAULT_CHAT_SETTINGS.assignedModels },
+  setAssignedModel: (role, modelId) =>
+    set((state) => ({
+      assignedModels: { ...state.assignedModels, [role]: modelId },
+    })),
+  setAssignedModels: (assignedModels) =>
+    set({
+      assignedModels,
+    }),
 });

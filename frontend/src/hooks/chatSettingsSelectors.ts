@@ -142,3 +142,14 @@ export function useModelOrchestratorState() {
     })),
   );
 }
+
+export function useAssignedModelsState() {
+  return useChatSettingsStore(
+    useShallow((state) => ({
+      assignedModels: state.assignedModels,
+      setAssignedModel: state.setAssignedModel,
+      setAssignedModels: state.setAssignedModels,
+    })),
+  );
+}
+

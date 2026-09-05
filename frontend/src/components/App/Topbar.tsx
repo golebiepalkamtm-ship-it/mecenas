@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { LogOut, Maximize2, Minimize2 } from 'lucide-react';
 
 import { ProfileMenuTabs } from '../Settings/components/ProfileMenuTabs';
+import { TrialRoomStepper } from '../TrialRoom/TrialRoomStepper';
 import type { SettingsTabId } from '../Settings/settingsTabs';
 import type { NavItem, Tab } from '../../types/navigation';
 
@@ -73,6 +74,7 @@ export function Topbar({
             <AnimatePresence mode="wait">
               {activeTab === 'settings' && (
                 <motion.div
+                  key="settings-tabs"
                   initial={{ opacity: 0, scale: 0.98 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.98 }}
@@ -84,6 +86,18 @@ export function Topbar({
                     onTabChange={onSettingsTabChange}
                     variant="header"
                   />
+                </motion.div>
+              )}
+              {activeTab === 'trial' && (
+                <motion.div
+                  key="trial-stepper"
+                  initial={{ opacity: 0, scale: 0.98 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.3, ease: EASE }}
+                  className="hidden lg:flex items-center border-l border-black/10 pl-4 xl:pl-6 shrink-0"
+                >
+                  <TrialRoomStepper />
                 </motion.div>
               )}
             </AnimatePresence>

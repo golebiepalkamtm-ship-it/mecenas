@@ -253,7 +253,7 @@ export function ModelsPanel({ embedded = false }: { embedded?: boolean }) {
       >
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
           <div className="flex items-center gap-4 min-w-0">
-            <div className="w-12 h-12 rounded-xl border border-gold-primary/35 bg-gradient-to-br from-gold-bright to-gold-deep flex items-center justify-center shrink-0 shadow-[0_8px_24px_rgba(180,120,40,0.25)]">
+            <div className="w-12 h-12 rounded-xl border border-gold-primary/35 bg-linear-to-br from-gold-bright to-gold-deep flex items-center justify-center shrink-0 shadow-[0_8px_24px_rgba(180,120,40,0.25)]">
               <Cpu size={22} className="text-[#1a1208]" strokeWidth={2.5} />
             </div>
             <div>

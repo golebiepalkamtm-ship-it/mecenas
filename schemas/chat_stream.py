@@ -53,6 +53,14 @@ class StreamErrorEvent(BaseModel):
     text: str
 
 
+class StreamActionRequiredEvent(BaseModel):
+    type: str = "action_required"
+    action: str
+    failed_model: str
+    error_details: str
+    resolution_id: str
+
+
 def build_final_metadata_event(
     *,
     message_id: str,

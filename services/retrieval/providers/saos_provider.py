@@ -27,50 +27,61 @@ async def fetch_saos_once(
 ) -> list[RetrievalItem]:
     url = "https://www.saos.org.pl/api/search/judgments"
     headers = {
-        "Accept": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         "Referer": "https://www.saos.org.pl/"
     }
-    page_size = max(10, limit)
-    response = await client.get(
-        url,
-        params={"all": query, "pageSize": page_size},
-        headers=headers,
-    )
-    if response.status_code != 200:
-        raise RuntimeError(f"saos_http_{response.status_code}")
-
-    items = response.json().get("items", []) or []
-    results: list[dict[str, Any]] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-
-        text_content = item.get("textContent") or ""
-        snippet = _strip_html(text_content) if text_content else ""
-        case_number = "N/A"
-        court_cases = item.get("courtCases")
-        if isinstance(court_cases, list) and court_cases:
-            first = court_cases[0]
-            if isinstance(first, dict) and first.get("caseNumber"):
-                case_number = str(first["caseNumber"])
-
-        court_name = item.get("courtName") or item.get("division") or "sąd"
-        judgment_date = item.get("judgmentDate", "N/A")
-        if not snippet:
-            snippet = f"Orzeczenie z dnia {judgment_date}, sygn. {case_number}, {court_name}."
-
-        header = f"[{judgment_date} | sygn. {case_number} | {court_name}]"
-        results.append(
-            {
-                "id": item.get("id"),
-                "source": f"SAOS — {case_number}",
-                "sygnatura": case_number,
-                "title": f"Orzeczenie {judgment_date}",
-                "content": f"{header}\n{snippet[:2500]}",
-                "full_text": f"{header}\n{snippet[:12000]}",
-                "similarity": 0.6,
-            }
+    page_size = min(max(10, limit), 50)
+    params = {
+        "all": query,
+        "pageSize": page_size,
+        "pageNumber": 0,
+        "sortingField": "JUDGMENT_DATE",
+        "sortingDirection": "DESC"
+    }
+    try:
+        response = await client.get(
+            url,
+            params=params,
+            headers=headers,
+            timeout=45.0,
         )
+        if response.status_code != 200:
+            raise RuntimeError(f"saos_http_{response.status_code}")
 
-    return normalize_retrieval_rows(results)
+        items = response.json().get("items", []) or []
+        results: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+
+            text_content = item.get("textContent") or ""
+            snippet = _strip_html(text_content) if text_content else ""
+            case_number = "N/A"
+            court_cases = item.get("courtCases")
+            if isinstance(court_cases, list) and court_cases:
+                first = court_cases[0]
+                if isinstance(first, dict) and first.get("caseNumber"):
+                    case_number = str(first["caseNumber"])
+
+            court_name = item.get("courtName") or item.get("division", {}).get("court", {}).get("name") if isinstance(item.get("division"), dict) else item.get("division") or "sąd"
+            judgment_date = item.get("judgmentDate", "N/A")
+            if not snippet:
+                snippet = f"Orzeczenie z dnia {judgment_date}, sygn. {case_number}, {court_name}."
+
+            header = f"[{judgment_date} | sygn. {case_number} | {court_name}]"
+            results.append(
+                {
+                    "id": item.get("id"),
+                    "source": f"SAOS — {case_number}",
+                    "sygnatura": case_number,
+                    "title": f"Orzeczenie {judgment_date}",
+                    "content": f"{header}\n{snippet[:2500]}",
+                    "full_text": f"{header}\n{snippet[:12000]}",
+                    "similarity": 0.6,
+                }
+            )
+
+        return normalize_retrieval_rows(results)
+    except Exception as e:
+        raise RuntimeError(f"saos_fetch_failed: {e}")

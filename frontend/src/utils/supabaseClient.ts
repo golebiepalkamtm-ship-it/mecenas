@@ -115,16 +115,20 @@ class MockQueryBuilder {
       ]);
 
       if (remoteTables.has(this.table) && supabaseUrl && supabaseAnonKey && !supabaseAnonKey.includes("placeholder")) {
-        try {
-          let url = `${supabaseUrl}/rest/v1/${this.table}`;
-          const params = new URLSearchParams();
-          const selectCols = this._selectCols === "*" ? "id,metadata,created_at" : this._selectCols;
-          params.append("select", selectCols);
-          if (this._order) {
-            params.append("order", this._order);
-          } else if (this.table === "knowledge_base_user") {
-            params.append("order", "created_at.desc");
-          }
+        // Prevent 406 error in console when querying real Supabase for the local mock admin ID
+        const isMockAdminQuery = this.table === "profiles" && this._filters["id"] === "00000000-0000-0000-0000-000000000000";
+        
+        if (!isMockAdminQuery) {
+          try {
+            let url = `${supabaseUrl}/rest/v1/${this.table}`;
+            const params = new URLSearchParams();
+            const selectCols = this._selectCols === "*" ? "id,metadata,created_at" : this._selectCols;
+            params.append("select", selectCols);
+            if (this._order) {
+              params.append("order", this._order);
+            } else if (this.table === "knowledge_base_user") {
+              params.append("order", "created_at.desc");
+            }
           for (const [col, val] of Object.entries(this._filters)) {
             params.append(col, `eq.${val}`);
           }
@@ -151,7 +155,8 @@ class MockQueryBuilder {
         } catch (e) {
           console.error(`[MOCK DB] Real DB fetch failed for ${this.table}, falling back to local:`, e);
         }
-      }
+        } // close !isMockAdminQuery
+      } // close remoteTables
 
       let filtered = [...data];
       for (const [col, val] of Object.entries(this._filters)) {
@@ -453,45 +458,54 @@ const createHybridAuth = (realAuth: any) => {
   });
 };
 
-// Define standard client
 let supabase: SupabaseClient;
 
-try {
-  if (supabaseUrl && supabaseAnonKey && !supabaseAnonKey.includes("placeholder")) {
-    const realClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: true,
-      },
-      db: {
-        schema: 'public',
-      },
-    });
+// Use global cache to prevent Multiple GoTrueClient instances during Vite HMR
+const globalForSupabase = globalThis as unknown as {
+  __supabaseClient: SupabaseClient | undefined;
+};
 
-    const hybridAuth = createHybridAuth(realClient.auth);
-
-    // Real Supabase for auth + DB (mock token causes 401 on REST). Mock only for offline/dev without credentials.
-    supabase = new Proxy(realClient, {
-      get(target, prop, receiver) {
-        if (prop === "from") {
-          return target.from.bind(target);
-        }
-        if (prop === "auth") {
-          return hybridAuth;
-        }
-        return Reflect.get(target, prop, receiver);
-      },
-    }) as unknown as SupabaseClient;
-
-    console.log("[SUPABASE] Connected to cloud project with hybrid local/admin fallback auth.");
-  } else {
-    console.warn('[SUPABASE] Invalid credentials. Falling back to local offline mode.');
+if (globalForSupabase.__supabaseClient) {
+  supabase = globalForSupabase.__supabaseClient;
+} else {
+  try {
+    if (supabaseUrl && supabaseAnonKey && !supabaseAnonKey.includes("placeholder")) {
+      const realClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+        },
+        db: {
+          schema: 'public',
+        },
+      });
+  
+      const hybridAuth = createHybridAuth(realClient.auth);
+  
+      // Real Supabase for auth + DB (mock token causes 401 on REST). Mock only for offline/dev without credentials.
+      supabase = new Proxy(realClient, {
+        get(target, prop, receiver) {
+          if (prop === "from") {
+            return target.from.bind(target);
+          }
+          if (prop === "auth") {
+            return hybridAuth;
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      }) as unknown as SupabaseClient;
+  
+      console.log("[SUPABASE] Connected to cloud project with hybrid local/admin fallback auth.");
+    } else {
+      console.warn('[SUPABASE] Invalid credentials. Falling back to local offline mode.');
+      supabase = mockSupabase as unknown as SupabaseClient;
+    }
+  } catch (e) {
+    console.error('[SUPABASE] Failed to initialize real client, using mock fallback:', e);
     supabase = mockSupabase as unknown as SupabaseClient;
   }
-} catch (e) {
-  console.error('[SUPABASE] Failed to initialize real client, using mock fallback:', e);
-  supabase = mockSupabase as unknown as SupabaseClient;
+  globalForSupabase.__supabaseClient = supabase;
 }
 
 export { supabase };

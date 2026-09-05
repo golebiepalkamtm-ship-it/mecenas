@@ -26,12 +26,16 @@ class ReflectionLoop:
         context_text: str,
         llm_service: Any,
         threshold: float = 0.7,
-        hallucination_rate: float = 0.0
+        hallucination_rate: float = 0.0,
+        params: Any = None
     ) -> ReflectionResult:
         logger.info(f"[ReflectionLoop] Rozpoczynam ewaluację odpowiedzi (Self-Critic, hall_rate={hallucination_rate:.1f}%)...")
-        from database import get_setting
         from config import settings
-        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
+        
+        fast_model = settings.resolve_model_id("")
+        if params:
+            assigned_fast = params.assigned_models.get('fast') if params.assigned_models else None
+            fast_model = settings.resolve_model_id(assigned_fast or params.selected_model)
         
         prompt = (
             "Jesteś surowym audytorem prawnym (Self-Critic).\n"

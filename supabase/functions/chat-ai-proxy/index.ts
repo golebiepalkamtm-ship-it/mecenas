@@ -81,9 +81,7 @@ Deno.serve(async (req: Request) => {
     const primaryModelId = model || "openrouter/free";
     const modelsToTry = [primaryModelId];
     
-    // If user chose a 'free' model, add reliable fallbacks automatically
     if (primaryModelId.includes(':free') || primaryModelId.includes('qwen') || primaryModelId.includes('deepseek')) {
-        modelsToTry.push("nvidia/nemotron-3.5-lightning:free"); // Try another free one
         modelsToTry.push("google/gemma-4-26b-a4b-it:free"); // Then a paid reliable one
         modelsToTry.push("openrouter/free");
     }

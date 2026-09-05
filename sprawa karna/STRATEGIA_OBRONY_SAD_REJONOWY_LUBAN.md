@@ -55,8 +55,9 @@
 
 ## 🚫 Filar III: Wykazanie Poważnych Naruszeń CBZC i Przebiegu Zatrzymania
 
-### 1. Prowokacja i bezprawny przymus podczas zatrzymania (09.04.2025 r.)
-- **Fikcyjna stłuczka**: Funkcjonariusze CBZC posłużyli się podstępem (zaczepienie kolegi pod sklepem pod pretekstem rzekomego zarysowania auta).
+### 1. Prowokacja i bezprawny przymus podczas zatrzymania pod sklepem (ul. Groblowa, 09.04.2025 r.)
+- **Fikcyjna stłuczka i zasadzka**: Funkcjonariusze CBZC posłużyli się podstępem — zaczepili kolegę pod sklepem przy **ul. Groblowej** pod pretekstem rzekomego zarysowania auta, by ściągnąć oskarżonego.
+- **Fałszowanie miejsca w protokole**: W protokole zatrzymania funkcjonariusze wpisali jako miejsce **ul. Leśna 24**, tuszując rzeczywiste miejsce fizycznego zatrzymania pod sklepem na **ul. Groblowej** i ukrywając prowokację.
 - **Naruszenie godności i praw rodziny**:
   - Użycie nieproporcjonalnej siły w obecności 5-letniego dziecka (syn Miłosz),
   - Zastraszanie małżonki oskarżonego (groźby odebrania dziecka, utraty pracy w banku) celem wymuszenia podania adresu ul. Leśna 25/4,

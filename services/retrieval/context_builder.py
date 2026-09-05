@@ -548,7 +548,7 @@ class ContextBuilder:
             f"{doc_header_block}{doc_excerpt}{chunk_note}"
         ) <= doc_budget
 
-        use_packer = settings.feature_context_packer and not has_client_doc
+        use_packer = settings.feature_context_packer
         if use_packer:
             case_context = pack_combined_context(
                 max_chars=settings.context_summary_max_chars,

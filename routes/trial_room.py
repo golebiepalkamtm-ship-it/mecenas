@@ -171,3 +171,20 @@ async def trial_verdict(request: TrialVerdictRequest):
         chat_context=request.chat_context,
     )
     return _sse_generator(stream)
+
+
+class TrialExtractRequest(BaseModel):
+    question: str = Field(default="")
+    chat_context: str = Field(default="", max_length=50000)
+    model: str
+
+@router.post("/extract")
+async def trial_extract(request: TrialExtractRequest):
+    _check_trial_enabled()
+    _validate_trial_material(request.question, request.chat_context)
+    stream = trial_room_service.stream_extracted_points(
+        question=request.question.strip(),
+        chat_context=request.chat_context,
+        model=request.model,
+    )
+    return _sse_generator(stream)

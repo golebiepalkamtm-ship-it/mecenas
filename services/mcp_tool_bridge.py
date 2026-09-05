@@ -25,9 +25,12 @@ Pokrywa:
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import logging
+import os
 import re
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -38,17 +41,39 @@ from services.retrieval.types import RetrievalItem, normalize_retrieval_rows
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────── Constants ────────────────────────────────
+ROOT_DIR = Path(__file__).parent.parent.resolve()
 SEJM_ELI_BASE = "https://api.sejm.gov.pl/eli"
 SEJM_API_BASE = "https://api.sejm.gov.pl/sejm"
 SAOS_API_BASE = "https://www.saos.org.pl/api"
 KRS_API_BASE = "https://api-krs.ms.gov.pl/api/krs"
 CBOSA_BASE = "https://orzeczenia.nsa.gov.pl"
 CEIDG_BASE = "https://dane.biznes.gov.pl/api/ceidg/v2"
+WL_VAT_BASE = "https://wl-api.mf.gov.pl/api"
 
 DEFAULT_HEADERS = {
-    "Accept": "application/json",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
 }
+
+AUDIT_LOG_FILE = ROOT_DIR / "cache" / "mcp_audit.jsonl"
+
+
+def _append_audit_log(tool_name: str, params: dict, duration_ms: float, status: str, result_summary: str = ""):
+    """Zapisuje zdarzenie wywołania narzędzia MCP w formacie JSONL (zgodnie ze standardem prawo-pl-mcp)."""
+    try:
+        AUDIT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "tool": tool_name,
+            "params": {k: (v if len(str(v)) < 200 else str(v)[:200] + "...") for k, v in params.items()},
+            "duration_ms": round(duration_ms, 2),
+            "status": status,
+            "summary": result_summary[:300] if result_summary else "",
+        }
+        with open(AUDIT_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.debug(f"[AuditLog] Failed to write audit log: {e}")
 
 # ──────────────────────────────── Helpers ────────────────────────────────
 def _strip_html(text: Any) -> str:
@@ -59,7 +84,7 @@ def _strip_html(text: Any) -> str:
     return re.sub(r"\s+", " ", clean).strip()
 
 
-async def _http_get(url: str, params: Optional[dict] = None, headers: Optional[dict] = None, timeout: float = 15.0) -> Any:
+async def _http_get(url: str, params: Optional[dict] = None, headers: Optional[dict] = None, timeout: float = 45.0) -> Any:
     hdrs = {**DEFAULT_HEADERS, **(headers or {})}
     async with httpx.AsyncClient(timeout=timeout) as client:
         resp = await client.get(url, params=params, headers=hdrs, follow_redirects=True)
@@ -143,37 +168,160 @@ async def isap_get_act_text(*, publisher: str = "DU", year: int = 2024, pos: int
 #  2. SAOS (tools 5-8)
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def saos_search_judgments(*, query: str = "", case_number: str = "", judge_name: str = "",
-                                law_clause: str = "", court_type: str = "", date_from: str = "",
-                                date_to: str = "", page_size: int = 10, page_number: int = 0, **_) -> Dict[str, Any]:
-    params: dict = {"pageSize": page_size, "pageNumber": page_number}
-    if query: params["all"] = query
-    if case_number: params["caseNumber"] = case_number
-    if judge_name: params["judgeName"] = judge_name
-    if law_clause: params["referencedRegulation"] = law_clause
-    if court_type: params["courtType"] = court_type
-    if date_from: params["judgmentDateFrom"] = date_from
-    if date_to: params["judgmentDateTo"] = date_to
+async def saos_search_judgments(
+    *, 
+    query: str = "", 
+    case_number: str = "", 
+    judge_name: str = "",
+    law_clause: str = "", 
+    court_type: str = "", 
+    cc_court_type: str = "",
+    law_journal_entry_code: str = "",
+    sorting_field: str = "JUDGMENT_DATE",
+    sorting_direction: str = "DESC",
+    date_from: str = "",
+    date_to: str = "", 
+    page_size: int = 10, 
+    page_number: int = 0, 
+    **_
+) -> Dict[str, Any]:
+    """Wyszukuje orzeczenia w oficjalnym SAOS API wg oficjalnej specyfikacji Ministerstwa Sprawiedliwości."""
+    params: dict = {
+        "pageSize": min(max(1, page_size), 100), 
+        "pageNumber": max(0, page_number),
+        "sortingField": sorting_field or "JUDGMENT_DATE",
+        "sortingDirection": sorting_direction or "DESC",
+    }
+    if query:
+        params["all"] = query
+    if case_number:
+        params["caseNumber"] = case_number
+    if judge_name:
+        params["judgeName"] = judge_name
+    if law_clause:
+        params["referencedRegulation"] = law_clause
+    if court_type:
+        params["courtType"] = court_type
+    if cc_court_type:
+        params["ccCourtType"] = cc_court_type
+    if law_journal_entry_code:
+        params["lawJournalEntryCode"] = law_journal_entry_code
+    if date_from:
+        params["judgmentDateFrom"] = date_from
+    if date_to:
+        params["judgmentDateTo"] = date_to
 
-    data = await _http_get(f"{SAOS_API_BASE}/search/judgments", params=params, headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"})
-    items = data.get("items", []) if isinstance(data, dict) else []
-    total = (data.get("info") or {}).get("totalResults", len(items)) if isinstance(data, dict) else 0
-    return {"status": "ok", "total": total, "items": items}
+    try:
+        data = await _http_get(
+            f"{SAOS_API_BASE}/search/judgments", 
+            params=params, 
+            headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"}, 
+            timeout=45.0
+        )
+        items = data.get("items", []) if isinstance(data, dict) else []
+        total = (data.get("info") or {}).get("totalResults", len(items)) if isinstance(data, dict) else 0
+
+        # Wzbogacamy pozycje o czytelne metadane
+        formatted_items = []
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            cases = [c.get("caseNumber") for c in it.get("courtCases", []) if isinstance(c, dict) and c.get("caseNumber")]
+            court_name = (
+                it.get("courtName")
+                or (it.get("division", {}).get("court", {}).get("name") if isinstance(it.get("division"), dict) else "")
+                or it.get("division")
+                or ""
+            )
+            raw_text = it.get("textContent") or ""
+            clean_snippet = _strip_html(raw_text)
+            
+            formatted_items.append({
+                "id": it.get("id"),
+                "courtType": it.get("courtType"),
+                "judgmentType": it.get("judgmentType"),
+                "judgmentDate": it.get("judgmentDate"),
+                "courtCases": cases,
+                "caseNumber": cases[0] if cases else "N/A",
+                "courtName": court_name,
+                "judges": [j.get("name") for j in it.get("judges", []) if isinstance(j, dict) and j.get("name")],
+                "keywords": it.get("keywords", []),
+                "snippet": clean_snippet[:1500] if clean_snippet else "",
+                "saosUrl": f"https://www.saos.org.pl/judgments/{it.get('id')}",
+            })
+
+        return {"status": "ok", "total": total, "count": len(formatted_items), "items": formatted_items}
+    except Exception as e:
+        logger.warning(f"[SAOS Provider] Błąd zapytania do SAOS API: {e}")
+        return {"status": "error", "total": 0, "items": [], "note": f"SAOS API błąd: {e}"}
 
 
 async def saos_get_judgment_details(*, id: int, **_) -> Dict[str, Any]:
-    data = await _http_get(f"{SAOS_API_BASE}/judgments/{id}", headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"})
-    return {"status": "ok", "data": data}
+    try:
+        data = await _http_get(
+            f"{SAOS_API_BASE}/judgments/{id}", 
+            headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"}, 
+            timeout=30.0
+        )
+        j_data = data.get("data", {}) if isinstance(data, dict) else {}
+        clean_text = _strip_html(j_data.get("textContent", ""))
+        clean_reasoning = _strip_html(j_data.get("reasoning", ""))
+        return {
+            "status": "ok", 
+            "id": id,
+            "data": j_data,
+            "cleanText": clean_text,
+            "cleanReasoning": clean_reasoning,
+            "saosUrl": f"https://www.saos.org.pl/judgments/{id}"
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Błąd pobierania orzeczenia SAOS ID {id}: {e}"}
 
 
-async def saos_search_by_article(*, law_clause: str, limit: int = 10, **_) -> Dict[str, Any]:
-    return await saos_search_judgments(law_clause=law_clause, page_size=limit)
+async def saos_search_by_article(*, law_clause: str = "", query: str = "", limit: int = 10, **_) -> Dict[str, Any]:
+    clause = law_clause or query
+    # Szukamy zarówno przez referencedRegulation jak i zapytanie ogólne
+    res = await saos_search_judgments(law_clause=clause, page_size=limit)
+    if not res.get("items") and clause:
+        res = await saos_search_judgments(query=f'"{clause}"', page_size=limit)
+    return res
+
+
+_POLISH_COURTS_REGISTRY = [
+    {"type": "SUPREME_COURT", "name": "Sąd Najwyższy w Warszawie", "code": "SN"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Białymstoku", "code": "SA_BIA"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Gdańsku", "code": "SA_GDA"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Katowicach", "code": "SA_KAT"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Krakowie", "code": "SA_KRA"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Lublinie", "code": "SA_LUB"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Łodzi", "code": "SA_LOD"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Poznaniu", "code": "SA_POZ"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Rzeszowie", "code": "SA_RZE"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Szczecinie", "code": "SA_SZC"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny w Warszawie", "code": "SA_WAR"},
+    {"type": "APPEAL", "name": "Sąd Apelacyjny we Wrocławiu", "code": "SA_WRO"},
+    {"type": "REGIONAL", "name": "Sąd Okręgowy w Jeleniej Górze", "code": "SO_JG"},
+    {"type": "REGIONAL", "name": "Sąd Okręgowy w Warszawie", "code": "SO_WAR"},
+    {"type": "REGIONAL", "name": "Sąd Okręgowy we Wrocławiu", "code": "SO_WRO"},
+    {"type": "DISTRICT", "name": "Sąd Rejonowy w Lubaniu", "code": "SR_LUBAN"},
+    {"type": "DISTRICT", "name": "Sąd Rejonowy w Zgorzelcu", "code": "SR_ZGORZ"},
+]
 
 
 async def saos_list_courts(**_) -> Dict[str, Any]:
-    data = await _http_get(f"{SAOS_API_BASE}/commonCourts", headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"})
-    items = data.get("items", data) if isinstance(data, dict) else data if isinstance(data, list) else []
-    return {"status": "ok", "courts": items}
+    try:
+        data = await _http_get(
+            "https://www.saos.org.pl/cc/courts/list", 
+            headers={**DEFAULT_HEADERS, "Referer": "https://www.saos.org.pl/"}, 
+            timeout=10.0
+        )
+        if isinstance(data, list) and data:
+            return {"status": "ok", "count": len(data), "courts": data}
+        elif isinstance(data, dict) and data.get("items"):
+            return {"status": "ok", "count": len(data["items"]), "courts": data["items"]}
+    except Exception:
+        pass
+    return {"status": "ok", "courts": _POLISH_COURTS_REGISTRY, "count": len(_POLISH_COURTS_REGISTRY)}
 
 
 _STRONG_OVERRULE_PATTERNS = [
@@ -338,18 +486,107 @@ async def sejm_get_voting_details(*, sitting: int, voting_number: int, term: int
 #  4. KRS / CEIDG (tools 16-17)
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def krs_get_company(*, krs: str, **_) -> Dict[str, Any]:
-    clean_krs = krs.strip().zfill(10)
-    data = await _http_get(f"{KRS_API_BASE}/OdpisAktualny/{clean_krs}?rejestr=P&format=json")
-    return {"status": "ok", "krs": clean_krs, "company": data}
-
-
-async def ceidg_search_business(*, query: str, **_) -> Dict[str, Any]:
+async def krs_get_company(*, krs: str = "", krs_number: str = "", **_) -> Dict[str, Any]:
+    raw_krs = krs or krs_number
+    clean_krs = raw_krs.strip().zfill(10)
     try:
-        data = await _http_get(f"{CEIDG_BASE}/firmy", params={"nip": query})
-        return {"status": "ok", "query": query, "data": data}
+        data = await _http_get(f"{KRS_API_BASE}/OdpisAktualny/{clean_krs}?rejestr=P&format=json")
+        return {"status": "ok", "krs": clean_krs, "company": data}
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return {"status": "ok", "krs": clean_krs, "company": None, "message": f"Podmiot o numerze KRS {clean_krs} nie figuruje w rejestrze przedsiębiorców KRS."}
+        return {"status": "error", "message": f"Błąd API KRS: {e}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Błąd zapytania do KRS: {e}"}
+
+
+async def ceidg_search_business(*, query: str = "", nip: str = "", **_) -> Dict[str, Any]:
+    q = query or nip
+    try:
+        data = await _http_get(f"{CEIDG_BASE}/firmy", params={"nip": q})
+        return {"status": "ok", "query": q, "data": data}
     except Exception:
-        return {"status": "ok", "query": query, "data": {"firmy": []}, "message": f"Weryfikacja CEIDG dla {query}"}
+        return {"status": "ok", "query": q, "data": {"firmy": []}, "message": f"Weryfikacja CEIDG dla {q}"}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  4b. BIAŁA LISTA PODATNIKÓW VAT (MF API — mcp-wl-vat)
+# ═══════════════════════════════════════════════════════════════════════════
+
+async def wl_search_vat(*, nip: str = "", regon: str = "", bank_account: str = "", date: str = "", **_) -> Dict[str, Any]:
+    """Wyszukuje podmiot na Białej Liście Podatników VAT (Ministerstwo Finansów / KAS API - mcp-wl-vat).
+    
+    Args:
+        nip: 10-cyfrowy NIP firmy
+        regon: 9- lub 14-cyfrowy numer REGON
+        bank_account: 26-cyfrowy numer rachunku bankowego (NRB/IBAN)
+        date: Data weryfikacji w formacie YYYY-MM-DD (domyślnie bieżący dzień)
+    """
+    check_date = date.strip() if date else datetime.date.today().isoformat()
+    clean_nip = re.sub(r"\D", "", nip) if nip else ""
+    clean_regon = re.sub(r"\D", "", regon) if regon else ""
+    clean_account = re.sub(r"\D", "", bank_account) if bank_account else ""
+
+    if clean_nip:
+        url = f"{WL_VAT_BASE}/search/nip/{clean_nip}"
+    elif clean_regon:
+        url = f"{WL_VAT_BASE}/search/regon/{clean_regon}"
+    elif clean_account:
+        url = f"{WL_VAT_BASE}/search/bank-account/{clean_account}"
+    else:
+        return {"status": "error", "message": "Należy podać co najmniej jeden identyfikator: nip, regon lub bank_account"}
+
+    try:
+        data = await _http_get(url, params={"date": check_date})
+        subject = data.get("result", {}).get("subject") if isinstance(data, dict) else None
+        return {
+            "status": "ok",
+            "search_date": check_date,
+            "identifier": clean_nip or clean_regon or clean_account,
+            "subject": subject,
+            "raw_result": data,
+        }
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return {"status": "ok", "search_date": check_date, "subject": None, "message": "Podmiot nie figuruje w wykazie podatników VAT dla podanych kryteriów."}
+        return {"status": "error", "message": f"Błąd API MF Biała Lista VAT: {e}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Błąd zapytania do Białej Listy VAT: {e}"}
+
+
+async def wl_check_vat_account(*, nip: str = "", bank_account: str = "", account: str = "", date: str = "", **_) -> Dict[str, Any]:
+    """Weryfikuje przypisanie rachunku bankowego do numeru NIP na Białej Liście VAT (art. 96b ustawy o VAT - mcp-wl-vat).
+    
+    Args:
+        nip: 10-cyfrowy NIP podatnika
+        bank_account: 26-cyfrowy rachunek bankowy kontrahenta (NRB)
+        date: Data weryfikacji w formacie YYYY-MM-DD (domyślnie bieżący dzień)
+    """
+    clean_nip = re.sub(r"\D", "", nip)
+    raw_acc = bank_account or account
+    clean_account = re.sub(r"\D", "", raw_acc)
+    check_date = date.strip() if date else datetime.date.today().isoformat()
+
+    if not clean_nip or not clean_account:
+        return {"status": "error", "message": "Wymagane jest podanie zarówno numeru NIP jak i rachunku bankowego."}
+
+    url = f"{WL_VAT_BASE}/check/nip/{clean_nip}/bank-account/{clean_account}"
+    try:
+        data = await _http_get(url, params={"date": check_date})
+        res = data.get("result", {}) if isinstance(data, dict) else {}
+        account_assigned = res.get("accountAssigned", "NIE")
+        return {
+            "status": "ok",
+            "nip": clean_nip,
+            "bank_account": clean_account,
+            "search_date": check_date,
+            "account_assigned": account_assigned,
+            "is_valid": (account_assigned == "TAK"),
+            "request_id": res.get("requestId"),
+            "request_date_time": res.get("requestDateTime"),
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Błąd weryfikacji rachunku na Białej Liście VAT: {e}"}
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -507,19 +744,21 @@ async def tsue_search_judgments(*, query: Any = "", **_) -> Dict[str, Any]:
 #  9. Python MCP tools (tools 22-29) — wrappers na istniejące serwisy
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def search_legal_acts(*, keywords: str, limit: int = 5, **_) -> Dict[str, Any]:
+async def search_legal_acts(*, keywords: str = "", query: str = "", limit: int = 5, **_) -> Dict[str, Any]:
     from services.retrieval_service import retrieval_service
-    results = await retrieval_service.search_eli(keywords=keywords, limit=limit)
+    q = keywords or query
+    results = await retrieval_service.search_eli(keywords=q, limit=limit)
     return {"status": "ok", "count": len(results), "results": results}
 
 
-async def search_judgments(*, keywords: str, limit: int = 5, **_) -> Dict[str, Any]:
+async def search_judgments(*, keywords: str = "", query: str = "", limit: int = 5, **_) -> Dict[str, Any]:
     from services.retrieval_service import retrieval_service
-    results = await retrieval_service.search_saos(keywords=keywords, limit=limit)
+    q = keywords or query
+    results = await retrieval_service.search_saos(keywords=q, limit=limit)
     return {"status": "ok", "count": len(results), "results": results}
 
 
-async def search_supabase_rag(*, query: str, table_name: str = "knowledge_base_legal", limit: int = 5, **_) -> Dict[str, Any]:
+async def search_supabase_rag(*, query: str = "", table_name: str = "knowledge_base_legal", limit: int = 5, **_) -> Dict[str, Any]:
     from services.retrieval_service import retrieval_service
     results = await retrieval_service.search_supabase(query=query, table_name=table_name, match_count=limit, hybrid=True)
     return {"status": "ok", "count": len(results), "results": results}
@@ -558,13 +797,14 @@ async def find_files(*, pattern: str = "*.py", **_) -> Dict[str, Any]:
     return {"status": "ok", "count": len(files), "files": [str(f) for f in files[:20]]}
 
 
-async def search_code(*, keyword: str, file_pattern: str = "**/*.py", **_) -> Dict[str, Any]:
+async def search_code(*, keyword: str = "", query: str = "", file_pattern: str = "**/*.py", **_) -> Dict[str, Any]:
+    kw = keyword or query
     results = []
     for fpath in Path(".").glob(file_pattern):
         try:
             with open(fpath, "r", encoding="utf-8") as f:
                 for i, line in enumerate(f, 1):
-                    if keyword.lower() in line.lower():
+                    if kw.lower() in line.lower():
                         results.append({"file": str(fpath), "line": i, "text": line.strip()})
                         if len(results) >= 10:
                             break
@@ -573,6 +813,39 @@ async def search_code(*, keyword: str, file_pattern: str = "**/*.py", **_) -> Di
         if len(results) >= 10:
             break
     return {"status": "ok", "count": len(results), "results": results}
+
+
+async def calculate_expression(*, expression: str, **_) -> Dict[str, Any]:
+    """Bezpieczny kalkulator odsetek, terminów i opłat."""
+    try:
+        import ast
+        import operator as op
+
+        allowed_operators = {
+            ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
+            ast.Div: op.truediv, ast.Pow: op.pow, ast.USub: op.neg, ast.UAdd: op.pos
+        }
+
+        def eval_node(node):
+            if hasattr(ast, "Num") and isinstance(node, getattr(ast, "Num")):
+                return node.n
+            elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+            elif isinstance(node, ast.BinOp):
+                left = eval_node(node.left)
+                right = eval_node(node.right)
+                return allowed_operators[type(node.op)](left, right)
+            elif isinstance(node, ast.UnaryOp):
+                operand = eval_node(node.operand)
+                return allowed_operators[type(node.op)](operand)
+            else:
+                raise ValueError("Niedozwolony element w wyrażeniu")
+
+        node = ast.parse(expression.strip(), mode='eval').body
+        res = eval_node(node)
+        return {"status": "ok", "expression": expression, "result": res}
+    except Exception as e:
+        return {"status": "error", "message": f"Błąd kalkulatora: {str(e)}"}
 
 
 _EU_COMPLIANCE_KNOWLEDGE = [
@@ -669,12 +942,13 @@ async def patron_scan_document(*, text: str, file_name: Optional[str] = None, **
     }
 
 
-async def nalegalu_article_lookup(*, citation: str, fetch_judgments: bool = True, limit: int = 5, **_) -> Dict[str, Any]:
+async def nalegalu_article_lookup(*, citation: str = "", code: str = "", article: str = "", fetch_judgments: bool = True, limit: int = 5, **_) -> Dict[str, Any]:
     """Wyszukuje treść przepisu oraz automatycznie powiązane orzecznictwo sądowe z SAOS w formacie NaLegalu Markdown."""
     from services.nalegalu_bridge import parse_legal_citation
-    parsed = parse_legal_citation(citation)
+    full_citation = citation or (f"art. {article} {code}".strip() if (article or code) else "")
+    parsed = parse_legal_citation(full_citation)
     if not parsed:
-        return {"status": "error", "message": f"Nie udało się sparsować sygnatury przepisu: {citation}"}
+        return {"status": "error", "message": f"Nie udało się sparsować sygnatury przepisu: {full_citation}"}
 
     result: Dict[str, Any] = {
         "status": "ok",
@@ -698,8 +972,60 @@ async def nalegalu_article_lookup(*, citation: str, fetch_judgments: bool = True
     return result
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  PrawMi Tools (PrawMi Legal AI & Anti-Hallucination Tools)
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def prawmi_search_rulings(*, query: Optional[str] = None, case_number: Optional[str] = None, court_filter: Optional[str] = None, limit: int = 5, **_) -> Dict[str, Any]:
+    """Wyszukuje orzeczenia sądów polskich (SN, SA, SO, NSA, WSA) w PrawMi semantycznie lub po sygnaturze."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.search_rulings(query=query, case_number=case_number, court_filter=court_filter, limit=limit)
+
+
+async def prawmi_verify_ruling(*, case_number: str, skip_external: bool = False, **_) -> Dict[str, Any]:
+    """Weryfikuje autentyczność sygnatury orzeczenia w bazie PrawMi oraz źródłach zewnętrznych (SAOS, NSA, SN)."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.verify_ruling(case_number=case_number, skip_external=skip_external)
+
+
+async def prawmi_get_article(*, act_shortname: str, article_number: str, include_regulations: bool = False, **_) -> Dict[str, Any]:
+    """Pobiera autorytatywny tekst artykułu z ustawy/kodeksu (np. KK, KC, KPC) wraz ze wszystkimi ustępami i klauzulami."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.get_article(act_shortname=act_shortname, article_number=article_number, include_regulations=include_regulations)
+
+
+async def prawmi_get_ruling_text(*, ruling_link: str, **_) -> Dict[str, Any]:
+    """Pobiera pełny tekst orzeczenia sądowego po linku/identyfikatorze z wyszukiwarki PrawMi."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.get_ruling_text(ruling_link=ruling_link)
+
+
+async def prawmi_search_acts(*, query: str, limit: int = 5, **_) -> Dict[str, Any]:
+    """Wyszukuje akty prawne i kodeksy według zagadnienia w PrawMi (zapobiega halucynowaniu nazw ustaw)."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.search_acts(query=query, limit=limit)
+
+
+async def prawmi_search_rulings_by_article(*, act_shortname: str, article_number: str, court_filter: Optional[str] = None, limit: int = 5, **_) -> Dict[str, Any]:
+    """Wyszukuje orzeczenia sądowe, które cytują wskazany artykuł ustawy/kodeksu."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.search_rulings_by_article(act_shortname=act_shortname, article_number=article_number, court_filter=court_filter, limit=limit)
+
+
+async def prawmi_search_act_articles(*, topic: str, act_unified: Optional[str] = None, act_title: Optional[str] = None, limit: int = 5, **_) -> Dict[str, Any]:
+    """Wyszukuje konkretne artykuły w ramach danej ustawy powiązane z tematem."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.search_act_articles(topic=topic, act_unified=act_unified, act_title=act_title, limit=limit)
+
+
+async def prawmi_verify_article_reference(*, fragment: str, **_) -> Dict[str, Any]:
+    """Audytuje tekst prawny pod kątem zmyślonych artykułów i sygnatur wyroków (eliminacja halucynacji)."""
+    from services.prawmi_client import prawmi_client
+    return await prawmi_client.verify_article_reference(fragment=fragment)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
-#  MASTER DISPATCHER — call any of 35 tools by name
+#  MASTER DISPATCHER — call any MCP tool by name
 # ═══════════════════════════════════════════════════════════════════════════
 
 TOOL_REGISTRY: Dict[str, Any] = {
@@ -722,25 +1048,36 @@ TOOL_REGISTRY: Dict[str, Any] = {
     "sejm_list_committees": sejm_list_committees,
     "sejm_list_votings": sejm_list_votings,
     "sejm_get_voting_details": sejm_get_voting_details,
-    # KRS / CEIDG (17-18)
+    # KRS / CEIDG / BIAŁA LISTA VAT (17-20)
     "krs_get_company": krs_get_company,
     "ceidg_search_business": ceidg_search_business,
-    # CBOSA (19-21)
+    "wl_search_vat": wl_search_vat,
+    "wl_check_vat_account": wl_check_vat_account,
+    # CBOSA (21-23)
     "cbosa_search_judgments": cbosa_search_judgments,
     "cbosa_search_by_case": cbosa_search_by_case,
     "cbosa_get_judgment": cbosa_get_judgment,
-    # UODO (22)
+    # UODO (24)
     "uodo_search_decisions": uodo_search_decisions,
-    # KIO (23)
+    # KIO (25)
     "kio_search_judgments": kio_search_judgments,
-    # TSUE (24)
+    # TSUE (26)
     "tsue_search_judgments": tsue_search_judgments,
-    # Patron & NaLegalu Tools (25-28)
+    # Patron & NaLegalu Tools (27-30)
     "eureka_search_interpretations": eureka_search_interpretations,
     "eu_compliance_search": eu_compliance_search,
     "patron_scan_document": patron_scan_document,
     "nalegalu_article_lookup": nalegalu_article_lookup,
-    # Python MCP (29-36)
+    # PrawMi Tools (31-38)
+    "prawmi_search_rulings": prawmi_search_rulings,
+    "prawmi_verify_ruling": prawmi_verify_ruling,
+    "prawmi_get_article": prawmi_get_article,
+    "prawmi_get_ruling_text": prawmi_get_ruling_text,
+    "prawmi_search_acts": prawmi_search_acts,
+    "prawmi_search_rulings_by_article": prawmi_search_rulings_by_article,
+    "prawmi_search_act_articles": prawmi_search_act_articles,
+    "prawmi_verify_article_reference": prawmi_verify_article_reference,
+    # Python MCP (39-47)
     "search_legal_acts": search_legal_acts,
     "search_judgments": search_judgments,
     "search_supabase_rag": search_supabase_rag,
@@ -750,61 +1087,98 @@ TOOL_REGISTRY: Dict[str, Any] = {
     "get_document_info": get_document_info,
     "find_files": find_files,
     "search_code": search_code,
-    # Inne (33)
+    "calculate_expression": calculate_expression,
+    # Inne
     "internet_search": None,
 }
 
 # Listy narzędzi pogrupowane tematycznie — do użycia w context_builder/debate_engine
-LEGAL_SEARCH_TOOLS = ["isap_search_acts", "isap_get_act_details", "isap_get_act_text", "search_legal_acts", "search_supabase_rag"]
-JUDGMENT_TOOLS = ["saos_search_judgments", "saos_search_by_article", "cbosa_search_judgments", "search_judgments"]
+LEGAL_SEARCH_TOOLS = ["isap_search_acts", "isap_get_act_details", "isap_get_act_text", "search_legal_acts", "search_supabase_rag", "nalegalu_article_lookup"]
+JUDGMENT_TOOLS = ["saos_search_judgments", "saos_search_by_article", "cbosa_search_judgments", "search_judgments", "saos_cite_check"]
 SPECIALIZED_TOOLS = {
-    "eu": ["tsue_search_judgments"],
-    "gdpr": ["uodo_search_decisions"],
-    "tax": ["cbosa_search_judgments"],
+    "eu": ["tsue_search_judgments", "eu_compliance_search"],
+    "gdpr": ["uodo_search_decisions", "eu_compliance_search"],
+    "tax": ["cbosa_search_judgments", "eureka_search_interpretations", "wl_search_vat", "wl_check_vat_account"],
     "public_procurement": ["kio_search_judgments"],
-    "corporate": ["krs_get_company", "ceidg_search_business"],
-    "administrative": ["cbosa_search_judgments"],
-    "criminal": ["saos_search_judgments"],
-    "civil": ["saos_search_judgments"],
+    "corporate": ["krs_get_company", "ceidg_search_business", "wl_search_vat", "wl_check_vat_account"],
+    "administrative": ["cbosa_search_judgments", "cbosa_search_by_case", "cbosa_get_judgment"],
+    "criminal": ["saos_search_judgments", "saos_cite_check", "saos_search_by_article", "prawmi_search_rulings", "prawmi_search_rulings_by_article", "nalegalu_article_lookup", "isap_search_acts"],
+    "narcotics": ["saos_search_judgments", "saos_cite_check", "saos_search_by_article", "prawmi_search_rulings", "prawmi_search_rulings_by_article", "nalegalu_article_lookup", "isap_search_acts"],
+    "civil": ["saos_search_judgments", "saos_cite_check", "nalegalu_article_lookup"],
     "labor": ["saos_search_judgments"],
-    "legislative": ["sejm_list_prints", "sejm_search_interpellations", "sejm_list_committees"],
+    "legislative": ["sejm_list_prints", "sejm_search_interpellations", "sejm_list_committees", "isap_search_acts"],
     "sejm_voting": ["sejm_list_votings", "sejm_list_mps"],
+    "security": ["patron_scan_document"],
     "internet_search": ["internet_search"],
+}
+
+# Tagi WYKLUCZAJĄCE — jeśli sprawa jest karna/narkotykowa, NIE wywołuj narzędzi podatkowych/admin/UODO
+_CRIMINAL_TAGS = {"criminal", "narcotics", "police_misconduct"}
+_IRRELEVANT_FOR_CRIMINAL = {
+    "cbosa_search_judgments", "cbosa_search_by_case", "cbosa_get_judgment",  # NSA/WSA — sądy administracyjne
+    "eureka_search_interpretations",  # interpretacje podatkowe
+    "wl_search_vat", "wl_check_vat_account",  # białe listy VAT
+    "uodo_search_decisions",  # UODO / RODO
+    "kio_search_judgments",  # zamówienia publiczne
 }
 
 
 async def call_mcp_tool(tool_name: str, **params) -> Dict[str, Any]:
-    """Wywołuje dowolne z 29 narzędzi MCP po nazwie. Zwraca dict z wynikiem."""
+    """Wywołuje dowolne narzędzie MCP po nazwie z rejestracją audytu JSONL. Zwraca dict z wynikiem."""
+    start_time = time.perf_counter()
+    status = "ok"
+    result: Dict[str, Any] = {}
+
     if tool_name == "internet_search":
         from services.retrieval.providers.duckduckgo_provider import duckduckgo_search
         try:
             result = await duckduckgo_search(params.get("query", ""), max_results=params.get("limit", 5))
-            logger.info(f"[MCPBridge] Tool '{tool_name}' → OK")
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(f"[MCPBridge] Tool '{tool_name}' → OK ({duration_ms:.1f}ms)")
+            _append_audit_log(tool_name, params, duration_ms, "ok", f"count={len(result.get('items', []))}")
             return result
         except Exception as e:
+            duration_ms = (time.perf_counter() - start_time) * 1000
             logger.warning(f"[MCPBridge] Tool '{tool_name}' → ERROR: {e}")
+            _append_audit_log(tool_name, params, duration_ms, "error", str(e))
             return {"status": "error", "tool": tool_name, "message": str(e)}
 
     func = TOOL_REGISTRY.get(tool_name)
     if func is None:
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        _append_audit_log(tool_name, params, duration_ms, "error", "Unknown MCP tool")
         return {"status": "error", "message": f"Unknown MCP tool: {tool_name}"}
 
     try:
         result = await func(**params)
-        logger.info(f"[MCPBridge] Tool '{tool_name}' → OK")
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        res_status = result.get("status", "ok") if isinstance(result, dict) else "ok"
+        logger.info(f"[MCPBridge] Tool '{tool_name}' → {res_status.upper()} ({duration_ms:.1f}ms)")
+        _append_audit_log(tool_name, params, duration_ms, res_status, str(result)[:200])
         return result
     except Exception as e:
+        duration_ms = (time.perf_counter() - start_time) * 1000
         logger.warning(f"[MCPBridge] Tool '{tool_name}' → ERROR: {e}")
+        _append_audit_log(tool_name, params, duration_ms, "error", str(e))
         return {"status": "error", "tool": tool_name, "message": str(e)}
 
 
 def get_tools_for_tags(tags: List[str]) -> List[str]:
-    """Na podstawie wykrytych tagów (z agent_router) zwraca listę narzędzi MCP do wywołania."""
+    """Na podstawie wykrytych tagów (z agent_router) zwraca listę narzędzi MCP do wywołania.
+    
+    Stosuje logikę wykluczeń: jeśli sprawa jest karna/narkotykowa, narzędzia
+    podatkowe/administracyjne/UODO są automatycznie odrzucane.
+    """
+    is_criminal = bool(_CRIMINAL_TAGS & set(tags))
+    
     tools: List[str] = []
     for tag in tags:
         extras = SPECIALIZED_TOOLS.get(tag, [])
         for t in extras:
             if t not in tools:
+                # Filtruj absurdalne narzędzia dla spraw karnych
+                if is_criminal and t in _IRRELEVANT_FOR_CRIMINAL:
+                    continue
                 tools.append(t)
     return tools
 

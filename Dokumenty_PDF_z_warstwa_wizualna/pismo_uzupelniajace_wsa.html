@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pismo procesowe uzupełniające skargę — WSA we Wrocławiu</title>
+<style>
+  @page {
+    size: A4;
+    margin: 12mm 16mm 14mm 16mm;
+  }
+  body {
+    font-family: 'Cambria', Georgia, serif;
+    font-size: 9.6pt;
+    line-height: 1.32;
+    color: #000;
+    margin: 0;
+    padding: 0;
+  }
+  .sans {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+  .date-right {
+    text-align: right;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 9.5pt;
+  }
+  .header-table {
+    width: 100%;
+    margin-bottom: 15px;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-size: 9pt;
+    border-collapse: collapse;
+  }
+  .header-table td {
+    vertical-align: top;
+  }
+  .header-left {
+    width: 45%;
+    padding-right: 12px;
+  }
+  .header-right {
+    width: 55%;
+    border: 1px solid #000;
+    padding: 8px 10px;
+  }
+  .header-title {
+    font-weight: bold;
+    border-bottom: 1px solid #000;
+    margin-bottom: 4px;
+    padding-bottom: 2px;
+    text-transform: uppercase;
+  }
+  .bold { font-weight: bold; }
+  
+  .doc-title {
+    text-align: center;
+    margin: 20px 0 15px 0;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+  .doc-title h1 {
+    font-size: 18pt;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin: 0;
+    border-bottom: 2px solid #000;
+    display: inline-block;
+    padding-bottom: 4px;
+  }
+  .doc-title h2 {
+    font-size: 9.5pt;
+    font-weight: bold;
+    margin-top: 6px;
+    text-transform: uppercase;
+  }
+
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    font-family: 'Cambria', Georgia, serif;
+    font-size: 9.5pt;
+  }
+  .info-table th {
+    background-color: #f0f0f5;
+    padding: 5px 8px;
+    text-align: left;
+    font-weight: bold;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    text-transform: uppercase;
+  }
+  .info-table td {
+    border: 1px solid #e0e0e0;
+    padding: 5px 8px;
+    text-align: left;
+  }
+  .info-table td:first-child {
+    font-weight: bold;
+    background-color: #f9f9f9;
+    width: 25%;
+  }
+
+  .alert-box {
+    border: 1px solid #ffcccc;
+    background-color: #fffafa;
+    padding: 10px 12px;
+    margin-bottom: 15px;
+  }
+  .alert-title {
+    color: #d32f2f;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-weight: bold;
+    font-size: 10pt;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  .section-header {
+    background-color: #f4f4f8;
+    border-left: 5px solid #1a237e;
+    padding: 5px 10px;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-weight: bold;
+    font-size: 10pt;
+    margin: 18px 0 10px 0;
+    text-transform: uppercase;
+  }
+  .sub-header {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-weight: bold;
+    color: #1a237e;
+    font-size: 9.5pt;
+    margin: 12px 0 4px 0;
+  }
+
+  .press-box {
+    background-color: #f9f9f9;
+    border-top: 2px solid #1a237e;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 9.5pt;
+  }
+  .press-source {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-weight: bold;
+    color: #1a237e;
+    margin-bottom: 4px;
+  }
+
+  p { margin: 0 0 7px 0; text-align: justify; }
+  ul, ol { margin: 0 0 7px 0; padding-left: 18px; text-align: justify; }
+  li { margin-bottom: 4px; }
+  
+  .signature {
+    margin-top: 25px;
+    text-align: right;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  }
+  .signature .name {
+    font-weight: bold;
+    font-size: 10.5pt;
+  }
+  .signature .address {
+    font-size: 8.5pt;
+    color: #555;
+  }
+  
+  .footer-text {
+    margin-top: 20px;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    font-size: 8.5pt;
+    border-top: 1px solid #ccc;
+    padding-top: 8px;
+  }
+  .footer-text .bold { font-weight: bold; }
+  
+  table.chrono {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin-bottom: 12px;
+  }
+  table.chrono th {
+    background-color: #f0f0f5;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    padding: 5px;
+    text-align: left;
+    border: 1px solid #e0e0e0;
+  }
+  table.chrono td {
+    border: 1px solid #e0e0e0;
+    padding: 5px;
+    vertical-align: top;
+  }
+  table.chrono td:first-child {
+    font-weight: bold;
+    width: 15%;
+  }
+</style>
+</head>
+<body>
+
+<div class="date-right">
+  Lubań, dnia 25 sierpnia 2026 r.
+</div>
+
+<table class="header-table">
+  <tr>
+    <td class="header-left">
+      <div class="header-title">STRONA POSTĘPOWANIA</div>
+      <span class="bold">Skarżący:</span><br>
+      <span class="bold">Marcin Pałka</span><br>
+      ul. Stawowa 6, 59-800 Lubań<br>
+      PESEL: 88051210597<br>
+      Adres BAE: AE:PL-73179-85747-HASRB-32<br>
+      <br>
+      <span class="bold">Organ I instancji:</span><br>
+      Starosta Lubański<br>
+    </td>
+    <td class="header-right">
+      <span class="bold">Wojewódzki Sąd Administracyjny we Wrocławiu</span><br>
+      ul. Świętego Mikołaja 78/79, 50-126 Wrocław<br><br>
+      <span style="font-style: italic;">za pośrednictwem:</span><br>
+      <span class="bold">Samorządowego Kolegium Odwoławczego w Jeleniej Górze</span><br>
+      ul. Górna 22, 58-500 Jelenia Góra<br><br>
+      Dotyczy: skargi z dnia 7 sierpnia 2026 r. na decyzję SKO w Jeleniej Górze z dnia 7 lipca 2026 r., znak SKO.RD/41/91/26
+    </td>
+  </tr>
+</table>
+
+<div class="doc-title">
+  <h1>PISMO PROCESOWE</h1>
+  <h2>UZUPEŁNIENIE SKARGI — NOWE DOWODY (ART. 106 § 3 P.P.S.A.)<br>ORAZ WNIOSEK O DEFINITYWNE UCHYLENIE DECYZJI I UMORZENIE POSTĘPOWANIA (ART. 145 § 3 P.P.S.A.)</h2>
+</div>
+
+<table class="info-table">
+  <tr>
+    <th colspan="2">PRZEDMIOT PISMA</th>
+  </tr>
+  <tr>
+    <td>Sprawa</td>
+    <td>skarga z 7 sierpnia 2026 r. na decyzję SKO w Jeleniej Górze z 7 lipca 2026 r. (znak SKO.RD/41/91/26), utrzymującą w mocy decyzję Starosty Lubańskiego z 21 kwietnia 2026 r. nr KD.5430.1085.2026.MB o skierowaniu na badanie lekarskie.</td>
+  </tr>
+  <tr>
+    <td>Zakres pisma</td>
+    <td>uzupełnienie zarzutów skargi, wnioski dowodowe w trybie art. 106 § 3 p.p.s.a. oraz wniosek o definitywne uchylenie decyzji obu instancji i bezwzględne umorzenie postępowania administracyjnego w całości w trybie art. 145 § 3 p.p.s.a.</td>
+  </tr>
+  <tr>
+    <td>Nowa okoliczność</td>
+    <td>ujawnione w dniu 24 sierpnia 2026 r., w obecności funkcjonariuszy Policji, ukrywanie w Urzędzie Pocztowym w Lubaniu ok. 30 worków niedoręczonej korespondencji przeznaczonej do utylizacji oraz relacje trojga listonoszy o polecaniu wystawiania fikcyjnych awiz.</td>
+  </tr>
+  <tr>
+    <td>Wpływ na sprawę</td>
+    <td>okres i placówka objęte tymi ustaleniami są tożsame z okresem i placówką, które wygenerowały oba awiza (24.04.2026 r. i 5.05.2026 r.) stanowiące jedyną podstawę przyjętej przez SKO fikcji doręczenia z 9 maja 2026 r.</td>
+  </tr>
+</table>
+
+<div class="alert-box">
+  <div class="alert-title">⚠ ISTOTA PISMA — PODSTAWA FIKCJI DORĘCZENIA RUNĘŁA</div>
+  <p>Całe rozstrzygnięcie SKO opiera się na jednym ogniwie: założeniu, że przesyłka z decyzją Starosty była w dniach 24 kwietnia i 5 maja 2026 r. prawidłowo awizowana przez Urząd Pocztowy w Lubaniu, a Skarżący jej nie odebrał. W dniu 24 sierpnia 2026 r. ujawniono, że <span class="bold" style="color: #d32f2f;">dokładnie ta placówka, dokładnie w tym okresie</span>, ukrywała niedoręczoną korespondencję, a listonoszom polecano wystawianie awiz bez podjęcia próby doręczenia.</p>
+  <p>Skarżący nie twierdzi, że publikacja prasowa sama dowodzi losów tej konkretnej przesyłki. Twierdzi coś procesowo mocniejszego: <span class="bold">wzruszone zostało domniemanie prawidłowości doręczenia zastępczego</span>, a ciężar jego udokumentowania w całości obciąża organ (art. 44 k.p.a. w zw. z art. 81a § 1 k.p.a.). Organ tego ciężaru nie udźwignął ani w postępowaniu administracyjnym, ani w aktach przedłożonych Sądowi.</p>
+</div>
+
+<div class="section-header">CZĘŚĆ I. NOWE OKOLICZNOŚCI FAKTYCZNE</div>
+
+<p>Zgodnie z art. 106 § 3 p.p.s.a. Sąd może z urzędu lub na wniosek stron przeprowadzić dowody uzupełniające z dokumentów, jeżeli jest to niezbędne do wyjaśnienia istotnych wątpliwości i nie spowoduje nadmiernego przedłużenia postępowania. Okoliczności opisane poniżej są <span class="bold">wątpliwościami istotnymi w stopniu najwyższym</span>: dotyczą tego, czy zaskarżona decyzja miała w ogóle przedmiot kontroli instancyjnej.</p>
+
+<div class="sub-header">1. Publikacja z 29 kwietnia 2026 r. — stan placówki w dacie nadania przesyłki z decyzją</div>
+<div class="press-box">
+  <div class="press-source">eLuban.pl, 29.04.2026 r. — „Poczta Polska w Lubaniu. Czy to koniec problemów z dostarczaniem listów?”</div>
+  <p>Z relacji z posiedzenia komisji Rady Powiatu Lubańskiego, z udziałem naczelnik mikroregionu Marty Łuczyńskiej, wynika, że:</p>
+  <ul>
+    <li>Lubań był placówką „wymagającą najwięcej uwagi”, a absencja pracowników sięgała wcześniej <span class="bold">60%</span>;</li>
+    <li>przez wiele miesięcy brakowało obsady rejonów, a korespondencję doręczano „w pakietach z dwóch miesięcy”;</li>
+    <li>pełną, dwudziestoosobową obsadę osiągnięto dopiero <span class="bold">21 kwietnia 2026 r.</span> — tj. w dniu wydania zaskarżonej decyzji I instancji;</li>
+    <li>wprowadzono pilotażowy system premiowania, w którym listonosz zarabia więcej „zamiast zostawiać awizo” — co samo w sobie potwierdza, że <span class="bold">zastępowanie doręczenia awizem było w tej placówce zjawiskiem masowym</span>;</li>
+    <li>obowiązek skanowania wszystkich przesyłek rejestrowanych i odnotowywania doręczeń w urządzeniach mobilnych <span class="bold">bezpośrednio pod adresem odbiorcy</span> wprowadzono od początku kwietnia 2026 r., co oznacza, że dla przesyłki z decyzją musi istnieć weryfikowalny elektroniczny zapis czynności listonosza (data, godzina, miejsce).</li>
+  </ul>
+</div>
+
+<div class="sub-header">2. Publikacja z 24 sierpnia 2026 r. — interwencja Policji, worki z korespondencją i fikcyjne awiza</div>
+<div class="press-box">
+  <div class="press-source">eLuban.pl, 24.08.2026 r. — „Policja na poczcie w Lubaniu. Fikcyjne awiza i worki z korespondencją do utylizacji”</div>
+  <ul>
+    <li>w pomieszczeniu przy biurze kierownik placówki ujawniono <span class="bold">około 30 dużych worków</span> z niedoręczoną korespondencją, przeznaczonych — według oświadczenia naczelnik — do wywiezienia i zniszczenia;</li>
+    <li>wezwani na miejsce funkcjonariusze Policji <span class="bold" style="color: #d32f2f;">już w pierwszym otwartym worku potwierdzili przesyłki z maja i czerwca 2026 r.</span>, a więc korespondencję bieżącą, a nie archiwalną;</li>
+    <li>kierownik placówki oświadczyła w obecności Policji, że przesyłki z 2026 r. trafiały do worków przeznaczonych do utylizacji <span class="bold">na polecenie naczelnik</span>, w czerwcu 2026 r., przed kontrolą dyrektora regionalnego;</li>
+    <li><span class="bold">troje listonoszy</span> potwierdziło polecenia wystawiania „fikcyjnych awizo”, tj. oznaczania przesyłki w systemie jako awizowanej bez podjęcia próby doręczenia; jeden z nich opisał, że po pytaniu, czy ma wystawiać puste awizo, uzyskał potwierdzenie, a polecenia bywały przekazywane skinieniem głowy, „tak by nie można było tego nagrać”;</li>
+    <li>w publikacji opisano skutki takiej praktyki tożsame z sytuacją Skarżącego: niedoręczone przesyłki sądowe, sprawy rozpoznane bez udziału strony, terminy utracone bez winy adresata;</li>
+    <li>Policja wykonała na miejscu dokumentację fotograficzną; dotychczasowa kierownik placówki zapowiedziała złożenie zawiadomienia do prokuratury.</li>
+  </ul>
+</div>
+
+<div class="sub-header">3. Tło systemowe — śledztwo prokuratorskie od 2023 r.</div>
+<p>Opisana praktyka nie jest incydentem. Jak wynika z publikacji, już w 2023 r. Prokuratura Okręgowa w Jeleniej Górze wszczęła śledztwo w sprawie <span class="bold">ukrywania i usuwania korespondencji</span> w lubańskim urzędzie pocztowym, a także przywłaszczania mienia z przesyłek oraz <span class="bold">podrabiania podpisów odbiorców</span> — o czyny z art. 276 k.k., art. 268 § 1 k.k., art. 270 § 1 k.k. i art. 284 § 1 k.k., przy badanym okresie od 2018 r. i ponad <span class="bold">240 zgłoszonymi pokrzywdzonymi</span>.</p>
+<p>Oznacza to, że w dacie stosowania fikcji doręczenia w niniejszej sprawie placówka realizująca doręczenie była od kilku lat przedmiotem postępowania karnego dotyczącego dokładnie tego mechanizmu, na którym oparto skutek procesowy wobec Skarżącego. Organy obu instancji przyjęły skuteczność doręczenia zastępczego bez jakiejkolwiek weryfikacji, choć okoliczność ta była powszechnie znana lokalnie (art. 77 § 4 k.p.a. — fakty powszechnie znane nie wymagają dowodu, lecz wymagają uwzględnienia).</p>
+
+<div class="sub-header">4. Świadomość organu i uporczywe łamanie prawa (absurd sytuacji)</div>
+<p>Najbardziej absurdalnym i jaskrawym faktem w tej sprawie jest to, że skoro proceder na poczcie trwał już od 2023 roku, a o fatalnej sytuacji informowano i dyskutowano publicznie na Radzie Miasta oraz Radzie Powiatu, <span class="bold">Starostwo Powiatowe w Lubaniu wiedziało o tym doskonale</span>. Mając pełną świadomość katastrofalnego stanu doręczeń pocztowych w mieście oraz znając swój bezwzględny, ustawowy obowiązek doręczania pism drogą elektroniczną (na posiadany przez Skarżącego adres w bazie BAE), organ z pełną premedytacją zignorował przepisy. Starostwo wolało złamać prawo i wysłać kluczową decyzję za pośrednictwem niewydolnej poczty — o której problemach samo dyskutowało — zamiast doręczyć ją skutecznie, bezpiecznie i zgodnie z prawem na skrzynkę e-Doręczeń. <span class="bold" style="color: #d32f2f;">Zamiast odciążać już i tak niewydolną i zdołowaną pocztę, urzędnicy dokładali jej dodatkowej, niepotrzebnej i co gorsza — bezprawnej w tej formie — pracy.</span></p>
+
+<div class="section-header">CZĘŚĆ II. ZBIEŻNOŚĆ CZASOWA I MIEJSCOWA</div>
+
+<p>Znaczenie nowych okoliczności wynika z prostego zestawienia. Wszystkie czynności pocztowe, na których opiera się zaskarżona decyzja, wykonała <span class="bold">ta sama placówka w tym samym okresie</span>, którego dotyczą ustalenia z 24 sierpnia 2026 r.</p>
+
+<table class="chrono">
+  <tr>
+    <th>Data</th>
+    <th>Czynność w sprawie Skarżącego</th>
+    <th>Ustalenia dotyczące Urzędu Pocztowego Lubań</th>
+  </tr>
+  <tr>
+    <td>21.04.2026</td>
+    <td>nadanie przesyłki z decyzją nr KD.5430.1085.2026.MB (skierowanej na obcy adres: ul. Stawowa 5)</td>
+    <td>dzień osiągnięcia pełnej obsady po okresie 60% absencji; placówka objęta „programem naprawczym”, doręczenia realizowane z wielotygodniowym opóźnieniem</td>
+  </tr>
+  <tr>
+    <td>24.04.2026</td>
+    <td>pierwsze awizo — według ustaleń SKO</td>
+    <td rowspan="3">okres, w którym — według relacji trojga listonoszy — polecano wystawianie awiz bez podjęcia próby doręczenia, a niedoręczone przesyłki polecane były do worków, a nie do ponownego obiegu</td>
+  </tr>
+  <tr>
+    <td>05.05.2026</td>
+    <td>drugie awizo — według ustaleń SKO</td>
+  </tr>
+  <tr>
+    <td>09.05.2026</td>
+    <td>data skutku doręczenia zastępczego przyjęta przez SKO (dzień po wniesieniu odwołania)</td>
+  </tr>
+  <tr>
+    <td>11.05.2026</td>
+    <td>zwrot przesyłki do organu „jako nieodebranej”</td>
+    <td>brak w aktach jakiejkolwiek dokumentacji miejsca i sposobu pozostawienia obu zawiadomień</td>
+  </tr>
+  <tr>
+    <td>maj–cze 2026</td>
+    <td>—</td>
+    <td>przesyłki z maja i czerwca 2026 r. potwierdzone przez Policję w pierwszym otwartym worku korespondencji przeznaczonej do utylizacji</td>
+  </tr>
+  <tr>
+    <td>cze 2026</td>
+    <td>—</td>
+    <td>według kierownik placówki: kierowanie bieżących przesyłek do worków przed kontrolą dyrektora regionalnego</td>
+  </tr>
+  <tr>
+    <td>24.08.2026</td>
+    <td>—</td>
+    <td>interwencja Policji, ok. 30 worków, dokumentacja fotograficzna, zapowiedź zawiadomienia prokuratury</td>
+  </tr>
+</table>
+
+<p>Zbieżność ta ma charakter kwalifikowany: nie chodzi o abstrakcyjną nierzetelność operatora w skali kraju, lecz o <span class="bold">tę samą placówkę, ten sam kwartał i ten sam rodzaj czynności</span> (awizowanie przesyłki rejestrowanej), która wywołała wobec Skarżącego skutek procesowy w postaci utraty możliwości poznania treści decyzji.</p>
+
+<div class="section-header">CZĘŚĆ III. OCENA PRAWNA</div>
+
+<div class="sub-header">1. Domniemanie z art. 44 k.p.a. jest domniemaniem wzruszalnym (praesumptio iuris tantum), a ciężar jego wykazania w całości obciąża organ</div>
+<p>Zgodnie z jednolitym stanowiskiem Naczelnego Sądu Administracyjnego, doręczenie zastępcze uregulowane w art. 44 k.p.a. stanowi wyjątek od konstytucyjnej i kodeksowej zasady oficjalnego doręczania pism bezpośrednio stronie do rąk własnych (art. 39, art. 42 k.p.a.). Jako norma o charakterze gwarancyjnym i wyjątkowym, podlega wykładni ścisłej (exceptiones non sunt extendendae). Przyjęcie fikcji doręczenia wymaga bezwzględnego i drobiazgowego wykazania przez organ spełnienia <span style="font-style: italic;">wszystkich</span> przesłanek proceduralnych:</p>
+<ul>
+  <li><span class="bold">Obowiązek udokumentowania miejsca i sposobu pozostawienia obu awiz:</span> Skuteczność doręczenia zastępczego wymaga bezspornego, procesowego udokumentowania miejsca i sposobu umieszczenia obu zawiadomień (pierwszego i powtórnego) w oddawczej skrzynce pocztowej lub na drzwiach mieszkania. W braku precyzyjnych i jednoznacznych adnotacji doręczyciela doręczenia nie można uznać za dokonane (por. <span class="bold">wyrok NSA z 24 maja 2024 r., sygn. akt III FSK 408/22</span>; <span class="bold">wyrok NSA z 15 grudnia 2022 r., sygn. akt II OSK 1000/22</span>).</li>
+  <li><span class="bold">Wzruszalność domniemania doręczenia i przerzucenie ciężaru dowodu:</span> Fikcja doręczenia stwarza jedynie domniemanie prawne wzruszalne. W razie uprawdopodobnienia lub wykazania przez stronę jakichkolwiek uchybień w działaniu placówki pocztowej lub okoliczności uniemożliwiających zapoznanie się z przesyłką bez winy adresata, domniemanie to w całości upada. W takiej sytuacji to na organie administracji spoczywa pełny ciężar procesowy udowodnienia, że doręczenie było prawidłowe i skuteczne (por. <span class="bold">wyrok NSA z 22 marca 2023 r., sygn. akt II OSK 724/20</span>; <span class="bold">wyrok WSA w Warszawie z 16 lutego 2023 r., sygn. akt VI SA/Wa 2489/22</span>; <span class="bold">wyrok SO w Piotrkowie Tryb. z 12 marca 2025 r., sygn. akt V Ua 24/24</span>).</li>
+</ul>
+<p>W aktach niniejszej sprawy nie ma <span class="bold">ani jednego dowodu</span> pozwalającego zweryfikować, czy listonosz w dniach 24 kwietnia i 5 maja 2026 r. w ogóle podjął próbę doręczenia oraz gdzie faktycznie pozostawił formularze awiza. W świetle ustaleń z 24 sierpnia 2026 r. (ujawnienie systemowego procederu wystawiania fikcyjnych awiz i ukrywania setek przesyłek w workach przeznaczonych do utylizacji w lubańskim urzędzie pocztowym) domniemanie doręczenia zostało całkowicie zdezawuowane.</p>
+
+<div class="sub-header">2. Bezwzględny prymat doręczeń elektronicznych (art. 39 § 1 i art. 39<sup>9</sup> k.p.a. w zw. z art. 4 ust. 1 ustawy o doręczeniach elektronicznych)</div>
+<p>Zgodnie z art. 39 § 1 k.p.a., organ administracji publicznej doręcza pisma na adres do doręczeń elektronicznych, chyba że doręczenie następuje na posiedzeniu lub w siedzibie organu. Stosownie do art. 39<sup>9</sup> k.p.a., w przypadku gdy strona posiada adres do doręczeń elektronicznych wpisany do bazy adresów elektronicznych (BAE), doręczenia dokonuje się bezwzględnie na ten adres.</p>
+<p>Skarżący w dacie wydawania i wysyłania decyzji posiadał zarejestrowany i aktywny adres w publicznej Bazie Adresów Elektronicznych: <span class="bold">AE:PL-73179-85747-HASRB-32</span>. Starosta Lubański miał ustawowy obowiązek zweryfikowania rejestru BAE i skierowania korespondencji do skrzynki elektronicznej Skarżącego. Wysłanie przesyłki papierowej tradycyjną pocztą — i to na dodatek pod obcy numer domu (ul. Stawowa 5 zamiast 6) — stanowiło rażące złamanie art. 39 § 1 i art. 39<sup>9</sup> k.p.a. <span class="bold">Organ administracji, który dopuszcza się bezprawnego pominięcia doręczenia elektronicznego na rzecz doręczenia pocztowego, traci prawo powoływania się na jakiekolwiek skutki doręczenia zastępczego z art. 44 k.p.a.</span></p>
+
+<div class="sub-header">3. Konsekwencja procesowa: decyzja I instancji nie weszła do obrotu prawnego (uzupełnienie Zarzutów 1–3 skargi)</div>
+<p>Zgodnie z art. 110 § 1 k.p.a., organ administracji publicznej, który wydał decyzję, jest nią związany od chwili jej doręczenia lub ogłoszenia. Jak przesądził Naczelny Sąd Administracyjny w składzie 7 sędziów w <span class="bold">uchwale z dnia 7 marca 2022 r. (sygn. akt I FPS 4/21)</span>, przepisy o doręczeniach mają charakter bezwzględnie obowiązujący (ius cogens), a ocena prawidłowości doręczenia ma charakter zero-jedynkowy i nie podlega konwalidacji. Decyzja administracyjna niedoręczona stronie w sposób prawem przewidziany <span class="bold">nie wchodzi do obrotu prawnego i nie wywołuje jakichkolwiek skutków prawnych</span>.</p>
+<p>W konsekwencji decyzja Starosty Lubańskiego z 21 kwietnia 2026 r. stanowi tzw. akt nieistniejący w obrocie (non existens) w stosunku do Skarżącego. Samorządowe Kolegium Odwoławcze w Jeleniej Górze, rozpoznając odwołanie i wydając decyzję utrzymującą w mocy zaskarżony akt na podstawie art. 138 § 1 pkt 1 k.p.a., dopuściło się rażącego naruszenia art. 134 k.p.a., albowiem nie można utrzymać w mocy decyzji, która nie weszła do obrotu prawnego (por. <span class="bold">wyrok NSA z 19 stycznia 2021 r., sygn. akt I OSK 2145/20</span>). Obie decyzje podlegają bezwzględnemu uchyleniu (art. 145 § 1 pkt 1 lit. b i c w zw. z art. 135 p.p.s.a.).</p>
+
+<div class="sub-header">4. Obowiązek wyczerpania dowodów elektronicznych w posiadaniu operatora pocztowego</div>
+<p>Okoliczność ujawniona w publikacji z 29 kwietnia 2026 r. ma kardynalne znaczenie procesowe: od początku kwietnia 2026 r. wszyscy listonosze w lubańskim urzędzie pocztowym mieli bezwzględny obowiązek <span class="bold">skanowania przesyłek rejestrowanych i rejestrowania czynności w urządzeniach mobilnych bezpośrednio pod adresem odbiorcy</span>. Jak deklarowała naczelnik mikroregionu, system ten pozwala precyzyjnie wykazać czas, lokalizację GPS oraz fakt obecności doręczyciela.</p>
+<p>Oznacza to, że rzeczywisty przebieg próby doręczenia jest <span class="bold">w pełni weryfikowalny cyfrowo</span>. Zaniechanie przez organy wystąpienia o te dane i oparcie rozstrzygnięcia na papierowej, pustej fikcji narusza zasadę prawdy obiektywnej (art. 7, art. 77 § 1 i art. 80 k.p.a.).</p>
+
+<div class="sub-header">5. Bezwzględny nakaz rozstrzygania nieusuwalnych wątpliwości na korzyść strony (art. 81a § 1 k.p.a.)</div>
+<p>Jeżeli przesyłka zawierająca decyzję Starosty znalazła się w jednym z 30 worków zdeponowanych w lubańskim urzędzie pocztowym i została przeznaczona do zniszczenia, odtworzenie jej losów może okazać się fizycznie niemożliwe. W myśl art. 81a § 1 k.p.a. oraz konstytucyjnej zasady demokratycznego państwa prawnego (art. 2 Konstytucji RP), wszelkie niedające się usunąć wątpliwości faktyczne muszą być rozstrzygane na korzyść obywatela. Niedopuszczalne jest obciążanie strony negatywnymi skutkami przestępczych lub skrajnie wadliwych praktyk operatora pocztowego.</p>
+
+<div class="sub-header">6. Wzmocnienie wniosku o wstrzymanie wykonania zaskarżonej decyzji (art. 61 § 3 p.p.s.a.)</div>
+<p>Nowe okoliczności faktyczne i prawne w pełni uzasadniają natychmiastowe wstrzymanie wykonania zaskarżonej decyzji przez Sąd. Wykonanie decyzji nakładającej obowiązek poddania się specjalistycznemu badaniu lekarskiemu pod rygorem sankcji utraty prawa jazdy rodzi bezpośrednie niebezpieczeństwo wyrządzenia <span class="bold">znacznej szkody materialnej oraz trudnych do odwrócenia skutków życiowych i zawodowych</span> (utrata możliwości wykonywania pracy zarobkowej, bezpowrotna utrata uprawnień w trybie art. 103 ust. 1 pkt 1 lit. a ustawy o kierujących pojazdami). Wykonywanie decyzji, której wejście do obrotu jest procesowo wykluczone, rażąco godzi w porządek prawny.</p>
+
+<div class="sub-header">7. Bezprawność wtórnego postępowania sankcyjnego Starosty Lubańskiego (KD.5430.2093.2026.MB)</div>
+<p>Równolegle prowadzone przez Starostę Lubańskiego postępowanie o cofnięcie uprawnień z powodu rzekomego niepoddania się badaniu lekarskiemu jest postępowaniem całkowicie bezprawnym i wtórnym. Nie można karać obywatela za niewykonanie decyzji, której doręczenie nigdy nie nastąpiło, a której fizyczny nośnik mógł zostać przeznaczony do utylizacji przez operatora pocztowego. Pismo niniejsze zostaje przekazane Staroście Lubańskiemu celem obligatoryjnego zawieszenia lub umorzenia postępowania sankcyjnego (art. 6, art. 7, art. 8 k.p.a. oraz art. 97 § 1 pkt 4 k.p.a.).</p>
+
+<div class="sub-header">8. Konieczność definitywnego umorzenia postępowania administracyjnego przez Sąd (art. 145 § 3 p.p.s.a. w zw. z art. 105 § 1 k.p.a.)</div>
+<p>Skarżący z całą stanowczością podkreśla, że niniejsza sprawa wymaga definitywnego zamknięcia. Dalsze procedowanie w tym przedmiocie prowadziłoby jedynie do sankcjonowania wielomiesięcznej bezprawności i nieuzasadnionego nękania obywatela procedurami całkowicie pozbawionymi racji bytu. Za bezwzględnym i ostatecznym umorzeniem postępowania przemawiają nienaruszalne przesłanki prawne:</p>
+<ul>
+  <li><span class="bold">Brak materialnoprawnej podstawy skierowania na badania (art. 99 ust. 1 pkt 2 lit. b u.k.p.):</span> Jak jednolicie wskazuje orzecznictwo NSA (por. <span class="bold">wyrok NSA z 28 lutego 2020 r., sygn. akt I OSK 2587/19</span>; <span class="bold">wyrok NSA z 20 września 2023 r., sygn. akt I OSK 1569/21</span>; <span class="bold">wyrok WSA w Łodzi z 15 lipca 2021 r., sygn. akt III SA/Łd 452/21</span>), sam fakt zarzutu posiadania śladowych ilości substancji bez jakiegokolwiek związku z ruchem drogowym (brak zatrzymania za kierownicą) nie stanowi „uzasadnionych zastrzeżeń co do stanu zdrowia”. Postępowanie to od samego początku było bezprzedmiotowe i miało charakter niedopuszczalnej represji.</li>
+  <li><span class="bold">Instytucja art. 145 § 3 p.p.s.a. jako instrument definitywnego zakończenia sprawy:</span> Zgodnie z art. 145 § 3 p.p.s.a., w przypadku uchylenia decyzji Sąd, stwierdzając bezprzedmiotowość postępowania administracyjnego, umarza jednocześnie to postępowanie. Przepis ten stanowi procesową tamę przed tzw. ping-pongiem administracyjnym i chroni obywatela przed przewlekłością procedur (art. 45 ust. 1 Konstytucji RP, art. 6 EKPC).</li>
+</ul>
+
+<div class="section-header">CZĘŚĆ IV. WNIOSKI DOWODOWE</div>
+
+<p>Na podstawie art. 106 § 3 p.p.s.a., a w zakresie zobowiązania organu — art. 54 § 2 p.p.s.a., wnoszę o:</p>
+<ol>
+  <li>przeprowadzenie <span class="bold">dowodu uzupełniającego z dokumentów</span>: wydruków publikacji prasowych z 24 sierpnia 2026 r. oraz z 29 kwietnia 2026 r. (załączniki nr 1 i 2) — na okoliczność ujawnienia praktyki wystawiania fikcyjnych awiz i ukrywania niedoręczonej korespondencji w Urzędzie Pocztowym w Lubaniu w okresie obejmującym doręczanie przesyłki z decyzją Starosty;</li>
+  <li>zobowiązanie organu do przedłożenia <span class="bold">kompletnej dokumentacji doręczeniowej</span> przesyłki zawierającej decyzję z 21 kwietnia 2026 r.: koperty z adresem, numeru nadania (identyfikatora przesyłki rejestrowanej), zwrotnego potwierdzenia odbioru wraz z adnotacjami operatora, dowodów i miejsca pozostawienia obu awiz oraz przyczyny zwrotu;</li>
+  <li>zwrócenie się do <span class="bold">Poczty Polskiej S.A.</span> (właściwy Region Sieci oraz Urząd Pocztowy Lubań) o przedstawienie: pełnej historii śledzenia tej przesyłki, elektronicznych zapisów skanowania i czynności listonosza w urządzeniu mobilnym (data, godzina, lokalizacja) za dni 24 kwietnia i 5 maja 2026 r. oraz informacji, który listonosz obsługiwał wówczas rejon ul. Stawowej w Lubaniu;</li>
+  <li>zwrócenie się do Poczty Polskiej S.A. o informację, czy wśród korespondencji zdeponowanej w Urzędzie Pocztowym w Lubaniu i przeznaczonej do utylizacji znajdują się przesyłki adresowane do Skarżącego, oraz o <span class="bold">wstrzymanie ich zniszczenia</span> do czasu zakończenia niniejszego postępowania;</li>
+  <li>zwrócenie się do Komendy Powiatowej Policji w Lubaniu o dokumentację czynności podjętych w Urzędzie Pocztowym w Lubaniu w dniu 24 sierpnia 2026 r. (notatka urzędowa, dokumentacja fotograficzna, wykaz ujawnionych przesyłek);</li>
+  <li>zwrócenie się do Prokuratury Rejonowej w Lubaniu oraz Prokuratury Okręgowej w Jeleniej Górze o informację o sygnaturze, przedmiocie i stanie postępowań dotyczących ukrywania, usuwania lub niedoręczania korespondencji w lubańskim urzędzie pocztowym, w tym o objętym nimi okresie;</li>
+  <li>rozpoznanie sprawy na rozprawie oraz — w pierwszej kolejności i przed rozprawą — <span class="bold">rozpoznanie wniosku o wstrzymanie wykonania</span> zaskarżonej decyzji.</li>
+</ol>
+<p>Wnioski te nie spowodują nadmiernego przedłużenia postępowania: dotyczą wyłącznie dokumentów już istniejących i możliwych do uzyskania jednym zapytaniem do operatora pocztowego oraz organów, które czynności te udokumentowały.</p>
+
+<div class="section-header">CZĘŚĆ V. WNIOSKI KOŃCOWE (PROŚBA O DEFINITYWNE ZAKOŃCZENIE SPRAWY)</div>
+<p>Mając na uwadze całokształt ujawnionych bezspornych okoliczności oraz rażące naruszenia prawa przez organy obu instancji, wnoszę o:</p>
+<ol>
+  <li>dołączenie niniejszego pisma wraz z załącznikami do akt sprawy sądowoadministracyjnej i uwzględnienie go przy rozpoznaniu skargi z 7 sierpnia 2026 r.;</li>
+  <li><span class="bold" style="color: #1a237e;">GŁÓWNY WNIOSEK — DEFINITYWNE ZAKOŃCZENIE SPRAWY:</span><br>
+    <span class="bold">uchylenie zaskarżonej decyzji Samorządowego Kolegium Odwoławczego w Jeleniej Górze oraz poprzedzającej ją decyzji Starosty Lubańskiego z 21 kwietnia 2026 r. w całości (art. 145 § 1 pkt 1 lit. a, b i c w zw. z art. 135 p.p.s.a.) i JEDNOCZESNE BEZWZGLĘDNE UMORZENIE POSTĘPOWANIA ADMINISTRACYJNEGO I INSTANCJI W CAŁOŚCI NA PODSTAWIE ART. 145 § 3 P.P.S.A.</span> jako bezprzedmiotowego (art. 105 § 1 k.p.a.), co trwale i ostatecznie kończy sprawę;</li>
+  <li><span style="font-style: italic;">ewentualnie</span> — <span class="bold">stwierdzenie nieważności</span> zaskarżonej decyzji SKO oraz decyzji Starosty Lubańskiego na podstawie art. 145 § 1 pkt 2 p.p.s.a. w zw. z art. 156 § 1 pkt 2 k.p.a. z uwagi na wydanie ich z rażącym naruszeniem prawa procesowego i materialnego;</li>
+  <li><span class="bold">wstrzymanie wykonania zaskarżonej decyzji</span>, a tym samym obowiązku poddania się badaniu lekarskiemu, do czasu prawomocnego zakończenia postępowania sądowoadministracyjnego (art. 61 § 3 p.p.s.a.);</li>
+  <li>rozważenie przez Samorządowe Kolegium Odwoławcze w Jeleniej Górze <span class="bold">uwzględnienia skargi w całości w trybie autokontroli i umorzenia postępowania</span> (art. 54 § 3 p.p.s.a. w zw. z art. 138 § 1 pkt 2 k.p.a.) — wobec nowych okoliczności dotyczących doręczenia, których organ nie mógł ocenić w dacie orzekania.</li>
+</ol>
+
+<div class="alert-box" style="margin-top: 15px;">
+  <div class="alert-title">PODSUMOWANIE</div>
+  <p>Postępowanie w tej sprawie opiera się na jednym fikcyjnym założeniu, którego nikt w administracji nie zweryfikował: że przesyłka skierowana pod obcy numer domu została prawidłowo doręczona przez placówkę pocztową objętą śledztwem prokuratorskim, w której Policja zabezpieczyła worki z niszczoną korespondencją, a listonosze zeznali o nakazach fabrykowania fikcyjnych awiz. <span class="bold">Na fundamencie przestępstw i bezprawia pocztowego nie wolno odbierać obywatelowi praw ani nakładać jakichkolwiek obowiązków.</span></p>
+  <p style="margin-top: 10px; font-style: italic; font-weight: bold; color: #111;">Mając na uwadze powyższe, uprzejmie wnoszę do Wysokiego Sądu o definitywne i ostateczne zamknięcie tego postępowania poprzez jego umorzenie w trybie art. 145 § 3 p.p.s.a. Zgromadzone dowody jednoznacznie wskazują, że organy na każdym etapie ignorowały przepisy o e-Doręczeniach i właściwości adresu. Pokładając głębokie zaufanie w niezawisłości i obiektywizmie Wysokiego Sądu, zwracam się z prośbą o sprawiedliwy wyrok, który ostatecznie zakończy tę sprawę. Jako obywatel czuję się przytłoczony koniecznością ciągłej obrony przed błędami aparatu państwowego. Czas, który obecnie muszę poświęcać na prostowanie uchybień biurokratycznych, wolałbym w spokoju oddać mojej rodzinie i pasjom. Ufam, że orzeczenie Sądu przywróci w tej sprawie elementarne poczucie praworządności.</p>
+</div>
+
+<div class="signature">
+  <div class="name">Marcin Pałka</div>
+  <div class="address">ul. Stawowa 6, 59-800 Lubań</div>
+</div>
+
+<div class="footer-text">
+  <span class="bold">Załączniki:</span>
+  <ol>
+    <li>wydruk publikacji „Policja na poczcie w Lubaniu. Fikcyjne awiza i worki z korespondencją do utylizacji”, eLuban.pl, 24 sierpnia 2026 r.;</li>
+    <li>wydruk publikacji „Poczta Polska w Lubaniu. Czy to koniec problemów z dostarczaniem listów?”, eLuban.pl, 29 kwietnia 2026 r.;</li>
+    <li>odpis niniejszego pisma wraz z załącznikami dla organu.</li>
+  </ol>
+  
+  <span class="bold">Otrzymują:</span>
+  <ol>
+    <li>Wojewódzki Sąd Administracyjny we Wrocławiu — adresat (za pośrednictwem SKO w Jeleniej Górze);</li>
+    <li>Samorządowe Kolegium Odwoławcze w Jeleniej Górze — odpis, z wnioskiem o autokontrolę i umorzenie;</li>
+    <li>Starosta Lubański, Wydział Komunikacji i Drogownictwa — do akt KD.5430.2093.2026.MB;</li>
+    <li>a/a.</li>
+  </ol>
+</div>
+
+
+    
+    
+    <div style="page-break-before: always; font-family: Cambria, Georgia, serif; line-height: 1.35; color: #222; padding: 10px 15px;">
+        <table style="width: 100%; border-bottom: 2px solid #BF1E23; margin-bottom: 12px; padding-bottom: 5px;">
+            <tr>
+                <td style="vertical-align: middle;">
+                    <img src="https://static2.eluban.pl/data/wysiwig/elubanLogo_RGB_H2_min.png" alt="Logo eLuban.pl" style="height: 34px;" />
+                </td>
+                <td style="text-align: right; font-family: 'Segoe UI', sans-serif; font-size: 9.5pt; color: #555;">
+                    <strong style="color: #BF1E23; font-size: 10.5pt;">DOWÓD — ZAŁĄCZNIK NR 1</strong><br>
+                    <strong>Źródło:</strong> Portal Informacyjny eLuban.pl | <strong>Data:</strong> 29.04.2026 r.
+                </td>
+            </tr>
+        </table>
+        
+        <h1 style="font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 15pt; font-weight: bold; color: #111; margin: 0 0 10px 0; text-align: center; line-height: 1.25;">Poczta Polska w Lubaniu. Czy to koniec problemów z dostarczaniem listów?</h1>
+        
+        <div style="text-align: center; margin-bottom: 12px;">
+            <img src="https://static2.eluban.pl/data/articles/xl-poczta-polska-w-lubaniu-czy-to-koniec-problemow-z-dostarczaniem-listow-1777456667.jpg" alt="Poczta Polska w Lubaniu" style="max-width: 90%; max-height: 210px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.15);" />
+        </div>
+        
+        <div style="font-size: 9.5pt; text-align: justify; column-count: 2; column-gap: 22px;">
+            <p>Radni, mając dość lawiny skarg od zirytowanych mieszkańców, zaprosili na spotkanie Martę Łuczyńską, naczelniczkę mikroregionu odpowiedzialną od pierwszego kwietnia za dwa powiaty: zgorzelecki i lubański. Nowa naczelnik opowiedziała o problemach, które zastała oraz o już wdrożonych zmianach. To, co usłyszeliśmy w trakcie spotkania, napawa optymizmem, choć pewnie będą pojawiać się jeszcze niedociągnięcia. W poprawie świadczenia usług swoją rolę mają też sami mieszkańcy, ale o tym w dalszej części artykułu.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Zarządzanie kryzysowe i nowa kadra w lubańskim urzędzie</h3>
+<p>Zarządzam dwudziestoma pięcioma placówkami, w tym czterema urzędami ze służbą doręczeń, takimi jak Lubań. Lubań jest urzędem, który wymaga obecnie najwięcej mojej uwagi – przyznała otwarcie Marta Łuczyńska podczas rozmowy z radnymi powiatowymi. Nowa naczelniczka, która przejęła urząd pocztowy w Lubaniu pierwszego kwietnia, podobną sytuację opanowała wcześniej w Zgorzelcu, gdzie sytuacja była równie dramatyczna, a dziś usługi wróciły do normy. Teraz te same rygorystyczne zasady próbuje przenieść na powiat lubański, gdzie jeszcze niedawno absencja wśród pracowników sięgała poziomu sześćdziesięciu procent. Najważniejszą informacją dla mieszkańców jest fakt, że od dwudziestego pierwszego kwietnia lubańska poczta ma wreszcie pełne, dwudziestoosobowe zatrudnienie, a dodatkowo jedna osoba znajduje się w rezerwie chorobowej. To kluczowa zmiana, ponieważ przez długie miesiące brakowało rąk do pracy, a konkretnymi rejonami musieli zajmować się pracownicy ściągani w ramach wsparcia z innych urzędów. Co ciekawe, mimo bliskości granicy i teoretycznie trudniejszego rynku pracy, łatwiej o listonosza w Zgorzelcu niż w Lubaniu. Aby ich zmotywować, wprowadzono pilotażowy system wynagradzania za skuteczność, dzięki któremu zamiast zostawiać awizo, pracownicy zarobią więcej na realnym doręczeniu listu do rąk adresata.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Cyfrowa kontrola doręczeń i poprawa statystyk terminowości</h3>
+<p>Epoka doręczania korespondencji w pakietach z dwóch miesięcy ma się definitywnie skończyć wraz z wdrożeniem cyfrowej kontroli pracy w terenie. Od początku kwietnia listonosze mają obowiązek skanowania wszystkich przesyłek rejestrowanych oraz odnotowywania doręczenia listów zwykłych w urządzeniach mobilnych bezpośrednio pod adresem odbiorcy. Mamy już nad tym pełną kontrolę, ponieważ możemy stwierdzić, że listonosz był w konkretnym miejscu i doręczył określoną liczbę przesyłek – wyjaśniała radnym Marta Łuczyńska. Statystyki pokazują, że te działania przynoszą już wymierne efekty. Dzięki temu wskaźnik terminowych doręczeń przesyłek poleconych rok do roku wzrósł z 82% do 97% w bieżącym roku – zapewniała Marta Łuczyńska. Nad porządkiem w samym urzędzie czuwa też nowa kierownik, która sprawuje bezpośredni nadzór nad placówką od końca marca.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Apel do mieszkańców. Numeracja posesji i dostęp do skrzynek</h3>
+<p>Naczelniczka wykorzystała obecność na komisji, aby zaapelować do mieszkańców o pomoc w uporządkowaniu numeracji posesji. Dla wielu nowych listonoszy, którzy dopiero poznają swój teren, domy bez widocznych numerów stanowią poważne utrudnienie w pracy, szczególnie w sytuacjach, gdy nawigacja błędnie wskazuje adres. Problemem pozostają również zamknięte klatki schodowe we wspólnotach mieszkaniowych, gdzie brak kodów administracyjnych uniemożliwia dotarcie do skrzynek pocztowych. Poczta Polska deklaruje chęć porozumienia się z każdym zarządcą, aby listonosz mógł swobodnie wykonać swoje zadanie i dostarczyć pocztę na czas. Kończąc wyjaśnienia przed radnymi, szefowa mikroregionu poprosiła o czas na pełne zgranie nowego zespołu. Na chwilę obecną w lubańskiej placówce nie ma już ani jednej zaległej przesyłki – zadeklarowała uroczyście Marta Łuczyńska. To ważna obietnica, która daje realną nadzieję, że mieszkańcy powiatu lubańskiego przestaną być zakładnikami instytucjonalnego chaosu i odzyskają zaufanie do usług pocztowych. paliwo do dalszego działania dla mieszkańców!</p>
+
+        </div>
+    </div>
+
+    <div style="page-break-before: always; font-family: Cambria, Georgia, serif; line-height: 1.35; color: #222; padding: 10px 15px;">
+        <table style="width: 100%; border-bottom: 2px solid #BF1E23; margin-bottom: 12px; padding-bottom: 5px;">
+            <tr>
+                <td style="vertical-align: middle;">
+                    <img src="https://static2.eluban.pl/data/wysiwig/elubanLogo_RGB_H2_min.png" alt="Logo eLuban.pl" style="height: 34px;" />
+                </td>
+                <td style="text-align: right; font-family: 'Segoe UI', sans-serif; font-size: 9.5pt; color: #555;">
+                    <strong style="color: #BF1E23; font-size: 10.5pt;">DOWÓD — ZAŁĄCZNIK NR 2</strong><br>
+                    <strong>Źródło:</strong> Portal Informacyjny eLuban.pl | <strong>Data:</strong> 24.08.2026 r.
+                </td>
+            </tr>
+        </table>
+        
+        <h1 style="font-family: 'Segoe UI', Tahoma, sans-serif; font-size: 15pt; font-weight: bold; color: #111; margin: 0 0 10px 0; text-align: center; line-height: 1.25;">Policja na poczcie w Lubaniu. Fikcyjne awiza i worki z korespondencją do utylizacji</h1>
+        
+        <div style="text-align: center; margin-bottom: 12px;">
+            <img src="https://static2.eluban.pl/data/articles/xl-policja-na-poczcie-w-lubaniu-fikcyjne-awiza-i-worki-z-korespondencja-do-utylizacji-1787595387.jpg" alt="Worki z niedostarczonymi listami" style="max-width: 90%; max-height: 210px; border-radius: 4px; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.15);" />
+        </div>
+        
+        <div style="font-size: 9.5pt; text-align: justify; column-count: 2; column-gap: 22px;">
+            <p>Saga o nieudolności lubańskiej poczty trwa już kilka lat. Setki niedostarczonych przesyłek znikały gdzieś w czeluściach urzędu pocztowego, a adresaci rozpaczliwie próbowali odzyskać swoją korespondencję, jednak w wielu przypadkach bez powodzenia, co miało swoje konkretne i poważne konsekwencje. Problem okazał się na tyle duży, że w 2023 roku Prokuratura Okręgowa w Jeleniej Górze wszczęła śledztwo w sprawie ukrywania i usuwania korespondencji w lubańskim urzędzie pocztowym, a także ewentualnego przywłaszczenia mienia z przesyłek oraz podrabiania podpisów odbiorców. Wówczas zgłosiło się ponad 240 poszkodowanych, a prokuratura badała działalność lubańskiej poczty od 2018 roku w sprawie o czyny z art. 276 kk, 268 § 1 kk, 270 § 1 kk oraz 284 § 1 kk.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Zmiany i program naprawczy</h3>
+<p>W międzyczasie w lubańskiej placówce pocztowej wprowadzono "program naprawczy", a od kwietnia 2026 r. naczelnikiem mikroregionu obejmującego powiat zgorzelecki i lubański została Marta Łuczyńska. Nowa naczelnik obiecywała zmiany i poprawę sytuacji. Podczas kwietniowego spotkania z powiatowymi radnymi, relacjonowała o wzroście zatrudnienia listonoszy do 21 osób, co miało gwarantować terminowe dostarczanie przesyłek, oraz szeregu zmian organizacji pracy, tak aby lubańska poczta wywiązywała się ze swoich zobowiązań. Niestety sygnały od mieszkańców nie ustają, a wycieczki na pocztę w poszukiwaniu niedostarczonych listów czy paczek to już norma. Przez trzy dni szukali na poczcie mojego listu, chodziłam i walczyłam, bo wiedziałam, że to ważny list z sądu, a co mają zrobić ludzie, którzy nie wiedzą, że coś ma przyjść. - relacjonuje jedna z mieszkanek. Ja tu chodzę bardzo często, bo nie mogę się doprosić własnych listów. Czekam na kartę z banku i się nie doczekałem. Trzeba czymś płacić, więc zamówiłem następną, to doszła ta pierwsza. Syn z kolei chciał odpis wyroku - opłacił w sądzie 40 zł, a sąd wysłał poleconym odpis. Mija już czwarty miesiąc, a listu nadal nie ma ani w skrzynce, ani na lubańskiej poczcie. Ręce opadają. - usłyszeliśmy od spotkanego dziś przed pocztą mężczyzny.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Kilkadziesiąt worków z listami do utylizacji</h3>
+<p>Zmiana kadry zarządzającej w kwietniu miała przynieść poprawę sytuacji, ale jak widać niespecjalnie się to udało. Do tego na linii naczelnik - kierownik rozgorzał ostry konflikt. Pojawiły się informacje o problemach pracowniczych, nakazie wystawiania "fałszywych awizo" i ukrywania bieżącej, niedostarczonej poczty. Dziś rano odwiedziliśmy pocztę w Lubaniu, aby sprawdzić te doniesienia. Na miejscu rozmawialiśmy z naczelniczką poczty oraz kierowniczką, która wezwała na miejsce policję, aby móc potwierdzić ukrywanie i chęć zutylizowania setek niedostarczonych przesyłek. Rzeczywiście w pokoju sąsiadującym z biurem Pauliny Ryż-Budzan, kierowniczki (jak twierdzą pracownicy - pokoju do którego nie miała dostępu nawet sprzątaczka) znajduje się około 30 dużych worków z przesyłkami. I tu zrobiło się ciekawe, bo naczelnik Łuczyńska oświadczyła, że są to listy oddane przez prokuraturę, które stanowiły dowód w prowadzonej w 2023 roku sprawie i mają zostać przesłane do Koluszek i tam zniszczone. Rozmiar tego "materiału dowodowego" pobudza wyobraźnię, dlatego od razu zapytaliśmy, dlaczego po procesie dowodowym przesyłki nie trafią do adresatów tylko do zutylizowania? Naczelnik odpowiedziała, że są to listy z 2017 roku i takie otrzymała polecenie.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Nie tylko stare listy</h3>
+<p>W tym momencie, w kontrze do naczelnik stanęła kierowniczka placówki, twierdząc, że w workach jest nie tylko stara korespondencja, ale i bieżące przesyłki: pakiety reklamowe, prenumeraty, listy zwykłe, ale też listy polecone! Na weryfikację, przynamniej częściową, nie trzeba było długo czekać. Na miejscu pojawili się lubańscy policjanci, którzy już w pierwszym otwieranym worku potwierdzili przesyłki z maja i czerwca 2026 roku. Kierowniczka lubańskiej placówki w obecności policjantów zarzuciła, że niedostarczone przesyłki z tego roku miały trafić do worków przeznaczonych do utylizacji właśnie na polecenie naczelniczki. A wszystko działo się w czerwcu, przed kontrolą dyrektora regionalnego w lubańskiej placówce. Otwartym pozostaje pytanie, kto stał za tymi decyzjami i dlaczego zdecydowano o zniszczeniu zalegających od kliku lat przesyłek? Tu trzeba przytoczyć Prawo pocztowe, które jasno wskazuje, że operator pocztowy może zutylizować wyłącznie przesyłkę niedoręczalną, czyli taką, której nie można doręczyć adresatowi ani zwrócić nadawcy. Więc stosując przepisy, przesyłki zwrócone przez prokuraturę powinny wrócić do normalnego obiegu i zostać dostarczone do adresatów, nawet po kilku latach. Poczty na świecie potrafią chwalić się dostarczeniem listu po 50, a nawet 100 latach. Wygląda na to, że w Lubaniu tak nie będzie.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Fikcyjne awiza</h3>
+<p>O wiele poważniejszymi zarzutami, które dziś padły są słowa trzech listonoszy o poleceniu wydawania fikcyjnych awizo. Oznacza to, że gdy Wy czekacie na list polecony, w systemie poczty zostaje on oznaczony jako awizowany. List czeka na odbiór w okienku, a adresat nie jest tego świadomy. Dwa takie awiza i w świetle prawa korespondencja uznawana jest za dostarczoną! O konsekwencjach, często finansowych, jakie spotykają w związku z tym klientów poczty pisaliśmy wielokrotnie. Poznaliśmy przypadek mężczyzny, który nie stawił się na swoją sprawę w sądzie. W efekcie nie mógł się bronić, a że nie jest grzecznym chłopcem i miał wcześniejsze wyroki, sędzia zasądził cztery lata za kratami! Nieopłacone na czas rachunki, a później płatności z odsetkami. Dochodzi do tego, że proste sprawy trafiają do komornika, a to tylko wierzchołek góry lodowej. Z relacji listonoszy wynika, że są przeciążeni pracą. Mają swoje rejony plus tak zwane "rozbiórki", czyli fragmenty rejonów nieobsadzonych bądź tych gdzie ktoś jest na zwolnieniu, albo urlopie. Jeżeli listonosz nie zdoła dostarczyć danego dnia wszystkich listów, następnego dnia otrzymuje je ponownie. Miałem taką sytuację dostałem w poniedziałek 150 listów poleconych plus kilkanaście małych paczek. Mój rejon to wioska plus kilka ulic Lubania z rozbiórki, w osiem godzin nie sposób wszystko rozwieźć. Nadgodzin nie robię, bo parę razy zginęła już karta nadgodzin i pieniędzy mi nie wypłacono. Dlatego część poleconych tego dnia wraca jako niedostarczone. Następnego dnia znowu zostałem zawalony poleconymi. Od Pani naczelnik usłyszałem, że mam z tym na pocztę nie wracać. Gdy zapytałem, czy mam wystawiać puste awizo potwierdziła dodając, że ona o tym nic nie wie. Trzeba tu podkreślić, że naczelnik wszystkiemu zaprzeczyła i nie przyznała się do wydawania takich poleceń. Jednak troje listonoszy potwierdzało, że były wywierane na nich takie naciski. Łącznie z tym, że polecenia były potwierdzane kiwnięciami głowy, tak by nie można było tego nagrać.</p>
+<h3 style='font-family: "Segoe UI", sans-serif; font-size: 11pt; color: #1a237e; margin: 10px 0 4px 0; break-after: avoid;'>Jaki będzie ciąg dalszy?</h3>
+<p>W tej chili w pomieszczeniu przy biurze kierownik lubańskiej poczty zdeponowanych jest około 30 worków niedoręczonych przesyłek. Dotychczasowa kierownik, która pracowała na lubańskiej poczcie od marca tego roku, dziś otrzymała wypowiedzenie z pracy. Jak deklaruje, jutro zamierza złożyć doniesienie do prokuratury. Dziś na miejscu była policja, która wykonała swoją dokumentację fotograficzną. Czy zawiadomione służby podejmą działania w tej sprawie? Będziemy dopytywać i z pewnością do tematu wracać. Jedno jest pewne, jeżeli czekacie na list polecony, to próbujcie dowiedzieć się na poczcie, bo może będziecie mieli szczęście i wasz list jeszcze czeka w okienku.</p>
+
+        </div>
+    </div>
+</body>
+</html>

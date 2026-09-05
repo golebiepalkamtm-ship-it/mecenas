@@ -15,7 +15,7 @@ class OrchestrationPipeline:
         self.debate_engine = DebateEngine()
         self.synthesis_engine = SeniorAdvocateSynthesis()
 
-    async def execute(self, params: OrchestratorInputParams) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute(self, params: OrchestratorInputParams, status_callback: Any = None) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Zupełnie nowa, czysta implementacja koordynatora.
         Każdy etap to wywołanie dedykowanego obiektu.
@@ -31,7 +31,7 @@ class OrchestrationPipeline:
         await asyncio.sleep(0.5)
         
         try:
-            context_result = await self.context_builder.build_context(params, llm_service)
+            context_result = await self.context_builder.build_context(params, llm_service, status_callback=status_callback)
         except Exception as e:
             logger.exception("[PIPELINE] Krytyczny błąd budowania kontekstu, stosuję pusty kontekst")
             from .context_builder import InvestigationContext
@@ -65,7 +65,7 @@ class OrchestrationPipeline:
             )
         else:
             yield {"type": "metadata", "message": "[Etap 2] Rozpoczynam równoległą debatę ekspertów w tle..."}
-            debate_result_or_task = asyncio.create_task(self.debate_engine.run_debate(params, context_result))
+            debate_result_or_task = asyncio.create_task(self.debate_engine.run_debate(params, context_result, status_callback=status_callback))
 
         # 3. Synteza Końcowa (Główny Adwokat) z Metrykami (Advocate Metrics)
         yield {"type": "metadata", "message": "[Etap 3] Synteza końcowa z weryfikacją halucynacji..."}
@@ -74,16 +74,18 @@ class OrchestrationPipeline:
         llm_service = self.debate_engine.llm_service
         final_answer = ""
         
+        synthesis_error = False
         try:
-            async for chunk in self.synthesis_engine.synthesize_stream(params, context_result, debate_result_or_task, llm_service):
+            async for chunk in self.synthesis_engine.synthesize_stream(params, context_result, debate_result_or_task, llm_service, status_callback=status_callback):
                 if chunk.get("type") == "chunk":
                     final_answer += chunk.get("text", "")
                 yield chunk
         except Exception as e:
             logger.exception("[PIPELINE] Krytyczny błąd syntezy końcowej")
-            err_msg = f"\n[BŁĄD SYSTEMOWY] Wystąpił nieoczekiwany błąd podczas syntezy: {str(e)}"
+            err_msg = f"\n*[BŁĄD SYSTEMOWY: Zatrzymano generowanie pierwszej opinii ze względu na wykrycie nieprawidłowości: {str(e)}]*\n"
             yield {"type": "chunk", "text": err_msg}
             final_answer += err_msg
+            synthesis_error = True
             
         # Pobieramy wynik debaty po zakończeniu syntezy (na pewno jest już gotowy)
         if isinstance(debate_result_or_task, asyncio.Task):
@@ -92,8 +94,8 @@ class OrchestrationPipeline:
             except Exception as debate_err:
                 logger.exception("[PIPELINE] Krytyczny błąd asynchronicznej debaty ekspertów")
                 from .debate_engine import DebateResult
-                from database import get_setting
-                fallback_m = get_setting("assigned_model_fast")
+                assigned_fast = params.assigned_models.get('fast') if params.assigned_models else None
+                fallback_m = assigned_fast or params.selected_model
                 debate_result = DebateResult(
                     expert_opinions=[{
                         "role": "Ekspert Rezerwowy",
@@ -110,44 +112,70 @@ class OrchestrationPipeline:
             
         # Faza 3: Reflection Loop
         from config import settings
-        if settings.feature_reflection_loop and final_answer:
+        if settings.feature_reflection_loop and (final_answer or synthesis_error):
             yield {"type": "metadata", "message": "[Self-Critic] Weryfikacja jakości odpowiedzi..."}
-            from services.orchestrator_v2.reflection_loop import ReflectionLoop
+            from services.orchestrator_v2.reflection_loop import ReflectionLoop, ReflectionResult
             reflector = ReflectionLoop()
-            reflection_result = await reflector.evaluate_answer(
-                draft_answer=final_answer,
-                user_query=params.user_query,
-                context_text=context_result.combined_full_text,
-                llm_service=llm_service,
-                threshold=settings.reflection_score_threshold,
-                hallucination_rate=getattr(debate_result, "hallucination_rate", 0.0)
-            )
+            
+            if synthesis_error:
+                # Omijamy ewaluację na tekście błędu i od razu wymuszamy pełną regenerację
+                reflection_result = ReflectionResult(
+                    score=0.0,
+                    issues=["Przerwano generowanie z powodu błędu krytycznego lub przekroczenia progu halucynacji."],
+                    needs_regeneration=True,
+                    improved_answer=""
+                )
+            else:
+                reflection_result = await reflector.evaluate_answer(
+                    draft_answer=final_answer,
+                    user_query=params.user_query,
+                    context_text=context_result.combined_full_text,
+                    llm_service=llm_service,
+                    threshold=settings.reflection_score_threshold,
+                    hallucination_rate=getattr(debate_result, "hallucination_rate", 0.0),
+                    params=params
+                )
             
             if reflection_result.needs_regeneration:
-                yield {"type": "chunk", "text": "\n\n---\n*System (Self-Critic) wygenerował uzupełnienie do powyższej opinii:*\n\n"}
-                yield {"type": "metadata", "message": "[Self-Critic] Trwa uzupełnianie braków..."}
+                is_full_regen = synthesis_error
                 
-                correction_prompt = f"Twoja poprzednia odpowiedź otrzymała ocenę {reflection_result.score:.2f} z powodu następujących braków:\n" + "\n".join([f"- {issue}" for issue in reflection_result.issues]) + "\nNapisz zwięzłe uzupełnienie, które adresuje WYŁĄCZNIE te braki. Zacznij od słów np. 'Tytułem uzupełnienia...'."
-                from database import get_setting
-                advocate_model = params.aggregator_model or params.selected_model or get_setting("assigned_model_judge")
+                assigned_judge = params.assigned_models.get('judge') if params.assigned_models else None
+                advocate_model = assigned_judge or params.aggregator_model or params.selected_model
+                
+                if is_full_regen:
+                    yield {"type": "chunk", "text": "\n\n---\n*System bezpieczeństwa (Self-Critic) wymusił pełną regenerację opinii z powodu błędów w pierwszej wersji:*\n\n"}
+                    yield {"type": "metadata", "message": "[Self-Critic] Generowanie nowej, poprawnej odpowiedzi..."}
+                    correction_prompt = "Poprzednia próba wygenerowania opinii została przerwana lub odrzucona przez system zabezpieczeń (zbyt dużo halucynacji lub błąd logiczny). Zignorowałeś fakty lub cytowałeś nieistniejące przepisy. TWOIM ZADANIEM JEST NAPISAĆ CAŁKOWICIE NOWĄ, PEŁNĄ I BEZBŁĘDNĄ OPINIĘ OD ZERA. Odpowiedz szczegółowo na zapytanie użytkownika opierając się WYŁĄCZNIE na udostępnionym Kontekście Prawnym. Użyj formatowania Markdown. Piszesz bezpośrednio do klienta."
+                    system_role = "Jesteś wybitnym Głównym Adwokatem. Twoje poprzednie zadanie się nie powiodło, więc musisz napisać opinię od nowa, tym razem poprawnie."
+                else:
+                    yield {"type": "chunk", "text": "\n\n---\n*System (Self-Critic) wygenerował uzupełnienie do powyższej opinii:*\n\n"}
+                    yield {"type": "metadata", "message": "[Self-Critic] Trwa uzupełnianie braków..."}
+                    correction_prompt = f"Twoja poprzednia odpowiedź otrzymała ocenę {reflection_result.score:.2f} z powodu następujących braków:\n" + "\n".join([f"- {issue}" for issue in reflection_result.issues]) + "\nNapisz zwięzłe uzupełnienie, które adresuje WYŁĄCZNIE te braki. Zacznij od słów np. 'Tytułem uzupełnienia...'."
+                    system_role = "Jesteś Głównym Adwokatem. Musisz uzupełnić swoją analizę na podstawie uwag z weryfikacji jakości."
                 
                 try:
+                    # Jeśli pełna regeneracja, potrzebujemy więcej tokenów
+                    max_t = 8192 if is_full_regen else 1500
+                    
                     correction_text, _ = await llm_service.call_with_fallback(
                         advocate_model,
                         [
-                            {"role": "system", "content": "Jesteś Głównym Adwokatem. Musisz uzupełnić swoją analizę na podstawie uwag z weryfikacji jakości."},
-                            {"role": "user", "content": f"ZAPYTANIE KLIENTA:\n{params.user_query}\n\nUWAGI AUDYTU:\n{correction_prompt}"}
+                            {"role": "system", "content": system_role},
+                            {"role": "user", "content": f"ZAPYTANIE KLIENTA:\n{params.user_query}\n\nKONTEKST PRAWNY:\n{context_result.combined_full_text[:40000]}\n\nUWAGI AUDYTU (Twoje zadanie):\n{correction_prompt}"}
                         ],
-                        max_tokens=1500,
+                        max_tokens=max_t,
                         temperature=0.3,
-                        timeout=60.0,
+                        timeout=90.0,
                         log_context="ReflectionCorrection"
                     )
                     if correction_text:
                         yield {"type": "chunk", "text": correction_text}
-                        final_answer += "\n\n---\n*Uzupełnienie po audycie jakości:*\n\n" + correction_text
+                        if is_full_regen:
+                            final_answer = correction_text
+                        else:
+                            final_answer += "\n\n---\n*Uzupełnienie po audycie jakości:*\n\n" + correction_text
                 except Exception as e:
-                    logger.warning(f"[PIPELINE] Błąd generowania uzupełnienia: {e}")
+                    logger.warning(f"[PIPELINE] Błąd generowania poprawionej odpowiedzi: {e}")
             
         # Zakończenie strumienia - budowanie cited_sources
         try:

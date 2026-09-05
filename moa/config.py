@@ -22,15 +22,14 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Models
-DEFAULT_JUDGE_MODEL = "qwen/qwen3.8-max"
+DEFAULT_JUDGE_MODEL = "google/gemini-3.7-flash"
 
 CURATED_MODELS = [
-    {"id": "~deepseek/deepseek-v4-flash-latest", "name": "DeepSeek V4 Flash", "provider": "deepseek"},
     {"id": "google/gemini-3.7-flash", "name": "Gemini 3.7 Flash", "provider": "google"},
+    {"id": "google/gemini-2.5-flash", "name": "Gemini 2.5 Flash", "provider": "google"},
+    {"id": "google/gemini-2.5-flash-lite", "name": "Gemini 2.5 Flash Lite", "provider": "google"},
     {"id": "openai/gpt-5.4-nano", "name": "GPT-5.4 Nano", "provider": "openai"},
-    {"id": "z-ai/glm-5.3", "name": "GLM 5.3", "provider": "z-ai"},
-    {"id": "x-ai/grok-4.6", "name": "Grok 4.6", "provider": "x-ai"},
-    {"id": "qwen/qwen3.8-max", "name": "Qwen 3.8 Max", "provider": "qwen"},
+    {"id": "deepseek/deepseek-v4-flash", "name": "DeepSeek V4 Flash", "provider": "deepseek"},
 ]
 
 
@@ -89,8 +88,8 @@ def merge_curated_models(models: list) -> list:
 
 
 EXCLUDED_MODELS_KEYWORDS = [
-    "extended"
-]  # Usunięto "vision", aby odblokować zaawansowane modele OCR/Vision z OpenRouter!
+    "extended",
+]  # Usunięto bany na poszczególne modele, by odblokować wszystko (np. sol, fable, opus)
 
 PRESETS_LIST = [
     {

@@ -64,29 +64,23 @@ def _finish_reason(completion: Any) -> str:
 async def run_verbatim_vision_ocr(
     client: Any,
     image_bytes: bytes,
-    *,
-    preprocess: bool = True,
+    assigned_ocr: str = ""
 ) -> Tuple[str, Optional[str]]:
     """
-    Zwraca (tekst, id_modelu) lub ("", None) gdy wszystkie modele zawiodły.
-  Przy finish_reason=length dokleja kolejne partie (kontynuacja).
+    Wykonuje pełny OCR z pliku obrazu, korzystając z modelu Vision i loopa kontynuacji,
+    jeśli tekst jest urywany z powodu limitu tokenów wyjściowych. Zwraca (tekst, uzyty_model).
     """
-    if not image_bytes:
-        return "", None
+    logger.info("[vision_ocr] rozpoczynam OCR, bytes=%s", len(image_bytes))
 
     raw = image_bytes
-    if preprocess:
-        try:
-            from utils.image_preprocessor import preprocess_image_for_ocr
-
-            raw = preprocess_image_for_ocr(image_bytes)
-        except Exception as exc:
-            logger.warning("[vision_ocr] preprocess failed: %s — używam oryginału", exc)
+    try:
+        from utils.image_preprocessor import preprocess_image_for_ocr
+        raw = preprocess_image_for_ocr(image_bytes)
+    except Exception as exc:
+        logger.warning("[vision_ocr] preprocess failed: %s — używam oryginału", exc)
 
     b64 = base64.b64encode(raw).decode("utf-8")
-    from database import get_setting
-    from config import settings
-    assigned_ocr = settings.resolve_model_id(get_setting("assigned_model_ocr", ""))
+    assigned_ocr = settings.resolve_model_id(assigned_ocr)
     
     # Do OCR wizyjnego dopuszczamy wyłącznie modele multimodalne (Vision)
     candidate_models = [assigned_ocr, "google/gemini-3.7-flash", "google/gemini-2.5-flash", "openai/gpt-4o-mini"]

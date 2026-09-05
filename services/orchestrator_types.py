@@ -55,6 +55,7 @@ class OrchestratorInputParams:
     process_side: str = "neutral"
     judge_system_prompt: str = ""
     model_latencies: Dict[str, Any] = field(default_factory=dict)
+    assigned_models: Dict[str, str] = field(default_factory=dict)
     document_text: str = ""
     chat_history: List[Dict[str, Any]] = field(default_factory=list)
     session_id: str = ""

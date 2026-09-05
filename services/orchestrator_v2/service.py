@@ -38,15 +38,17 @@ class OrchestratorV2Service:
             response_mode=kwargs.get("response_mode") or "standard",
             process_side=kwargs.get("process_side") or "neutral",
             judge_system_prompt=kwargs.get("judge_system_prompt") or "",
+            assigned_models=kwargs.get("assigned_models") or {},
             document_text=kwargs.get("document_text", ""),
             chat_history=kwargs.get("chat_history") or [],
             session_id=kwargs.get("session_id", ""),
         )
 
         logger.info("[V3] Start process_user_request_stream query=%s", params.user_query[:50])
+        status_callback = kwargs.get("status_callback")
         pipeline = OrchestrationPipeline()
         try:
-            async for chunk in pipeline.execute(params):
+            async for chunk in pipeline.execute(params, status_callback=status_callback):
                 yield chunk
             logger.info("[V2] pipeline.execute finished successfully")
         except Exception:

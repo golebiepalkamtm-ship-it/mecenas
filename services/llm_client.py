@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, Dict
 
 from tenacity import (
     AsyncRetrying,
@@ -19,14 +19,20 @@ from services.pii_mask import mask_pii
 
 logger = logging.getLogger(__name__)
 
+# Globalny rejestr zadań oczekujących na decyzję użytkownika (Interactive Model Recovery)
+PENDING_RESOLUTIONS: Dict[str, asyncio.Future] = {}
+
 
 def effective_max_tokens(model_id: str, max_tokens: int) -> int:
     """Zapewnia dostateczny budżet tokenów dla modeli z rozumowaniem/CoT i ucinaniem tekstu."""
     mid = (model_id or "").lower()
     if "gpt-4o" in mid and max_tokens < 16:
         return 16
-    if any(k in mid for k in ["r1", "pro", "gemini", "o1", "o3", "deepseek", "qwen", "glm", "grok", "nemotron"]) and max_tokens < 8192:
-        return max(max_tokens, 8192)
+    # Tylko modele czysto 'reasoning', które nie potrafią skończyć myślenia w 1-2k tokenów,
+    # podbijamy do 4096, aby zapobiec ucięciu w połowie. Zbyt duże max_tokens (np. 8192)
+    # może powodować zwracanie pustych odpowiedzi przez API (brak obsługi tak długich generacji).
+    if any(k in mid for k in ["r1", "o1", "o3", "qwen3"]) and max_tokens < 4096:
+        return max(max_tokens, 4096)
     return max_tokens
 
 
@@ -73,10 +79,12 @@ class LLMClientService:
         *,
         fallback_models: Optional[list[str]] = None,
         resolve_model_id: Optional[Callable[[Optional[str]], str]] = None,
+        status_callback: Optional[Any] = None,
     ):
         self._client = client
         self._explicit_fallbacks = fallback_models
         self._explicit_resolve = resolve_model_id
+        self._status_callback = status_callback
 
     @property
     def fallbacks(self) -> list[str]:
@@ -179,6 +187,7 @@ class LLMClientService:
                         raise ValueError(f"Oczekiwano choices, ale otrzymano: {completion}")
                     result = content.strip()
                     if not result:
+                        logger.error(f"[llm] OpenRouter Empty Response Raw: {completion}")
                         raise ValueError("Model zwrócił pustą odpowiedź.")
                     _log_model_response(model_id, result, log_context)
                     return result, model_id
@@ -213,79 +222,68 @@ class LLMClientService:
         log_context: str = "",
         response_format: Optional[Any] = None,
     ) -> Tuple[str, str]:
-        """Model główny (z retry) → modele zapasowe."""
-        model_id = self._resolve(model_id)
+        """Wykonuje wywołanie do API. W razie błędu zawiesza strumień i czeka na wybór użytkownika (IMR)."""
+        current_model = self._resolve(model_id)
         primary_timeout = max(timeout, 20.0)
-        fallback_timeout = max(primary_timeout, settings.llm_timeout_fallback)
 
-        try:
-            return await self.call(
-                model_id,
-                messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                timeout=primary_timeout,
-                log_context=log_context or "ODPOWIEDŹ",
-                response_format=response_format,
-            )
-        except Exception as primary_err:
-            err_detail = format_call_error(primary_err)
-            logger.warning(
-                "[llm] primary_failed model=%s error=%s", model_id, err_detail
-            )
-            if status_callback:
-                if isinstance(primary_err, (asyncio.TimeoutError, TimeoutError)):
-                    await status_callback(
-                        f"Model {model_id} nie zdążył odpowiedzieć w {int(primary_timeout)} s. "
-                        "Próba modelu zapasowego..."
-                    )
+        while True:
+            try:
+                return await self.call(
+                    current_model,
+                    messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    timeout=primary_timeout,
+                    log_context=log_context or "ODPOWIEDŹ",
+                    response_format=response_format,
+                )
+            except Exception as err:
+                err_detail = format_call_error(err)
+                logger.warning("[llm] IMR: Model %s failed: %s", current_model, err_detail)
+                
+                active_status_callback = status_callback or self._status_callback
+                if active_status_callback:
+                    import uuid
+                    resolution_id = str(uuid.uuid4())
+                    
+                    # Inicjalizujemy obietnicę (Future) w rejestrze
+                    PENDING_RESOLUTIONS[resolution_id] = asyncio.Future()
+                    
+                    # Wysyłamy żądanie akcji do klienta
+                    if asyncio.iscoroutinefunction(active_status_callback):
+                        await active_status_callback({
+                            "type": "action_required",
+                            "action": "select_model",
+                            "failed_model": current_model,
+                            "error_details": err_detail,
+                            "resolution_id": resolution_id
+                        })
+                    else:
+                        active_status_callback({
+                            "type": "action_required",
+                            "action": "select_model",
+                            "failed_model": current_model,
+                            "error_details": err_detail,
+                            "resolution_id": resolution_id
+                        })
+                    
+                    try:
+                        # Zatrzymujemy to zadanie w pamięci i czekamy na odpowiedź z zewnętrznego endpointu
+                        logger.info(f"[llm] IMR: Wstrzymano zadanie. Oczekuję na rozwiązanie (ID: {resolution_id})...")
+                        new_model_id = await PENDING_RESOLUTIONS[resolution_id]
+                        
+                        logger.info(f"[llm] IMR: Wznawiam z nowym modelem: {new_model_id}")
+                        current_model = self._resolve(new_model_id)
+                        continue # Wznawiamy pętlę z nowym modelem
+                    except Exception as wait_err:
+                        logger.error(f"[llm] IMR: Błąd oczekiwania na model: {wait_err}")
+                        raise
+                    finally:
+                        if resolution_id in PENDING_RESOLUTIONS:
+                            del PENDING_RESOLUTIONS[resolution_id]
                 else:
-                    await status_callback(
-                        f"Model {model_id} jest niedostępny ({err_detail[:80]}). "
-                        "Próba modelu zapasowego..."
-                    )
-
-            last_err: BaseException = primary_err
-            for fb_model in self.fallbacks:
-                if fb_model == model_id:
-                    continue
-                try:
-                    logger.info("[llm] fallback_attempt model=%s", fb_model)
-                    if status_callback:
-                        await status_callback(
-                            f"Nawiązywanie połączenia z darmowym modelem zapasowym {fb_model}..."
-                        )
-                    result, used = await self.call(
-                        fb_model,
-                        messages,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        timeout=fallback_timeout,
-                        log_context=(log_context or "ODPOWIEDŹ") + " [zapasowy]",
-                        response_format=response_format,
-                    )
-                    if status_callback:
-                        await status_callback(
-                            f"Pomyślnie przełączono na model zapasowy {used}."
-                        )
-                    return result, used
-                except Exception as fb_err:
-                    last_err = fb_err
-                    logger.warning(
-                        "[llm] fallback_failed model=%s error=%s",
-                        fb_model,
-                        format_call_error(fb_err)[:120],
-                    )
-                    if status_callback:
-                        await status_callback(
-                            f"Model zapasowy {fb_model} również nie odpowiada."
-                        )
-                    continue
-
-            raise RuntimeError(
-                f"Wszystkie modele (główny + {len(self.fallbacks)} fallbacków) zawiodły. "
-                f"Ostatni błąd: {last_err}"
-            ) from last_err
+                    # Brak status_callback - nie można użyć IMR
+                    raise RuntimeError(f"Błąd modelu {current_model} i brak możliwości IMR: {err_detail}") from err
 
     async def call_with_fallback_stream(
         self,
@@ -297,135 +295,94 @@ class LLMClientService:
         timeout: float = 30.0,
         status_callback=None,
     ):
-        """Strumień — bez tenacity na streamie; fallback na kolejny model."""
-        model_id = self._resolve(model_id)
-        max_tokens = effective_max_tokens(model_id, max_tokens)
+        """Strumień z IMR. W razie błędu zawiesza strumień i czeka na wybór użytkownika."""
+        current_model = self._resolve(model_id)
         primary_timeout = max(timeout, settings.llm_stream_timeout_primary)
-        fallback_timeout = max(primary_timeout, settings.llm_stream_timeout_fallback)
 
-        try:
-            raw_stream = await asyncio.wait_for(
-                self._client.chat.completions.create(
-                    model=model_id,
-                    messages=messages,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    stream=True,
-                ),
-                timeout=primary_timeout,
-            )
-
+        while True:
+            effective_tokens = effective_max_tokens(current_model, max_tokens)
             try:
-                first_chunk = await asyncio.wait_for(
-                    raw_stream.__anext__(), timeout=15.0
-                )
-            except StopAsyncIteration:
-                raise RuntimeError("Strumień zwrócił 0 elementów (pusta odpowiedź).")
-
-            async def wrapped_stream():
-                yield first_chunk
-                async for chunk in raw_stream:
-                    yield chunk
-
-            logger.info("[llm] stream_started model=%s", model_id)
-            return wrapped_stream(), model_id
-        except Exception as exc:
-            logger.warning(
-                "[llm] stream_primary_failed model=%s error=%s",
-                model_id,
-                format_call_error(exc),
-            )
-            # Obsługa błędu 402 w strumieniowaniu głównym
-            afford = _extract_affordable_tokens(exc)
-            if afford and afford > 16 and max_tokens > afford:
-                new_max = max(16, afford - 20)
-                logger.warning("[llm] OpenRouter 402 na strumieniu głównym %s: zredukowano max_tokens z %d do %d", model_id, max_tokens, new_max)
-                return await self.call_with_fallback_stream(
-                    model_id, messages, max_tokens=new_max, temperature=temperature, timeout=timeout, status_callback=status_callback
+                raw_stream = await asyncio.wait_for(
+                    self._client.chat.completions.create(
+                        model=current_model,
+                        messages=messages,
+                        max_tokens=effective_tokens,
+                        temperature=temperature,
+                        stream=True,
+                    ),
+                    timeout=primary_timeout,
                 )
 
-            if status_callback:
-                await status_callback(
-                    f"Główny model {model_id} nie odpowiada. Przełączanie na darmowy strumień zapasowy..."
-                )
-
-            for fb_model in self.fallbacks:
-                if fb_model == model_id:
-                    continue
                 try:
-                    logger.info("[llm] stream_fallback_attempt model=%s", fb_model)
-                    if status_callback:
-                        await status_callback(
-                            f"Nawiązywanie strumienia z darmowym modelem zapasowym {fb_model}..."
-                        )
-                    fb_raw_stream = await asyncio.wait_for(
-                        self._client.chat.completions.create(
-                            model=fb_model,
-                            messages=messages,
-                            max_tokens=effective_max_tokens(fb_model, max_tokens),
-                            temperature=temperature,
-                            stream=True,
-                        ),
-                        timeout=fallback_timeout,
+                    first_chunk = await asyncio.wait_for(
+                        raw_stream.__anext__(), timeout=15.0
                     )
+                except StopAsyncIteration:
+                    raise RuntimeError("Strumień zwrócił 0 elementów (pusta odpowiedź).")
 
-                    try:
-                        fb_first_chunk = await asyncio.wait_for(
-                            fb_raw_stream.__anext__(), timeout=15.0
-                        )
-                    except StopAsyncIteration:
-                        raise RuntimeError("Strumień zapasowy zwrócił 0 elementów.")
+                async def wrapped_stream():
+                    yield first_chunk
+                    async for chunk in raw_stream:
+                        yield chunk
 
-                    async def fb_wrapped_stream():
-                        yield fb_first_chunk
-                        async for chunk in fb_raw_stream:
-                            yield chunk
-
-                    logger.info("[llm] stream_started model=%s (fallback)", fb_model)
-                    if status_callback:
-                        await status_callback(
-                            f"Uruchomiono darmowy strumień zapasowy z {fb_model}."
-                        )
-                    return fb_wrapped_stream(), fb_model
-                except Exception as fb_err:
-                    fb_afford = _extract_affordable_tokens(fb_err)
-                    if fb_afford and fb_afford > 16 and max_tokens > fb_afford:
-                        fb_max = max(16, fb_afford - 20)
-                        logger.warning("[llm] OpenRouter 402 na strumieniu zapasowym %s: ponawiam z max_tokens=%d", fb_model, fb_max)
-                        try:
-                            fb_raw = await asyncio.wait_for(
-                                self._client.chat.completions.create(
-                                    model=fb_model,
-                                    messages=messages,
-                                    max_tokens=effective_max_tokens(fb_model, fb_max),
-                                    temperature=temperature,
-                                    stream=True,
-                                ),
-                                timeout=fallback_timeout,
-                            )
-                            fb_chunk1 = await asyncio.wait_for(fb_raw.__anext__(), timeout=15.0)
-                            async def fb_wrap():
-                                yield fb_chunk1
-                                async for c in fb_raw:
-                                    yield c
-                            return fb_wrap(), fb_model
-                        except Exception:
-                            pass
-
-                    logger.warning(
-                        "[llm] stream_fallback_failed model=%s error=%s",
-                        fb_model,
-                        format_call_error(fb_err)[:120],
-                    )
-                    if status_callback:
-                        await status_callback(
-                            f"Strumień zapasowy {fb_model} również zawiódł."
-                        )
+                logger.info("[llm] stream_started model=%s", current_model)
+                return wrapped_stream(), current_model
+            except Exception as exc:
+                err_detail = format_call_error(exc)
+                logger.warning(
+                    "[llm] IMR: stream_primary_failed model=%s error=%s",
+                    current_model,
+                    err_detail,
+                )
+                
+                # Obsługa błędu 402 w strumieniowaniu
+                afford = _extract_affordable_tokens(exc)
+                if afford and afford > 16 and effective_tokens > afford:
+                    new_max = max(16, afford - 20)
+                    logger.warning("[llm] OpenRouter 402 na strumieniu %s: zredukowano max_tokens z %d do %d", current_model, effective_tokens, new_max)
+                    max_tokens = new_max
                     continue
-
-            raise RuntimeError(
-                f"Wszystkie modele (strumieniowy główny + {len(self.fallbacks)} fallbacków) zawiodły."
-            ) from exc
+                
+                active_status_callback = status_callback or self._status_callback
+                if active_status_callback:
+                    import uuid
+                    resolution_id = str(uuid.uuid4())
+                    
+                    PENDING_RESOLUTIONS[resolution_id] = asyncio.Future()
+                    
+                    # Zamiast wysyłania wyjątku, wstrzymujemy i czekamy na wybór modelu przez status_callback
+                    if asyncio.iscoroutinefunction(active_status_callback):
+                        await active_status_callback({
+                            "type": "action_required",
+                            "action": "select_model",
+                            "failed_model": current_model,
+                            "error_details": err_detail,
+                            "resolution_id": resolution_id
+                        })
+                    else:
+                        active_status_callback({
+                            "type": "action_required",
+                            "action": "select_model",
+                            "failed_model": current_model,
+                            "error_details": err_detail,
+                            "resolution_id": resolution_id
+                        })
+                    
+                    try:
+                        logger.info(f"[llm] IMR: Wstrzymano strumień. Oczekuję na model (ID: {resolution_id})...")
+                        new_model_id = await PENDING_RESOLUTIONS[resolution_id]
+                        
+                        logger.info(f"[llm] IMR: Wznawiam strumień z modelem: {new_model_id}")
+                        current_model = self._resolve(new_model_id)
+                        continue
+                    except Exception as wait_err:
+                        logger.error(f"[llm] IMR: Błąd strumienia przy wznowieniu: {wait_err}")
+                        raise
+                    finally:
+                        if resolution_id in PENDING_RESOLUTIONS:
+                            del PENDING_RESOLUTIONS[resolution_id]
+                else:
+                    raise RuntimeError(f"Błąd strumienia modelu {current_model} i brak możliwości IMR: {err_detail}") from exc
 
 
 def _log_model_response(

@@ -46,6 +46,9 @@ export interface ChatModelSettingsState {
   setExpertRoleForModel: (modelId: string, roleId: string) => void;
   expertPromptsByModel: Record<string, string>;
   setExpertPromptForModel: (modelId: string, prompt: string) => void;
+  assignedModels: Record<string, string>;
+  setAssignedModel: (role: string, modelId: string) => void;
+  setAssignedModels: (models: Record<string, string>) => void;
 }
 
 export interface ChatPromptSettingsState {
@@ -62,9 +65,9 @@ export interface ChatPromptSettingsState {
   currentTask: string;
   setCurrentTask: (task: string) => void;
   taskPrompts: Record<string, string>;
-  addTaskPrompt: (taskId: string, prompt: string) => void;
-  updateTaskPrompt: (taskId: string, prompt: string) => void;
-  removeTaskPrompt: (taskId: string) => void;
+  addTaskPrompt: (task: string, prompt: string) => void;
+  updateTaskPrompt: (task: string, prompt: string) => void;
+  removeTaskPrompt: (task: string) => void;
 }
 
 export interface ChatPerformanceSettingsState {
@@ -111,6 +114,7 @@ export const DEFAULT_CHAT_SETTINGS = {
   recentModelIds: [] as string[],
   activeModels: [] as string[],
   expertRoleByModel: {} as Record<string, string>,
+  assignedModels: {} as Record<string, string>,
   activePromptPresetId: 'defense',
   architectPrompt: '',
   currentSystemRoleId: '',

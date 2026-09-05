@@ -522,7 +522,7 @@ class RetrievalService:
             return []
         seen_ids: set = set()
         merged: List[RetrievalItem] = []
-        timeout = max(10.0, float(getattr(settings, "saos_timeout_sec", 10.0)))
+        timeout = max(45.0, float(getattr(settings, "saos_timeout_sec", 45.0)))
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 for q in queries:

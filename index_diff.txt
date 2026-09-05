@@ -1,0 +1,270 @@
+diff --git a/frontend/src/components/Chat/index.tsx b/frontend/src/components/Chat/index.tsx
+index f88b9b1..7f8f957 100644
+--- a/frontend/src/components/Chat/index.tsx
++++ b/frontend/src/components/Chat/index.tsx
+@@ -24,6 +24,7 @@ import { QuickIntelligencePanel } from "./components/QuickIntelligencePanel";
+ import { ChatInput } from "./components/ChatInput";
+ import { WelcomeView } from "./components/WelcomeView";
+ import { LibrarySelectionModal } from "./components/LibrarySelectionModal";
++import { LexmindeMcpModal } from "./components/LexmindeMcpModal";
+ 
+ // Shared Tools
+ import type { Attachment, Message, QueuedAttachment } from "./types";
+@@ -61,6 +62,8 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+     setUseRagLegal,
+     useRagUser,
+     setUseRagUser,
++    useLexmindeMcp,
++    setUseLexmindeMcp,
+   } = useChatRetrievalState();
+   const isConsensusMode = mode === 'consensus' || mode === 'moa';
+ 
+@@ -107,6 +110,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+   const [previewDoc, setPreviewDoc] = useState<{ name: string; content?: string } | null>(null);
+   const [actTerms, setActTerms] = useState<string[]>([]);
+   const [isActSelectorOpen, setIsActSelectorOpen] = useState(false);
++  const [isLexmindeMcpModalOpen, setIsLexmindeMcpModalOpen] = useState(false);
+   const [currentStatus, setCurrentStatus] = useState<string>("");
+   
+   // Refs
+@@ -248,7 +252,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+     } finally {
+       processingQueue.current.delete(id);
+     }
+-  }, [queryClient]);
++  }, [queryClient, sessionId]);
+ 
+   // Actions
+   const handleSend = async (message?: string) => {
+@@ -280,18 +284,31 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+     const attachmentData: Attachment[] = [];
+     if (attachments.length > 0) {
+       for (const a of attachments) {
++        if (a.status === 'error') continue;
+         if (a.file.type.startsWith("image/")) {
+-          const base64 = await new Promise<string>((resolve, reject) => {
+-            const reader = new FileReader();
+-            reader.onload = () => resolve(reader.result as string);
+-            reader.onerror = reject;
+-            reader.readAsDataURL(a.file);
+-          });
+-          attachmentData.push({
+-            name: a.file.name,
+-            type: a.file.type,
+-            content: base64,
+-          });
++          try {
++            const base64 = await new Promise<string>((resolve, reject) => {
++              const reader = new FileReader();
++              reader.onload = () => resolve(reader.result as string);
++              reader.onerror = () => reject(new Error(`Nie udało się odczytać pliku ${a.file.name}. Plik mógł zostać zmodyfikowany na dysku.`));
++              reader.readAsDataURL(a.file);
++            });
++            attachmentData.push({
++              name: a.file.name,
++              type: a.file.type,
++              content: base64,
++            });
++          } catch (error) {
++            console.warn("FileReader read skipped for unreadable file:", a.file.name, error);
++            // Mark attachment as error in state so it doesn't keep failing on future sends
++            setAttachments(prev => prev.map(item => item.id === a.id ? { 
++              ...item, 
++              status: 'error', 
++              error: error instanceof Error ? error.message : "Błąd odczytu pliku." 
++            } : item));
++            setAttachmentWarning(`Plik ${a.file.name} nie mógł zostać odczytany. Został oznaczony jako błąd.`);
++            return; // Abort send so user can remove the errored file
++          }
+         }
+       }
+     }
+@@ -338,6 +355,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+       use_eli: useEli,
+       use_rag_legal: useRagLegal,
+       use_rag_user: useRagUser,
++      use_lexminde_mcp: useLexmindeMcp,
+       act_terms: actTerms.length > 0 ? actTerms : undefined,
+       onChunk: (chunk) => {
+         updateAssistantMessage((msg) => ({ ...msg, content: msg.content + chunk }));
+@@ -495,7 +513,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+ 
+     const filesToAdd = validSizeFiles.slice(0, remainingSlots);
+     const newAttachments: QueuedAttachment[] = filesToAdd.map(file => ({
+-      id: Math.random().toString(36).substring(7),
++      id: crypto.randomUUID(),
+       file,
+       status: 'waiting',
+       progress: 0
+@@ -610,7 +628,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                           <span>{modeLabel}</span>
+                         </p>
+                         {isConsensusMode && activeRolesString && (
+-                          <p className="text-[8px] font-bold text-gold-primary/80 uppercase tracking-widest truncate max-w-[250px] sm:max-w-[400px]">
++                          <p className="text-[8px] font-bold text-gold-primary/80 uppercase tracking-widest truncate max-w-62.5 sm:max-w-100">
+                             {currentTaskLabel} | {activeRolesString}
+                           </p>
+                         )}
+@@ -646,7 +664,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+             ) : (
+               <>
+                 {messages.map((m, i) => (
+-                  <div key={m.id ?? `msg-${i}`} className="message-bubble-row w-full">
++                  <div key={m.id || `msg-${i}`} className="message-bubble-row w-full">
+                     <MessageBubble
+                       msg={m as Message}
+                       isLast={i === messages.length - 1}
+@@ -772,10 +790,10 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+ 
+           </div>
+ 
+-          {/* MODAL WYBORU AKTÓW */}
+           <AnimatePresence>
+             {isActSelectorOpen && (
+               <motion.div
++                key="act-selector-modal"
+                 initial={{ opacity: 0 }}
+                 animate={{ opacity: 1 }}
+                 exit={{ opacity: 0 }}
+@@ -807,10 +825,9 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                   
+                   <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                     {(() => {
+-                      // Helper do czyszczenia nazw plików na przyjazne dla użytkownika
+                       const getCleanName = (name: string) => {
+                         if (!name) return "";
+-                        let clean = name.replace(/\.pdf$/i, "").replace(/\.txt$/i, "").replace(/\.md$/i, "").replace(/\.docx$/i, "");
++                        const clean = name.replace(/\.pdf$/i, "").replace(/\.txt$/i, "").replace(/\.md$/i, "").replace(/\.docx$/i, "");
+                         
+                         const lower = clean.toLowerCase();
+                         if (lower.includes("postpowania karnego") || lower.includes("postepowania karnego")) {
+@@ -836,16 +853,14 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                           .join(" ");
+                       };
+ 
+-                      const legalDocs = (rag.documents || []).map((d: any) => d.name).filter(Boolean);
+-                      const userDocs = (userLibrary.documents || []).map((d: any) => d.title).filter(Boolean);
++                      const legalDocs = (rag.documents || []).map((d: { name?: string }) => d.name).filter(Boolean) as string[];
++                      const userDocs = (userLibrary.documents || []).map((d: { title?: string }) => d.title).filter(Boolean) as string[];
+ 
+-                      // Filtrujemy duplikaty
+                       const uniqueLegalDocs = Array.from(new Set(legalDocs));
+                       const uniqueUserDocs = Array.from(new Set(userDocs));
+ 
+                       return (
+                         <div className="space-y-6">
+-                          {/* SEKCJA 1: BAZA PRAWNA (KODEKSY GLOBALNE) */}
+                           <div>
+                             <div className="flex items-center justify-between mb-3 px-1">
+                               <div className="flex items-center gap-2">
+@@ -915,7 +930,6 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                             )}
+                           </div>
+ 
+-                          {/* SEKCJA 2: TWOJE DOKUMENTY (PLIKI UŻYTKOWNIKA) */}
+                           <div>
+                             <div className="flex items-center justify-between mb-3 px-1">
+                               <div className="flex items-center gap-2">
+@@ -1034,6 +1048,9 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                   setUseSaos={setUseSaos}
+                   useEli={useEli}
+                   setUseEli={setUseEli}
++                  useLexmindeMcp={useLexmindeMcp}
++                  setUseLexmindeMcp={setUseLexmindeMcp}
++                  onOpenLexmindeMcpModal={() => setIsLexmindeMcpModalOpen(true)}
+                   onOpenLibrary={(mode) => {
+                     setLibraryMode(mode);
+                     setIsLibraryOpen(true);
+@@ -1041,8 +1058,6 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                   onPreviewDoc={(att) => setPreviewDoc({ name: att.file.name, content: att.extractedText })}
+                />
+ 
+-              {/* Archetypal File Controllers - Hidden but Essential */}
+-              {/* Jeden uniwersalny input - obsługuje obrazy + dokumenty (PDF, DOCX, TXT) */}
+               <input 
+                 type="file" 
+                 multiple 
+@@ -1051,25 +1066,38 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                 className="hidden" 
+                 accept="image/*,.pdf,.doc,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" 
+               />
+-              {/* fileInputRef zachowany dla kompatybilności - przekierowany do głównego inputu */}
+               <input type="file" multiple ref={fileInputRef} onChange={addAttachment} className="hidden" accept=".pdf,.doc,.docx,.txt" />
+ 
+-            <div className="flex justify-center items-center mt-2 pt-1 border-t border-black/[0.04]">
++            <div className="flex justify-center items-center mt-2 pt-1 border-t border-black/4">
+               <div className="flex items-center gap-2 group/verify cursor-default opacity-75 hover:opacity-100 transition-opacity">
+                 <div className="h-1 w-1 rounded-full bg-gold-primary shadow-[0_0_6px_rgba(212,175,55,0.8)]" />
+                 <p className="text-[7px] text-gold-primary font-black uppercase tracking-widest italic group-hover/verify:text-gold-bright transition-colors font-outfit">
+-                  Zweryfikowane przez węzeł LexMind Core Legal Network
++                  Zweryfikowane przez węzeł LexMind Core Legal Network & Lexminde MCP Server
+                 </p>
+               </div>
+             </div>
+           </div>
+ 
++          <LexmindeMcpModal
++            isOpen={isLexmindeMcpModalOpen}
++            onClose={() => setIsLexmindeMcpModalOpen(false)}
++            useLexmindeMcp={useLexmindeMcp}
++            setUseLexmindeMcp={setUseLexmindeMcp}
++            onSelectPrompt={(promptText) => {
++              const inputEl = document.querySelector('textarea') as HTMLTextAreaElement;
++              if (inputEl) {
++                inputEl.value = promptText;
++                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
++                inputEl.focus();
++              }
++            }}
++          />
++
+           <LibrarySelectionModal 
+             isOpen={isLibraryOpen}
+             mode={libraryMode}
+             onClose={() => setIsLibraryOpen(false)}
+             onSelect={(docs) => {
+-              // 1. Przygotuj wszystkie nowe załączniki naraz
+               const now = Date.now();
+               const newItems: QueuedAttachment[] = docs.map((doc, idx) => {
+                 const id = `lib-${doc.id}-${now}-${idx}`;
+@@ -1083,10 +1111,8 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+                 };
+               });
+ 
+-              // 2. Dodaj wszystkie do stanu jednym wywołaniem
+               setAttachments(prev => [...prev, ...newItems]);
+ 
+-              // 3. Rozpocznij pobieranie treści dla każdego (równolegle)
+               newItems.forEach(async (item, idx) => {
+                 const doc = docs[idx];
+                 try {
+@@ -1108,19 +1134,18 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+               });
+ 
+               setIsLibraryOpen(false);
+-              // RAG bazy użytkownika wyłączony przy generowaniu odpowiedzi (tylko załącznik w bieżącym czacie)
+             }}
+           />
+ 
+-          {/* Global Preview Overlay for Chat */}
+           <AnimatePresence>
+             {previewDoc && (
+               <motion.div
++                key="doc-preview-overlay"
+                 initial={{ x: '100%', opacity: 0 }}
+                 animate={{ x: 0, opacity: 1 }}
+                 exit={{ x: '100%', opacity: 0 }}
+                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+-                className="fixed top-[var(--app-mobile-header-offset)] lg:top-0 bottom-0 right-0 w-full lg:w-80 2xl:w-[28rem] max-w-[100vw] glass-steel-monolith z-999999 flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
++                className="fixed top-(--app-mobile-header-offset) lg:top-0 bottom-0 right-0 w-full lg:w-80 2xl:w-md max-w-[100vw] glass-steel-monolith z-999999 flex flex-col shadow-[-50px_0_100px_rgba(0,0,0,0.8)]"
+               >
+                 <div className="p-6 border-b border-white/10 flex items-center justify-between shrink-0">
+                   <div className="flex items-center gap-4">
+@@ -1161,6 +1186,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
+       <AnimatePresence>
+         {isOpen && (
+           <motion.div
++            key="quick-intelligence-panel-sidebar"
+             initial={{ marginRight: -320, opacity: 0 }}
+             animate={{ marginRight: 0, opacity: 1 }}
+             exit={{ marginRight: -320, opacity: 0 }}

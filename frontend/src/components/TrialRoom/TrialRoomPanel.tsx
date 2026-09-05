@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Gavel, Shield, Scale, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
+import { Gavel, Shield, Scale, ChevronRight, Loader2, RotateCcw, Settings, X } from 'lucide-react';
 import { cn } from '../../utils/cn';
 import { useTrialRoomStore } from '../../store/useTrialRoomStore';
 import { useFavoriteModelsState } from '../../hooks/chatSettingsSelectors';
@@ -18,27 +18,9 @@ import { TrialChatContextStep } from './TrialChatContextStep';
 import { TrialSideTeamPanel } from './TrialSideTeamPanel';
 import { TrialBriefCards } from './TrialBriefCards';
 import { TrialHearingStenograph } from './TrialHearingStenograph';
-import { TrialVerdictPanel } from './TrialVerdictPanel';
 import { TrialCourtroomVisual } from './TrialCourtroomVisual';
 import { buildTrialProtocolMarkdown, downloadTrialMarkdown } from './exportTrialProtocol';
-
-function stepUnlocked(
-  target: (typeof TRIAL_STEPS)[number]['id'],
-  step: string,
-  defenseBrief: string,
-  prosecutionBrief: string,
-): boolean {
-  const order = TRIAL_STEPS.map((s) => s.id);
-  const cur = order.indexOf(step as (typeof order)[number]);
-  const tgt = order.indexOf(target);
-  if (tgt <= cur) return true;
-  if (target === 'defense') return true;
-  if (target === 'prosecution') return defenseBrief.trim().length > 0;
-  if (target === 'hearing' || target === 'verdict') {
-    return defenseBrief.trim().length > 0 && prosecutionBrief.trim().length > 0;
-  }
-  return false;
-}
+import trialBg from '../../assets/sala_rozpraw_bg.jpg';
 
 const SIDE_BTN = {
   defense: 'border-emerald-500/40 bg-emerald-50/80 text-emerald-900',
@@ -87,6 +69,7 @@ export function TrialRoomPanel() {
   const [draftVerdict, setDraftVerdict] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const elaboration = ELABORATION_PRESETS[elaborationMode];
@@ -137,6 +120,39 @@ export function TrialRoomPanel() {
     chat_context: chatContext.trim(),
     elaboration_mode: elaborationMode,
   });
+
+  const extractContextPoints = async () => {
+    if (!chatContext.trim()) return;
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    setErrorMsg(null);
+    setQuestion('');
+    setProgressMessage('Ekstrakcja kluczowych informacji...');
+    
+    try {
+      const full = await runExtract(
+        {
+          question: question.trim(),
+          chat_context: chatContext.trim(),
+          model: pool[0]?.id || 'google/gemini-2.5-flash-lite',
+        },
+        {
+          signal: abortRef.current.signal,
+          onMeta: setProgressMessage,
+          onChunk: (t) => {
+            setQuestion((q) => q + t);
+          },
+        }
+      );
+      setQuestion(full || question);
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') {
+        setErrorMsg(e instanceof Error ? e.message : 'Błąd ekstrakcji');
+      }
+    } finally {
+      setProgressMessage('');
+    }
+  };
 
   const runSidePosition = async (side: TrialSide) => {
     if (!canProceedCase) return;
@@ -317,123 +333,56 @@ export function TrialRoomPanel() {
     step === 'prosecution' || step === 'hearing' || step === 'verdict' || step === 'done';
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden scheme-light">
-      <header className="shrink-0 flex items-center justify-between gap-4 px-5 py-4 border-b border-black/8 bg-linear-to-r from-amber-50/90 via-white/80 to-amber-50/60">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-11 h-11 rounded-xl bg-gold-primary/20 border border-gold-primary/35 flex items-center justify-center">
-            <Gavel size={20} className="text-black" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-sm font-black uppercase tracking-[0.2em] text-black truncate">
-              Sala rozprawy
-            </h1>
-            <p className="text-[9px] text-black/50 font-bold uppercase tracking-widest mt-0.5">
-              {sourceSessionId
-                ? 'Kontekst z czatu · obie strony widzą ten sam materiał'
-                : 'Użyj czatu, potem przenieś sprawę tutaj'}
-            </p>
-          </div>
-        </div>
-        {progressMessage && (
-          <p className="hidden md:block text-[8px] font-bold text-black/45 uppercase tracking-widest truncate max-w-70">
-            {progressMessage}
-          </p>
-        )}
-        <div className="relative flex items-center">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative bg-black">
+      {/* Background Image */}
+      <div 
+        className="absolute inset-0 z-0 brightness-150 contrast-125 saturate-110" 
+        style={{ 
+          backgroundImage: `url(${trialBg})`, 
+          backgroundSize: 'cover', 
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }} 
+      />
+
+      {/* Content */}
+      <div className="relative z-10 flex h-full">
+
+        {/* Floating Sidebar Toggle Button */}
+        {!isSidebarOpen && (
           <button
-            type="button"
-            onClick={handleReset}
-            onMouseEnter={() => setHoveredAction('reset')}
-            onMouseLeave={() => setHoveredAction(null)}
-            className="p-2.5 rounded-xl btn-convex-glossy text-black shrink-0 flex items-center justify-center"
-            aria-label="Nowa sprawa"
+            onClick={() => setIsSidebarOpen(true)}
+            className="absolute top-6 left-6 z-50 p-3 rounded-xl bg-black/60 backdrop-blur-md border border-white/10 text-white/70 hover:text-white hover:bg-black/80 transition-all shadow-[0_0_15px_rgba(0,0,0,0.5)]"
+            title="Otwórz panel konfiguracji symulacji"
           >
-            <RotateCcw size={16} />
+            <Settings size={20} />
           </button>
-          <AnimatePresence>
-            {hoveredAction === 'reset' && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 5 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                className="absolute top-full right-0 mt-2 w-48 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
-              >
-                <p className="text-[9px] font-black uppercase tracking-widest text-black mb-1">
-                  Nowa Sprawa
-                </p>
-                <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider">
-                  Resetuje obecną salę rozpraw i czyści cały dotychczasowy postęp.
-                </p>
-                <div className="absolute bottom-full right-4 -mb-px w-2 h-2 bg-white border-l border-t border-black/10 rotate-45" />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </header>
+        )}
 
-      <nav className="shrink-0 flex items-center justify-center gap-1 px-4 py-3 border-b border-black/5 bg-white/40 overflow-x-auto">
-        {TRIAL_STEPS.map((s, i) => {
-          const unlocked = stepUnlocked(s.id, step, defenseBrief, prosecutionBrief);
-          const done = i < stepIndex || (s.id === 'verdict' && !!verdict);
-          const active = s.id === step || (step === 'done' && s.id === 'verdict');
-          return (
-            <div key={s.id} className="flex items-center gap-1 shrink-0 relative">
-              <button
-                type="button"
-                disabled={!unlocked}
-                onClick={() => unlocked && setStep(s.id)}
-                onMouseEnter={() => setHoveredAction(`step-${s.id}`)}
-                onMouseLeave={() => setHoveredAction(null)}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded-full border text-[8px] font-black uppercase tracking-widest transition-all',
-                  unlocked && 'btn-convex-glossy',
-                  active && 'border-gold-primary bg-gold-primary/15 text-black',
-                  done && !active && 'border-emerald-500/30 bg-emerald-500/10 text-emerald-900',
-                  !active && !done && unlocked && 'text-black/70',
-                  !unlocked && 'border-black/5 text-black/25 cursor-not-allowed bg-black/5',
-                )}
-              >
-                <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] bg-black/10">
-                  {done && !active ? '✓' : s.short}
-                </span>
-                {s.label}
-              </button>
-              
-              <AnimatePresence>
-                {hoveredAction === `step-${s.id}` && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 5 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                    className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-48 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
-                  >
-                    <p className="text-[9px] font-black uppercase tracking-widest text-black mb-1">
-                      {s.label}
-                    </p>
-                    <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider">
-                      {s.id === 'case' ? 'Definicja stanu faktycznego i materiału dowodowego.' :
-                       s.id === 'defense' ? 'Przygotowanie linii obrony przez zespół ekspertów.' :
-                       s.id === 'prosecution' ? 'Przygotowanie aktu oskarżenia przez zespół.' :
-                       s.id === 'hearing' ? 'Zderzenie argumentów obu stron w formie symulowanej rozprawy.' :
-                       s.id === 'verdict' ? 'Ostateczny wyrok niezależnego sędziego.' :
-                       'Zakończono symulację.'}
-                    </p>
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 -mb-px w-2 h-2 bg-white border-l border-t border-black/10 rotate-45" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              {i < TRIAL_STEPS.length - 1 && (
-                <ChevronRight size={12} className="text-black/20 mx-0.5" />
-              )}
-            </div>
-          );
-        })}
-      </nav>
+        {/* SIDEBAR - Configuration */}
+        <AnimatePresence>
+          {isSidebarOpen && (
+            <motion.div
+              initial={{ x: '-100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '-100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-[380px] shrink-0 h-full overflow-y-auto custom-scrollbar border-r border-white/10 bg-black/70 backdrop-blur-3xl p-5 flex flex-col gap-6 shadow-[10px_0_30px_rgba(0,0,0,0.5)] absolute md:relative z-40"
+            >
+              <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-white/80">
+                  Konfiguracja Sali
+                </h3>
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-4 md:p-6">
-        <div className="max-w-6xl mx-auto space-y-6">
-          {errorMsg && (
-            <p className="text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-2">
+              {errorMsg && (
+            <p className="text-[10px] font-bold text-red-400 bg-red-900/20 border border-red-500/30 rounded-xl px-4 py-3 backdrop-blur-sm shadow-md">
               {errorMsg}
             </p>
           )}
@@ -447,19 +396,8 @@ export function TrialRoomPanel() {
               onQuestionChange={setQuestion}
               onContinue={() => setStep('defense')}
               fromChat={!!sourceSessionId}
-            />
-          )}
-
-          {step !== 'case' && (
-            <TrialCourtroomVisual
-              defenseTeam={defenseTeam}
-              prosecutionTeam={prosecutionTeam}
-              verdictJudgeModel={verdictJudgeModel}
-              runningPhase={runningPhase}
-              hearingRounds={hearingRounds}
-              verdict={verdict}
-              progressMessage={progressMessage}
-              pool={pool}
+              onExtractPoints={extractContextPoints}
+              isExtracting={progressMessage === 'Ekstrakcja kluczowych informacji...'}
             />
           )}
 
@@ -486,11 +424,7 @@ export function TrialRoomPanel() {
           )}
 
           {step !== 'case' && (
-            <TrialBriefCards defenseText={defenseDisplay} prosecutionText={prosecutionDisplay} />
-          )}
-
-          {step !== 'case' && (
-            <div className="flex flex-wrap gap-3 justify-center">
+            <div className="flex flex-col gap-3">
               {(step === 'defense' || defenseBrief.length === 0) && (
                 <div className="relative">
                   <button
@@ -499,15 +433,12 @@ export function TrialRoomPanel() {
                     onClick={() => void runSidePosition('defense')}
                     onMouseEnter={() => setHoveredAction('gen-defense')}
                     onMouseLeave={() => setHoveredAction(null)}
-                    className={cn(
-                      'px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 btn-convex-glossy',
-                      SIDE_BTN.defense,
-                    )}
+                    className="w-full px-6 py-3 rounded-xl bg-black/60 border border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:bg-black/80 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-40 backdrop-blur-md shadow-[0_0_15px_rgba(16,185,129,0.1)]"
                   >
                     {runningPhase === 'defense' ? (
-                      <Loader2 size={14} className="animate-spin" />
+                      <Loader2 size={16} className="animate-spin" />
                     ) : (
-                      <Shield size={14} />
+                      <Shield size={16} />
                     )}
                     Wygeneruj pozycję obrony
                   </button>
@@ -517,15 +448,14 @@ export function TrialRoomPanel() {
                         initial={{ opacity: 0, scale: 0.95, y: 5 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
+                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-4 bg-black/90 border border-white/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.5)] backdrop-blur-md text-left z-[9999] pointer-events-none"
                       >
-                        <p className="text-[9px] font-black uppercase tracking-widest text-black mb-1">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-1">
                           Pozycja Obrony
                         </p>
-                        <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider">
+                        <p className="text-[8px] leading-relaxed text-white/60 font-bold uppercase tracking-wider">
                           Uruchamia zespół obrońców w celu przeanalizowania dowodów i przygotowania optymalnej strategii obrony.
                         </p>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-white border-r border-b border-black/10 rotate-45" />
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -542,15 +472,12 @@ export function TrialRoomPanel() {
                       onClick={() => void runSidePosition('prosecution')}
                       onMouseEnter={() => setHoveredAction('gen-prosecution')}
                       onMouseLeave={() => setHoveredAction(null)}
-                      className={cn(
-                        'px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 btn-convex-glossy',
-                        SIDE_BTN.prosecution,
-                      )}
+                      className="w-full px-6 py-3 rounded-xl bg-black/60 border border-rose-500/30 text-rose-400 hover:text-rose-300 hover:bg-black/80 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-40 backdrop-blur-md shadow-[0_0_15px_rgba(225,29,72,0.1)]"
                     >
                       {runningPhase === 'prosecution' ? (
-                        <Loader2 size={14} className="animate-spin" />
+                        <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <Scale size={14} />
+                        <Scale size={16} />
                       )}
                       Wygeneruj pozycję oskarżenia
                     </button>
@@ -560,21 +487,69 @@ export function TrialRoomPanel() {
                           initial={{ opacity: 0, scale: 0.95, y: 5 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-9999 pointer-events-none text-black"
+                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 p-4 bg-black/90 border border-white/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.5)] backdrop-blur-md text-left z-[9999] pointer-events-none"
                         >
-                          <p className="text-[9px] font-black uppercase tracking-widest text-black mb-1">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-1">
                             Pozycja Oskarżenia
                           </p>
-                          <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider">
+                          <p className="text-[8px] leading-relaxed text-white/60 font-bold uppercase tracking-wider">
                             Uruchamia zespół oskarżycieli w celu wykrycia luk w prawie i obalenia argumentacji obrony.
                           </p>
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px w-2 h-2 bg-white border-r border-b border-black/10 rotate-45" />
                         </motion.div>
                       )}
                     </AnimatePresence>
                   </div>
                 )}
             </div>
+          )}
+
+          {canHearing && (step === 'verdict' || step === 'done' || verdict || draftVerdict) && (
+            <div className="space-y-3 p-2 mt-2 bg-black/30 border border-white/5 rounded-2xl p-4 shadow-inner">
+              <label className="text-[9px] font-black uppercase tracking-[0.25em] text-white/80 block drop-shadow-md">
+                Sędzia werdyktu (neutralny)
+              </label>
+              <select
+                value={verdictJudgeModel}
+                onChange={(e) => setVerdictJudgeModel(e.target.value)}
+                disabled={runningPhase !== null}
+                className="w-full text-[11px] font-bold rounded-lg border border-white/10 bg-black/60 text-white/90 px-3 py-2 outline-none focus:border-gold-primary/50"
+                aria-label="Model sędziego werdyktu"
+              >
+                {pool.map((m: Model) => (
+                  <option key={m.id} value={m.id} className="bg-[#111] text-white">
+                    {m.name || m.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="mt-auto pt-4">
+            <p className="text-center text-[9px] text-white/40 font-black uppercase tracking-[0.3em] drop-shadow-md">
+              Pula modeli · {pool.length} · tryb {elaboration.label}
+            </p>
+          </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* MAIN AREA - Courtroom Visuals */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-6 flex flex-col gap-6 relative">
+          {step !== 'case' && (
+            <TrialCourtroomVisual
+              defenseTeam={defenseTeam}
+              prosecutionTeam={prosecutionTeam}
+              verdictJudgeModel={verdictJudgeModel}
+              runningPhase={runningPhase}
+              hearingRounds={hearingRounds}
+              verdict={verdict}
+              progressMessage={progressMessage}
+              pool={pool}
+            />
+          )}
+
+          {step !== 'case' && (
+            <TrialBriefCards defenseText={defenseDisplay} prosecutionText={prosecutionDisplay} />
           )}
 
           <AnimatePresence>
@@ -598,37 +573,17 @@ export function TrialRoomPanel() {
           </AnimatePresence>
 
           {canHearing && (step === 'verdict' || step === 'done' || verdict || draftVerdict) && (
-            <div className="space-y-3">
-              <label className="text-[8px] font-black uppercase tracking-widest text-black/45 block">
-                Sędzia werdyktu (neutralny) — widzi czat + obie pozycje + salę
-              </label>
-              <select
-                value={verdictJudgeModel}
-                onChange={(e) => setVerdictJudgeModel(e.target.value)}
-                disabled={runningPhase !== null}
-                className="w-full max-w-md text-[10px] font-bold rounded-lg border border-black/10 bg-white px-2 py-1.5"
-                aria-label="Model sędziego werdyktu"
-              >
-                {pool.map((m: Model) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name || m.id}
-                  </option>
-                ))}
-              </select>
-              <TrialVerdictPanel
-                verdict={verdict}
-                draft={draftVerdict}
-                running={runningPhase === 'verdict'}
-                canRequest={canHearing && !verdict}
-                onRequest={() => void runVerdictPhase()}
-                onExport={handleExport}
-              />
-            </div>
+             <div className="mt-6">
+                <TrialVerdictPanel
+                  verdict={verdict}
+                  draft={draftVerdict}
+                  running={runningPhase === 'verdict'}
+                  canRequest={canHearing && !verdict}
+                  onRequest={() => void runVerdictPhase()}
+                  onExport={handleExport}
+                />
+             </div>
           )}
-
-          <p className="text-center text-[8px] text-black/35 font-bold uppercase tracking-widest pb-4">
-            Pula modeli z profilu · {pool.length} dostępnych · tryb {elaboration.label}
-          </p>
         </div>
       </div>
     </div>

@@ -263,35 +263,8 @@ export function TrialCourtroomVisual({
 
   return (
     <div
-      className="relative min-h-[500px] rounded-2xl border border-white/5 bg-black/40 backdrop-blur-xl flex flex-col p-8 shadow-2xl overflow-hidden transition-all duration-700"
-      style={{
-        background:
-          'radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.12) 0%, transparent 50%), ' +
-          'linear-gradient(180deg, #16100d 0%, #0a0705 100%)',
-        boxShadow: '0 30px 60px -15px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-      }}
+      className="relative min-h-[500px] rounded-2xl flex flex-col p-8 overflow-hidden transition-all duration-700 bg-transparent"
     >
-      <div 
-        className="absolute inset-0 pointer-events-none opacity-40 mix-blend-screen"
-        style={{
-          background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.05) 0%, transparent 60%)'
-        }}
-      />
-
-      <div 
-        className="absolute inset-0 opacity-[0.25] mix-blend-multiply pointer-events-none"
-        style={{
-          backgroundImage: `repeating-linear-gradient(90deg, #2a1f1a 0px, #2a1f1a 80px, #1a1310 80px, #1a1310 84px)`
-        }}
-      />
-      <div className="absolute top-1/2 left-0 right-0 h-2 bg-[#0a0705] opacity-50 border-y border-white/5 pointer-events-none" />
-
-      <div 
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(circle at 50% 50%, transparent 40%, rgba(0,0,0,0.8) 100%)'
-        }}
-      />
 
       <div className="absolute top-6 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-[0.9] pointer-events-none z-0">
         <svg
@@ -316,21 +289,11 @@ export function TrialCourtroomVisual({
         <div className="flex flex-col justify-end items-center pb-4">
           <div
             className={cn(
-              'w-full max-w-[170px] rounded-t-xl rounded-bl-xl p-5 flex flex-col gap-4 relative transition-all duration-700',
-              runningPhase === 'defense' ? 'scale-[1.02] z-20' : ''
+              'w-full max-w-[170px] rounded-xl p-5 flex flex-col gap-4 relative transition-all duration-700 bg-black/40 backdrop-blur-md border border-emerald-500/30',
+              runningPhase === 'defense' ? 'scale-[1.02] z-20 shadow-[0_0_20px_rgba(16,185,129,0.2)]' : 'shadow-lg'
             )}
-            style={{
-              background: 'linear-gradient(180deg, #2d1b14 0%, #170d0a 100%)',
-              boxShadow: runningPhase === 'defense' 
-                ? '0 30px 60px rgba(0,0,0,0.9), 0 -10px 40px rgba(16, 185, 129, 0.15), inset 0 2px 10px rgba(255,255,255,0.05)' 
-                : '0 20px 40px rgba(0,0,0,0.8), inset 0 2px 10px rgba(255,255,255,0.03)',
-              borderTop: '3px solid #3e2723',
-              borderRight: '2px solid #0f0806',
-              borderBottom: '4px solid #0a0503',
-              borderLeft: '1px solid rgba(255,255,255,0.05)'
-            }}
           >
-            <div className="absolute top-0 left-0 right-0 h-3 bg-[#1a0f0c] rounded-t-xl opacity-90 border-b border-white/5" />
+            <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500/20 rounded-t-xl" />
             
             <div className="flex items-center gap-2 mt-1 pb-3 border-b border-emerald-500/10">
               <Shield size={14} className="text-emerald-500" />
@@ -358,21 +321,11 @@ export function TrialCourtroomVisual({
           
           <div
             className={cn(
-              'w-full max-w-[360px] rounded-2xl px-6 py-5 relative flex flex-col items-center justify-center transition-all duration-700 z-10',
-              runningPhase === 'verdict' ? 'scale-[1.02] z-20' : ''
+              'w-full max-w-[360px] rounded-2xl px-6 py-5 relative flex flex-col items-center justify-center transition-all duration-700 z-10 bg-black/50 backdrop-blur-md border border-gold-primary/30',
+              runningPhase === 'verdict' ? 'scale-[1.02] z-20 shadow-[0_0_30px_rgba(212,175,55,0.15)]' : 'shadow-xl'
             )}
-            style={{
-              background: 'linear-gradient(180deg, #382219 0%, #1e110c 100%)',
-              boxShadow: runningPhase === 'verdict'
-                ? '0 40px 80px rgba(0,0,0,0.95), 0 -10px 50px rgba(212, 175, 55, 0.15), inset 0 2px 15px rgba(255,255,255,0.08)'
-                : '0 30px 60px rgba(0,0,0,0.9), inset 0 2px 15px rgba(255,255,255,0.04)',
-              borderTop: '5px solid #4a2f23',
-              borderBottom: '8px solid #0a0503',
-              borderLeft: '2px solid rgba(212, 175, 55, 0.05)',
-              borderRight: '2px solid rgba(212, 175, 55, 0.05)'
-            }}
           >
-            <div className="absolute inset-x-3 top-3 bottom-3 border border-[#4a2f23] rounded-xl pointer-events-none shadow-inner" />
+            <div className="absolute inset-x-3 top-3 bottom-3 border border-white/5 rounded-xl pointer-events-none shadow-inner" />
             
             <div className="bg-[#1a0f0c] border border-[#d4af37]/30 rounded px-4 py-1.5 mb-4 shadow-inner flex items-center gap-2">
               <Gavel size={12} className="text-[#d4af37]" />
@@ -446,20 +399,11 @@ export function TrialCourtroomVisual({
           </div>
 
           <div className="my-8 flex flex-col items-center justify-center relative w-full px-2 z-30">
-            
             <div
               className={cn(
-                'w-16 h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-500 relative',
-                speakerSide ? 'scale-110 z-20' : 'opacity-50 grayscale-[0.5]'
+                'w-16 h-16 rounded-xl flex flex-col items-center justify-center transition-all duration-500 relative bg-black/60 backdrop-blur-md border border-white/10',
+                speakerSide ? 'scale-110 z-20 shadow-[0_0_20px_rgba(255,255,255,0.1)]' : 'opacity-50 grayscale-[0.5]'
               )}
-              style={{
-                background: 'linear-gradient(135deg, #3e2723 0%, #1b120f 100%)',
-                boxShadow: speakerSide 
-                  ? '0 20px 40px rgba(0,0,0,0.8), inset 0 2px 5px rgba(255,255,255,0.1)' 
-                  : '0 10px 20px rgba(0,0,0,0.6), inset 0 2px 5px rgba(255,255,255,0.05)',
-                borderTop: '2px solid #5d4037',
-                borderBottom: '4px solid #0a0503'
-              }}
             >
               <div className="absolute inset-0 opacity-10 pointer-events-none bg-[repeating-linear-gradient(45deg,transparent,transparent_2px,#fff_2px,#fff_4px)] rounded-xl mix-blend-overlay" />
               
@@ -562,14 +506,7 @@ export function TrialCourtroomVisual({
             </AnimatePresence>
           </div>
 
-          <div className="w-24 h-12 rounded-lg flex flex-col items-center justify-center z-10"
-            style={{
-              background: 'linear-gradient(180deg, #2a1a14 0%, #170d0a 100%)',
-              boxShadow: '0 10px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
-              borderTop: '2px solid #3e2723',
-              borderBottom: '3px solid #0a0503'
-            }}
-          >
+          <div className="w-24 h-12 rounded-lg flex flex-col items-center justify-center z-10 bg-black/40 backdrop-blur-md border border-white/10 shadow-lg">
             <Scroll size={12} className="text-white/30 mb-1" />
             <span className="text-[7px] font-black text-white/40 uppercase tracking-[0.2em]">
               Protokolant
@@ -581,21 +518,11 @@ export function TrialCourtroomVisual({
         <div className="flex flex-col justify-end items-center pb-4">
           <div
             className={cn(
-              'w-full max-w-[170px] rounded-t-xl rounded-br-xl p-5 flex flex-col gap-4 relative transition-all duration-700',
-              runningPhase === 'prosecution' ? 'scale-[1.02] z-20' : ''
+              'w-full max-w-[170px] rounded-xl p-5 flex flex-col gap-4 relative transition-all duration-700 bg-black/40 backdrop-blur-md border border-rose-500/30',
+              runningPhase === 'prosecution' ? 'scale-[1.02] z-20 shadow-[0_0_20px_rgba(225,29,72,0.2)]' : 'shadow-lg'
             )}
-            style={{
-              background: 'linear-gradient(180deg, #2d1b14 0%, #170d0a 100%)',
-              boxShadow: runningPhase === 'prosecution' 
-                ? '0 30px 60px rgba(0,0,0,0.9), 0 -10px 40px rgba(225, 29, 72, 0.15), inset 0 2px 10px rgba(255,255,255,0.05)' 
-                : '0 20px 40px rgba(0,0,0,0.8), inset 0 2px 10px rgba(255,255,255,0.03)',
-              borderTop: '3px solid #3e2723',
-              borderLeft: '2px solid #0f0806',
-              borderBottom: '4px solid #0a0503',
-              borderRight: '1px solid rgba(255,255,255,0.05)'
-            }}
           >
-            <div className="absolute top-0 left-0 right-0 h-3 bg-[#1a0f0c] rounded-t-xl opacity-90 border-b border-white/5" />
+            <div className="absolute top-0 left-0 right-0 h-1 bg-rose-500/20 rounded-t-xl" />
             
             <div className="flex items-center gap-2 mt-1 pb-3 border-b border-rose-500/10 justify-end">
               <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 drop-shadow-sm">
@@ -668,16 +595,7 @@ export function TrialCourtroomVisual({
         )}
       </AnimatePresence>
 
-      {/* GALLERY BENCHES (Bottom footer visual) */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none z-0"
-        style={{
-          background: 'linear-gradient(180deg, transparent 0%, rgba(5,3,2,0.9) 100%)'
-        }}
-      >
-        <div className="w-full h-full flex items-end justify-center pb-2">
-          <div className="w-3/4 h-2 rounded-t-lg bg-[#2a1a14] border-t border-[#3e2723] opacity-50 shadow-[0_-5px_15px_rgba(0,0,0,0.5)]" />
-        </div>
-      </div>
+
 
     </div>
   );

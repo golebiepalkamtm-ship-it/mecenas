@@ -49,7 +49,11 @@ def log_stage_event(
     duration_ms: Optional[float] = None,
     extra: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Strukturalny log JSON per etap (observability MVP)."""
+    """Strukturalny log JSON per etap (observability MVP).
+
+    Automatycznie persystuje zdarzenia prawnie istotne do audit trail
+    (hash-chain SHA-256) jeśli session_id jest podany.
+    """
     import json
 
     event: Dict[str, Any] = {"stage": stage, "event": "pipeline_stage"}
@@ -60,6 +64,30 @@ def log_stage_event(
     if extra:
         event.update(extra)
     logger.info("[PIPELINE_STAGE] %s", json.dumps(event, ensure_ascii=False))
+
+    # Audit trail — persystuj zdarzenia prawnie istotne
+    _AUDIT_STAGES = {
+        "citation_audit",
+        "sidecar",
+        "retrieval_external",
+        "pipeline_complete",
+        "private_context",
+        "timeline",
+    }
+    if session_id and stage in _AUDIT_STAGES:
+        try:
+            from services.audit_trail import append_audit_event
+
+            audit_payload = dict(extra or {})
+            if duration_ms is not None:
+                audit_payload["duration_ms"] = duration_ms
+            append_audit_event(
+                session_id,
+                event_type=stage.upper(),
+                payload=audit_payload,
+            )
+        except Exception as exc:
+            logger.debug("[AUDIT_TRAIL] Zapis pominięty: %s", exc)
 
 def log_quality_metrics(
     session_id: str,

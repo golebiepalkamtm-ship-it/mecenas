@@ -78,12 +78,70 @@ async def index_saved_file(filename: str):
 
 @router.post("/export-docx")
 async def export_docx(request: DocumentAnalysisRequest):
-    """Eksport wygenerowanego pisma (Markdown) do pliku Word (.docx)."""
+    """Eksport wygenerowanego pisma (Markdown) do pliku Word (.docx).
+
+    Bramka Export Gate waliduje cytowania art./§ w piśmie przed eksportem.
+    Tryb konfigurowalny: settings.export_gate_mode ('off' / 'warn' / 'strict').
+    """
     if not request.document_text:
         raise HTTPException(status_code=400, detail="Brak treści pisma")
 
+    from config import settings
     from services.docx_export import markdown_to_docx_bytes
     from services.docx_template_export import render_draft_docx_bytes
+    from services.export_validation import validate_export
+
+    # --- Export Gate: walidacja cytowań ---
+    gate_mode = getattr(settings, "export_gate_mode", "warn")
+    gate_result = validate_export(
+        request.document_text,
+        mode=gate_mode,
+    )
+
+    if gate_result.action == "block":
+        unverified_str = ", ".join(gate_result.unverified_citations[:20])
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": (
+                    f"Eksport zablokowany — {gate_result.unverified_count} "
+                    f"niezweryfikowanych powołań prawnych: {unverified_str}. "
+                    f"Sprawdź cytaty w ISAP/ELI przed eksportem."
+                ),
+                "export_validation": gate_result.to_dict(),
+            },
+        )
+
+    # Audit trail: loguj decyzję bramki eksportowej
+    try:
+        from services.audit_trail import append_audit_event
+
+        session_id = getattr(request, "session_id", None) or ""
+        if session_id:
+            append_audit_event(
+                session_id,
+                "EXPORT_GATE",
+                {
+                    "action": gate_result.action,
+                    "total_citations": gate_result.total_citations,
+                    "verified": gate_result.verified_count,
+                    "unverified": gate_result.unverified_count,
+                    "unverified_citations": gate_result.unverified_citations[:20],
+                },
+            )
+    except Exception:
+        pass  # audit trail jest opcjonalny, nie blokuje eksportu
+
+    # Jeśli warn: dodaj nagłówek ostrzegawczy do pisma
+    document_text = request.document_text
+    if gate_result.action == "warn" and gate_result.unverified_citations:
+        unverified_str = ", ".join(gate_result.unverified_citations[:10])
+        warn_header = (
+            f"> ⚠️ **Uwaga — zweryfikuj przed użyciem**: "
+            f"Następujące powołania nie zostały potwierdzone w bazach ISAP/ELI/SAOS: "
+            f"{unverified_str}\n\n---\n\n"
+        )
+        document_text = warn_header + document_text
 
     base_name = sanitize_filename(request.question or "pismo")
     if base_name.lower().endswith(".md"):
@@ -95,12 +153,12 @@ async def export_docx(request: DocumentAnalysisRequest):
     try:
         docx_bytes = render_draft_docx_bytes(
             title=request.question,
-            body_markdown=request.document_text,
+            body_markdown=document_text,
             structured_data=request.structured_data,
         )
     except Exception as template_err:
         print(f"   [DOCX TEMPLATE] fallback to markdown exporter: {template_err}")
-        docx_bytes = markdown_to_docx_bytes(request.document_text)
+        docx_bytes = markdown_to_docx_bytes(document_text)
 
     return Response(
         content=docx_bytes,

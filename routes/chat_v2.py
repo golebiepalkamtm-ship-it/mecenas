@@ -113,12 +113,32 @@ async def chat_endpoint(request: ChatRequest):
                 process_side=resolved.side,
                 judge_system_prompt=resolved.judge_system_prompt,
                 model_latencies=resolved.model_latencies,
+                assigned_models=resolved.assigned_models,
                 document_text=resolved.document_text,
                 chat_history=resolved.chat_history,
                 session_id=session_id,
             )
+            status_queue = asyncio.Queue()
 
-            async for chunk in chat_stream_use_case.execute(params):
+            async def status_callback(msg: dict):
+                await status_queue.put(msg)
+
+            async def run_pipeline():
+                try:
+                    async for chunk in chat_stream_use_case.execute(params, status_callback):
+                        await status_queue.put(chunk)
+                except Exception as e:
+                    await status_queue.put({"type": "error", "text": str(e)})
+                finally:
+                    await status_queue.put(None)
+
+            asyncio.create_task(run_pipeline())
+
+            while True:
+                chunk = await status_queue.get()
+                if chunk is None:
+                    break
+                
                 chunk_type = chunk.get("type")
 
                 if chunk_type == "chunk":
@@ -130,6 +150,9 @@ async def chat_endpoint(request: ChatRequest):
                     if "expert_analyses" in chunk:
                         analysis = chunk["expert_analyses"]
                     yield encode_sse_event(StreamMetadataEvent.model_validate(chunk))
+                elif chunk_type == "action_required":
+                    from schemas.chat_stream import StreamActionRequiredEvent
+                    yield encode_sse_event(StreamActionRequiredEvent.model_validate(chunk))
                 elif chunk_type == "final_metadata":
                     sources = chunk.get("sources", [])
                     analysis = chunk.get("expert_analyses", analysis)

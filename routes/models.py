@@ -39,6 +39,26 @@ async def _ping_google_native_model(model_id: str, timeout_seconds: float) -> di
     }
 
 
+class ResolutionRequest(BaseModel):
+    resolution_id: str
+    new_model_id: str
+
+@router.post("/resolve-error")
+async def resolve_model_error(req: ResolutionRequest):
+    """Odblokowuje zadanie wstrzymane przez błąd modelu (Interactive Model Recovery)."""
+    from services.llm_client import PENDING_RESOLUTIONS
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if req.resolution_id in PENDING_RESOLUTIONS:
+        future = PENDING_RESOLUTIONS[req.resolution_id]
+        if not future.done():
+            future.set_result(req.new_model_id)
+            logger.info(f"Model error resolution {req.resolution_id} fulfilled with model: {req.new_model_id}")
+            return {"status": "success"}
+    
+    raise HTTPException(status_code=404, detail="Resolution ID not found or already completed")
+
 @router.get("/ping")
 async def check_model_health_endpoint(model_id: str):
     """Szybki test jednego modelu."""
@@ -187,7 +207,11 @@ async def get_all_models(provider: str = "openrouter"):
     # Use cache if available and not expired
     cached_data = OPENROUTER_MODELS_CACHE["data"]
     if cached_data and (now - OPENROUTER_MODELS_CACHE["timestamp"] < OPENROUTER_MODELS_CACHE_TTL):
-        clean_cache = [m for m in cached_data if m.get('provider') not in ['ollama', 'local']]
+        clean_cache = [
+            m for m in cached_data 
+            if m.get('provider') not in ['ollama', 'local']
+            and not any(kw in (m.get('id') or '').lower() for kw in EXCLUDED_MODELS_KEYWORDS)
+        ]
         return merge_curated_models(clean_cache)
 
     try:
@@ -208,6 +232,10 @@ async def get_all_models(provider: str = "openrouter"):
 
         useful = []
         for m in raw_models:
+            mid = m.get("id", "")
+            if not mid or any(kw in mid.lower() for kw in EXCLUDED_MODELS_KEYWORDS):
+                continue
+
             # Używamy centralnej klasyfikacji z config.py
             classification = classify_model(m)
             if not classification:
@@ -630,13 +658,13 @@ async def get_assigned_models():
     from database import get_setting
     return {
         "embedding": get_setting("assigned_model_embedding", "openai/text-embedding-3-small"),
-        "ocr": get_setting("assigned_model_ocr", "google/gemini-2.5-flash"),
-        "judge": get_setting("assigned_model_judge", "deepseek/deepseek-r1"),
-        "drafter": get_setting("assigned_model_drafter", "anthropic/claude-3.5-sonnet"),
-        "fast": get_setting("assigned_model_fast", "google/gemini-2.5-flash-lite"),
-        "long_context": get_setting("assigned_model_long_context", "google/gemini-2.5-pro"),
-        "query_planner": get_setting("assigned_model_query_planner", "google/gemini-2.5-flash-lite"),
-        "retrieval": get_setting("assigned_model_retrieval", "google/gemini-2.5-flash-lite"),
+        "ocr": get_setting("assigned_model_ocr", "google/gemini-3.7-flash"),
+        "judge": get_setting("assigned_model_judge", "qwen/qwen3.8-max"),
+        "drafter": get_setting("assigned_model_drafter", "x-ai/grok-4.6"),
+        "fast": get_setting("assigned_model_fast", "google/gemini-3.7-flash"),
+        "long_context": get_setting("assigned_model_long_context", "qwen/qwen3.8-max"),
+        "query_planner": get_setting("assigned_model_query_planner", "openai/gpt-5.4-nano"),
+        "retrieval": get_setting("assigned_model_retrieval", "openai/gpt-5.4-nano"),
     }
 
 

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Square, Send, X, Image as ImageIcon, AlertTriangle, CheckCircle2, Loader2, RefreshCcw, Mic, Paperclip, Plus, Filter, Gavel, Cpu } from "lucide-react";
+import { Square, Send, X, Image as ImageIcon, AlertTriangle, CheckCircle2, Loader2, RefreshCcw, Mic, Paperclip, Plus, Filter, Gavel, Cpu, SlidersHorizontal } from "lucide-react";
 import { LexIcon } from "../../Layout/LexIcon";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -169,6 +169,7 @@ interface ChatInputProps {
   onPreviewDoc: (att: QueuedAttachment) => void;
   onOpenTrialRoom?: () => void;
   canOpenTrialRoom?: boolean;
+  onOpenAdvancedModels?: () => void;
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -218,6 +219,7 @@ export function ChatInput({
   onPreviewDoc,
   onOpenTrialRoom,
   canOpenTrialRoom = false,
+  onOpenAdvancedModels,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
@@ -595,6 +597,18 @@ export function ChatInput({
                   <div className={cn('absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full border border-black z-20', useLexmindeMcp ? 'bg-gold-primary shadow-[0_0_6px_#d4af37]' : 'bg-white/10')} />
                 </button>
                 <button
+                  onMouseEnter={() => setHoveredAction('advanced_models')} 
+                  onMouseLeave={() => setHoveredAction(null)} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenAdvancedModels?.();
+                  }}
+                  className="p-2.5 btn-convex-prestige rounded-xl flex items-center justify-center relative group/btn-adv-models text-gold-primary hover:text-white"
+                  title="Dedykowane Przypisania Modeli"
+                >
+                  <SlidersHorizontal size={18} className="transition-transform group-hover/btn-adv-models:scale-110" style={{ filter: 'drop-shadow(0 0 6px rgba(212, 175, 55, 0.6))' }} />
+                </button>
+                <button
                   onMouseEnter={() => setHoveredAction('mic')} 
                   onMouseLeave={() => setHoveredAction(null)} 
                   onClick={toggleListen}
@@ -641,6 +655,7 @@ export function ChatInput({
                        hoveredAction === 'saos' ? 'Orzecznictwo (SAOS)' :
                        hoveredAction === 'eli' ? 'Akty Prawne (ELI)' :
                        hoveredAction === 'lexminde_mcp' ? 'Lexminde MCP Server' :
+                       hoveredAction === 'advanced_models' ? 'Przypisania Modeli (OCR, Sędzia, Planner)' :
                        hoveredAction === 'mic' ? 'Wprowadzanie Głosowe' :
                        hoveredAction === 'trial' ? 'Sala Rozpraw' :
                        hoveredAction === 'send' ? 'Wyślij Wiadomość' : ''}

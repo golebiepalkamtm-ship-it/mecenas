@@ -8,5 +8,8 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "dependencies": {}
+  "dependencies": {
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.113.0"
+  }
 }

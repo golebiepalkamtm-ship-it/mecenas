@@ -2,7 +2,7 @@
 
 **Osoba zatrzymana:** Marcin Pałka  
 **Data i godzina zatrzymania:** **09 kwietnia 2025 r., godz. 18:45**  
-**Miejsce zatrzymania:** Lubań, ul. Leśna 24  
+**Miejsce zatrzymania (wpisane w protokole):** Lubań, ul. Leśna 24 *(UWAGA OBROŃCZA: Faktyczne fizyczne zatrzymanie, skucie i powalenie na ziemię nastąpiło pod sklepem przy **ul. Groblowej w Lubaniu** po sfingowanej kolizji drogowej; wpisanie ul. Leśnej stanowi rozbieżność/poświadczenie nieprawdy przez CBZC)*  
 **Organ dokonujący:** Centralne Biuro Zwalczania Cyberprzestępczości (CBZC), Wydział Operacyjno-Śledczy 1 Zarządu w Bydgoszczy  
 **Podstawa prawna:** art. 244 § 1 k.p.k.  
 

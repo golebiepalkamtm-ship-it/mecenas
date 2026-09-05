@@ -252,5 +252,52 @@ class TrialRoomService:
         except StopAsyncIteration:
             pass
 
+    async def stream_extracted_points(
+        self,
+        question: str,
+        chat_context: str,
+        model: str,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Ekstrakcja najważniejszych punktów ze sprawy (context + query)."""
+        logger.info(f"[Sala] Ekstrakcja najważniejszych punktów sprawy...")
+        
+        ctx = chat_context_block(chat_context)
+        user_content = (
+            f"## Główne Zapytanie\n{question.strip()}\n\n"
+            f"## Kontekst sprawy / dotychczasowa rozmowa\n{ctx}\n"
+        )
+        
+        system_prompt = (
+            "Twoim zadaniem jest przeanalizowanie całej dostarczonej historii sprawy i wyciągnięcie NAJWAŻNIEJSZYCH punktów "
+            "(zarzutów, problemów prawnych, kluczowych faktów). Pisz zwięźle, krótko, używając wypunktowań, tak aby czytelnik "
+            "od razu zrozumiał istotę sporu/problemu przed przejściem do symulacji na Sali Rozpraw."
+        )
+
+        used_model = resolve_model_id(model)
+        
+        yield {"type": "metadata", "message": "[Sala] Ekstrakcja kluczowych informacji…"}
+
+        try:
+            stream, used_model = await call_with_fallback_stream(
+                used_model,
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                max_tokens=2000,
+                temperature=0.2,
+                timeout=60.0,
+            )
+            
+            while True:
+                chunk = await stream.__anext__()
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    yield {"type": "chunk", "text": content}
+        except StopAsyncIteration:
+            pass
+        except Exception as e:
+            logger.error(f"[Sala] Błąd podczas ekstrakcji punktów: {e}", exc_info=True)
+            yield {"type": "chunk", "text": f"\n\n*[Błąd ekstrakcji: {str(e)}]*"}
 
 trial_room_service = TrialRoomService()

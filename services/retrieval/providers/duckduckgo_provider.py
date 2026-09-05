@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, List
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 logger = logging.getLogger(__name__)
 

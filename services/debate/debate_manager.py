@@ -233,6 +233,7 @@ class DebateManager:
                 analysis_3=analysis_3,
                 user_query=query_for_retrieval[:2000],
                 conversation_snippet=zanonimizowana_historia,
+                legal_basis_block=legal_basis_block,
                 status_callback=status_callback,
             )
 

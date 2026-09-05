@@ -164,6 +164,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         useEli: state.useEli,
         useRagLegal: state.useRagLegal,
         useRagUser: state.useRagUser,
+        assignedModels: state.assignedModels,
       }),
       storage: createJSONStorage(() => createSafeStorage()),
     }

@@ -64,8 +64,8 @@ export function TrialSideTeamPanel({
   const meta = SIDE_META[side];
   const accent =
     side === 'defense'
-      ? 'border-emerald-500/30 bg-emerald-50/50'
-      : 'border-rose-500/30 bg-rose-50/50';
+      ? 'border-emerald-500/40 bg-black/40 backdrop-blur-md shadow-[0_0_15px_rgba(16,185,129,0.1)]'
+      : 'border-rose-500/40 bg-black/40 backdrop-blur-md shadow-[0_0_15px_rgba(244,63,94,0.1)]';
 
   const [activeTooltipRoleId, setActiveTooltipRoleId] = useState<string | null>(null);
 
@@ -88,14 +88,14 @@ export function TrialSideTeamPanel({
 
   return (
     <div className={cn('rounded-2xl border p-4', accent)}>
-      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-black/60 mb-3">
+      <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/60 mb-3 drop-shadow-md">
         Zespół — {meta.title}
       </p>
       <div className="space-y-2">
         {roleIds.map((roleId) => (
           <div key={roleId} className="flex flex-col sm:flex-row sm:items-center gap-1.5 relative">
             <div className="flex items-center gap-1.5 sm:w-28 shrink-0">
-              <span className="text-[8px] font-black uppercase tracking-widest text-black/50">
+              <span className="text-[8px] font-black uppercase tracking-widest text-white/70 drop-shadow-md">
                 {roleLabel(roleId)}
               </span>
               
@@ -104,7 +104,7 @@ export function TrialSideTeamPanel({
                   type="button"
                   onMouseEnter={() => setActiveTooltipRoleId(roleId)}
                   onMouseLeave={() => setActiveTooltipRoleId(null)}
-                  className="text-black/30 hover:text-black transition-colors p-0.5"
+                  className="text-white/40 hover:text-white transition-colors p-0.5 drop-shadow-md"
                   aria-label="Informacje o roli"
                 >
                   <Info size={11} />
@@ -115,18 +115,18 @@ export function TrialSideTeamPanel({
                       initial={{ opacity: 0, scale: 0.95, y: 5 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: 5 }}
-                      className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-white border border-black/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.15)] text-left z-1000 pointer-events-none text-black"
+                      className="absolute bottom-full left-0 mb-2 w-64 p-3 bg-black/90 border border-white/10 rounded-2xl shadow-[0_15px_30px_rgba(0,0,0,0.5)] backdrop-blur-md text-left z-[1000] pointer-events-none"
                     >
-                      <p className="text-[9px] font-black uppercase tracking-widest text-black mb-1">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-gold-primary mb-1">
                         Rola: {roleLabel(roleId)}
                       </p>
-                      <p className="text-[8px] leading-relaxed text-black/60 font-bold uppercase tracking-wider mb-1.5">
+                      <p className="text-[8px] leading-relaxed text-white/80 font-bold uppercase tracking-wider mb-1.5">
                         {ROLE_DESCRIPTIONS[roleId] || "Brak opisu."}
                       </p>
-                      <p className="text-[7px] leading-relaxed text-emerald-600 font-black uppercase tracking-wider">
+                      <p className="text-[7px] leading-relaxed text-emerald-400 font-black uppercase tracking-wider">
                         Wpływ: {ROLE_IMPACTS[roleId] || "Model działa w trybie ogólnym."}
                       </p>
-                      <div className="absolute top-full left-2 -mt-px w-2 h-2 bg-white border-r border-b border-black/10 rotate-45" />
+                      <div className="absolute top-full left-2 -mt-px w-2 h-2 bg-black/90 border-r border-b border-white/10 rotate-45" />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -136,37 +136,46 @@ export function TrialSideTeamPanel({
               value={modelForRole(roleId)}
               disabled={disabled || pool.length === 0}
               onChange={(e) => setRoleModel(roleId, e.target.value)}
-              className="flex-1 text-[10px] font-bold rounded-lg border border-black/10 bg-white px-2 py-1.5 text-black"
+              className="flex-1 text-[10px] font-bold rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm px-2 py-1.5 text-white focus:ring-1 focus:ring-gold-primary/50 outline-none"
               aria-label={`Model dla roli ${roleLabel(roleId)}`}
             >
-              <option value="">— wybierz model —</option>
-              {pool.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name || m.id}
-                </option>
-              ))}
+              <option value="" className="bg-[#111] text-white">— wybierz model —</option>
+              {pool.map((m) => {
+                const assignedRole = team.expertRoleByModel[m.id];
+                const isAssignedToOther = assignedRole && assignedRole !== roleId;
+                return (
+                  <option 
+                    key={m.id} 
+                    value={m.id} 
+                    className="bg-[#111] text-white"
+                    disabled={isAssignedToOther}
+                  >
+                    {m.name || m.id} {isAssignedToOther ? `(przypisany: ${roleLabel(assignedRole)})` : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
         ))}
       </div>
-      <label className="block mt-3 text-[8px] font-black uppercase tracking-widest text-black/45">
+      <label className="block mt-3 text-[8px] font-black uppercase tracking-widest text-white/60 drop-shadow-md">
         Sędzia syntezy ({meta.short})
       </label>
       <select
         value={team.judgeModel}
         disabled={disabled || pool.length === 0}
         onChange={(e) => onPatch({ judgeModel: e.target.value })}
-        className="mt-1 w-full text-[10px] font-bold rounded-lg border border-black/10 bg-white px-2 py-1.5 text-black"
+        className="mt-1 w-full text-[10px] font-bold rounded-lg border border-white/10 bg-black/40 backdrop-blur-sm px-2 py-1.5 text-white focus:ring-1 focus:ring-gold-primary/50 outline-none"
         aria-label={`Sędzia syntezy ${meta.title}`}
       >
-        <option value="">— domyślny z zespołu —</option>
+        <option value="" className="bg-[#111] text-white">— domyślny z zespołu —</option>
         {pool.map((m) => (
-          <option key={m.id} value={m.id}>
+          <option key={m.id} value={m.id} className="bg-[#111] text-white">
             {m.name || m.id}
           </option>
         ))}
       </select>
-      <p className="mt-2 text-[7px] text-black/40 uppercase tracking-widest">
+      <p className="mt-2 text-[7px] text-white/40 uppercase tracking-widest drop-shadow-md">
         {team.models.length}/7 modeli przypisanych
       </p>
     </div>

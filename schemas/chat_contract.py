@@ -125,6 +125,7 @@ class ChatPayloadV2(BaseModel):
     use_rag_legal: bool = True
     use_rag_user: Optional[bool] = None
     model_latencies: Optional[Dict[str, float]] = None
+    assigned_models: Optional[Dict[str, str]] = None
 
     model_config = {"extra": "ignore", "populate_by_name": True}
 

@@ -76,6 +76,7 @@ export function buildChatPayload(
     use_lexminde_mcp: extras.use_lexminde_mcp !== false,
     model_latencies: options.modelLatencies,
     active_prompt_preset_id: store.activePromptPresetId,
+    assigned_models: extras.assigned_models ?? (Object.keys(store.assignedModels || {}).length > 0 ? store.assignedModels : undefined),
   };
 
   if (isMoa) {

@@ -1,5 +1,11 @@
 {
   "mcpServers": {
+    "prawmi": {
+      "url": "https://api.prawmi.pl/mcp",
+      "headers": {
+        "X-API-Key": "prawmi_live_826e9bb65bf779a5dcc252bd40b32f57"
+      }
+    },
     "lexmind-cloud-railway": {
       "url": "https://mcp-lex-pl-production.up.railway.app/sse"
     },

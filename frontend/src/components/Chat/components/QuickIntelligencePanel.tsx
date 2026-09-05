@@ -11,7 +11,8 @@ import {
 import { motion } from 'framer-motion';
 import { LexIcon, type LexIconName } from '../../Layout/LexIcon';
 import { cn } from '../../../utils/cn';
-import { useQuickIntelligenceState } from '../../../hooks/chatSettingsSelectors';
+import { useQuickIntelligenceState, useFavoriteModelsState } from '../../../hooks/chatSettingsSelectors';
+import { useModels, readEnabledModels } from '../../../hooks/useConfig';
 
 
 import { SelectionModal } from '../../UI/SelectionModal';
@@ -162,7 +163,6 @@ export function QuickIntelligencePanel() {
 
     setIsOpen,
     expertRoleByModel,
-    setExpertRoleForModel,
     activePromptPresetId,
     unitSystemRoles,
     taskPrompts,
@@ -177,6 +177,29 @@ export function QuickIntelligencePanel() {
 
 
   const { applyServerPreset, loading: presetsLoading } = usePromptPresets();
+
+  const { data: rawModels = [] } = useModels();
+  const { favoriteModels } = useFavoriteModelsState();
+
+  const userAvailableModels = useMemo(() => {
+    const adminEnabled = readEnabledModels();
+    
+    if (favoriteModels && favoriteModels.length > 0) {
+      const favSet = new Set(favoriteModels);
+      return rawModels
+        .filter((m) => favSet.has(m.id) && (adminEnabled.length === 0 || adminEnabled.includes(m.id)))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    if (adminEnabled.length > 0) {
+      const adminSet = new Set(adminEnabled);
+      return rawModels
+        .filter((m) => adminSet.has(m.id))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    return [...rawModels].sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawModels, favoriteModels]);
 
   const responseModeOptions: { id: ResponseMode; label: string }[] = [
     { id: 'citizen', label: 'Obywatel' },
@@ -383,55 +406,8 @@ export function QuickIntelligencePanel() {
       </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4 custom-scrollbar">
-        <section>
-           <h4 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-2 flex items-center gap-1.5">
-             <Settings size={11} /> Zespół Ekspertów ({roleList.length})
-           </h4>
-           
-           <div className="space-y-2">
-             {roleList.length === 0 && (
-                <div className="py-6 text-center glass-liquid-convex rounded-2xl px-4 border border-black/5">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-black/40">
-                    Wybierz Obronę lub Oskarżenie aby załadować role.
-                  </p>
-                </div>
-             )}
-             {roleList.map((role) => {
-               // Roles are now tracked as their IDs in activeModels, mapped 1:1 in expertRoleByModel
-               const isRoleActiveInState = activeModels.includes(role.id);
-               
-               return (
-                 <Tooltip key={role.id} title={role.label} content={role.description} impact={role.impact} position="top">
-                   <button 
-                     onClick={() => {
-                       toggleActiveModel(role.id);
-                       if (!activeModels.includes(role.id)) {
-                         setExpertRoleForModel(role.id, role.id);
-                       }
-                     }}
-                     className={cn(
-                       "group flex items-center gap-3 p-3 rounded-2xl transition-all duration-500 w-full text-left outline-none",
-                       isRoleActiveInState ? "glass-liquid-convex border border-gold-primary/20 scale-[1.01]" : "bg-black/5 border border-black/10 opacity-70 hover:opacity-100"
-                     )}
-                   >
-                     <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border", isRoleActiveInState ? "bg-black/10 border-black/10 text-black" : "bg-black/5 border-black/5 text-black/30")}>
-                       <LexIcon name={role.lexIcon} size={14} />
-                     </div>
-                     <div className="flex-1 min-w-0 text-left">
-                       <span className={cn("text-[9px] font-black uppercase tracking-wider truncate", isRoleActiveInState ? "text-black" : "text-black/60")}>{role.label}</span>
-                     </div>
-                     {isRoleActiveInState && (
-                         <span className="shrink-0 text-[7px] font-bold tracking-widest uppercase bg-gold-primary/20 text-black px-2 py-0.5 rounded-lg border border-gold-primary/30">AKTYWNA</span>
-                     )}
-                   </button>
-                 </Tooltip>
-               );
-             })}
-           </div>
-        </section>
-
         {taskOptions.length > 0 && (
-          <section className="pb-6">
+          <section className="pb-2">
              <h4 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-2">Zadanie AI</h4>
              <Tooltip 
                title="Zadanie AI" 
@@ -451,6 +427,145 @@ export function QuickIntelligencePanel() {
                  <ChevronDown size={14} className="text-black/40" />
                </button>
              </Tooltip>
+          </section>
+        )}
+
+        {currentTask ? (
+          <section className="pb-6">
+             <h4 className="text-[10px] font-black uppercase tracking-widest text-black/40 mb-2 flex items-center gap-1.5">
+               <Settings size={11} /> Zespół Ekspertów ({roleList.length})
+             </h4>
+             
+             <div className="space-y-2">
+               {roleList.length === 0 && (
+                  <div className="py-6 text-center glass-liquid-convex rounded-2xl px-4 border border-black/5">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-black/40">
+                      Brak ekspertów dla tego zadania.
+                    </p>
+                  </div>
+               )}
+               {roleList.map((role) => {
+                 const isRoleActiveInState = activeModels.includes(role.id);
+                 const assignedModelId = Object.keys(expertRoleByModel || {}).find(mId => (expertRoleByModel || {})[mId] === role.id);
+                 const isModelSelected = assignedModelId && assignedModelId !== role.id;
+                 
+                 return (
+                    <Tooltip key={role.id} title={role.label} content={role.description} impact={role.impact} position="top">
+                      <div 
+                        className={cn(
+                          "group flex flex-col p-3 rounded-2xl transition-all duration-500 w-full text-left outline-none",
+                          !isRoleActiveInState 
+                            ? "bg-black/5 border border-black/10 opacity-70 hover:opacity-100 cursor-pointer hover:border-black/20" 
+                            : isModelSelected 
+                              ? "btn-convex-prestige active scale-[1.01]" 
+                              : "glass-liquid-convex border-t-2 border-t-white/80 border-l-[1.5px] border-l-white/60 border-b-2 border-b-black/30 scale-[1.01]"
+                        )}
+                      >
+                        <div 
+                          onClick={() => {
+                            toggleActiveModel(role.id);
+                            const nextExpertMap = { ...expertRoleByModel };
+                            // Zawsze czyśćmy stare przypisania dla tej roli
+                            Object.keys(nextExpertMap).forEach(mId => {
+                              if (nextExpertMap[mId] === role.id) delete nextExpertMap[mId];
+                            });
+                            
+                            if (!activeModels.includes(role.id)) {
+                              // Włączamy: ustaw placeholder, żeby nie świeciło na złoto dopóki użytkownik nie wybierze z listy
+                              nextExpertMap[role.id] = role.id;
+                            } 
+                            // Wyłączamy: rola zostaje po prostu usunięta z mapy
+                            
+                            useChatSettingsStore.setState({ expertRoleByModel: nextExpertMap });
+                          }}
+                          className="flex items-center gap-3 w-full cursor-pointer"
+                        >
+                          <div className={cn(
+                            "w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all", 
+                            !isRoleActiveInState ? "bg-black/5 border-black/5 text-black/30" : 
+                            isModelSelected ? "bg-gold-primary/20 border-gold-primary/40 text-gold-deep shadow-inner" : 
+                            "bg-black/10 border-black/10 text-black shadow-inner"
+                          )}>
+                            <LexIcon name={role.lexIcon} size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0 text-left">
+                            <span className={cn(
+                              "text-[9px] font-black uppercase tracking-wider truncate block", 
+                              !isRoleActiveInState ? "text-black/60" : "text-black"
+                            )}>{role.label}</span>
+                          </div>
+                          {isRoleActiveInState && (
+                              <span className={cn(
+                                "shrink-0 text-[7px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-lg border",
+                                isModelSelected 
+                                  ? "bg-gold-primary/20 text-black border-gold-primary/30" 
+                                  : "bg-black/5 text-black/60 border-black/10"
+                              )}>
+                                {isModelSelected ? "AKTYWNA" : "WYBIERZ MODEL"}
+                              </span>
+                          )}
+                        </div>
+                        
+                        {isRoleActiveInState && (
+                          <div className="mt-2.5 pt-2 border-t border-black/5" onClick={(e) => e.stopPropagation()}>
+                            <select
+                              value={Object.keys(expertRoleByModel || {}).find(mId => (expertRoleByModel || {})[mId] === role.id) || role.id}
+                              onChange={(e) => {
+                                 const newModelId = e.target.value;
+                                 const oldModelId = Object.keys(expertRoleByModel || {}).find(mId => (expertRoleByModel || {})[mId] === role.id);
+                                 const newMap = { ...(expertRoleByModel || {}) };
+                                 if (oldModelId) delete newMap[oldModelId];
+                                 if (newModelId) newMap[newModelId] = role.id;
+                                 useChatSettingsStore.setState({ expertRoleByModel: newMap });
+                              }}
+                              className="w-full bg-white/60 border border-black/10 hover:border-gold-primary/40 focus:border-gold-primary rounded-xl px-2 py-1.5 text-[8.5px] font-bold text-black outline-none transition-all cursor-pointer shadow-sm pr-6"
+                            >
+                              <option value={role.id} disabled>
+                                (Domyślny: {
+                                  role.id === 'oracle' ? 'Claude Sonnet 5' :
+                                  role.id === 'inquisitor' ? 'DeepSeek V4 Pro' :
+                                  role.id === 'evidencecracker' ? 'Muse Spark 1.1' :
+                                  role.id === 'proceduralist' ? 'GPT-5.6 Terra' :
+                                  role.id === 'defender' ? 'Grok 4.3' :
+                                  role.id === 'negotiator' ? 'GPT-5.6 Luna' :
+                                  role.id === 'constitutionalist' ? 'Gemini 3.1 Pro Preview' :
+                                  'Wybierz model AI'
+                                })
+                              </option>
+                              {userAvailableModels.map(m => {
+                                const assignedRole = (expertRoleByModel || {})[m.id];
+                                const isAssignedToOther = assignedRole && assignedRole !== role.id;
+                                
+                                const getRoleLabel = (rId: string) => {
+                                  return roleList.find(r => r.id === rId)?.label || rId;
+                                };
+
+                                return (
+                                  <option 
+                                    key={m.id} 
+                                    value={m.id}
+                                    disabled={isAssignedToOther}
+                                  >
+                                    {m.name} {isAssignedToOther ? `(przypisany: ${getRoleLabel(assignedRole)})` : ''}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </Tooltip>
+                 );
+               })}
+             </div>
+          </section>
+        ) : (
+          <section className="pb-6">
+            <div className="py-6 text-center glass-liquid-convex rounded-2xl px-4 border border-black/5">
+              <p className="text-[9px] font-black uppercase tracking-widest text-black/40">
+                Najpierw wybierz Zadanie AI powyżej,<br/>aby dobrać zespół ekspertów.
+              </p>
+            </div>
           </section>
         )}
       </div>

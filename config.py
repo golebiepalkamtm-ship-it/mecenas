@@ -18,19 +18,19 @@ class Settings(BaseSettings):
 
     default_models: List[str] = Field(
         default=[
-            "~deepseek/deepseek-v4-flash-latest",
             "google/gemini-3.7-flash",
+            "google/gemini-2.5-flash",
             "openai/gpt-5.4-nano",
-            "z-ai/glm-5.3",
-            "x-ai/grok-4.6",
-            "qwen/qwen3.8-max",
+            "deepseek/deepseek-v4-flash",
+            "google/gemini-2.5-flash-lite",
         ]
     )
     fallback_models: List[str] = Field(
         default=[
             "google/gemini-3.7-flash",
+            "google/gemini-2.5-flash",
             "openai/gpt-5.4-nano",
-            "deepseek/deepseek-v4-flash",
+            "google/gemini-2.5-flash-lite",
         ]
     )
     deprecated_model_aliases: Dict[str, str] = Field(
@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     citation_block_mode: str = Field(default="strict")
     citation_trust_expert_debate: bool = Field(default=False)
     citation_trust_legal_kb_act: bool = Field(default=True)
+
+    # Export Gate: walidacja cytowań przed eksportem DOCX (off / warn / strict)
+    export_gate_mode: str = Field(default="warn")
+    # Audit Trail: persystentny hash-chain log zdarzeń per sesja
+    feature_audit_trail: bool = Field(default=True)
 
     use_rag_user_in_chat: bool = Field(default=True)
     rag_user_top_k: int = Field(default=4)
@@ -93,16 +98,16 @@ class Settings(BaseSettings):
     dynamic_agent_max: int = Field(default=5)
     feature_multistage_synthesis: bool = Field(default=True)
     synthesis_max_tokens: int = Field(default=12000)
-    synthesis_timeout_sec: float = Field(default=180.0)
+    synthesis_timeout_sec: float = Field(default=600.0)
     synthesis_fast_max_tokens: int = Field(default=6000)
     synthesis_rag_legal_chars: int = Field(default=100_000)
     synthesis_rag_external_chars: int = Field(default=50_000)
 
     # Debata ekspertów przy trybie single (domyślnie wyłączona — szybsze odpowiedzi)
     debate_on_single: bool = Field(default=False)
-    debate_expert_timeout_sec: float = Field(default=180.0)
-    debate_slow_multiplier: float = Field(default=2.2, ge=1.1, le=4.0)
-    debate_min_cutoff_ms: int = Field(default=25_000, ge=3000)
+    debate_expert_timeout_sec: float = Field(default=600.0)
+    debate_slow_multiplier: float = Field(default=3.0, ge=1.1, le=4.0)
+    debate_min_cutoff_ms: int = Field(default=90_000, ge=3000)
 
     # Automatyczna szybka ścieżka dla krótkich pytań o art./kodeks bez załączników
     feature_fast_statutory_path: bool = Field(default=True)
@@ -165,7 +170,7 @@ class Settings(BaseSettings):
     reflection_score_threshold: float = Field(default=0.7, ge=0.3, le=0.95)
     reflection_max_retries: int = Field(default=1, ge=0, le=2)
     # Iterative Retrieval — gap detection po debacie → dodatkowy retrieval pass
-    feature_iterative_retrieval: bool = Field(default=False)
+    feature_iterative_retrieval: bool = Field(default=True)
     iterative_retrieval_max_passes: int = Field(default=1, ge=0, le=2)
     # Verification Agent — weryfikacja dat, sygnatur, uchylonych przepisów
     feature_verification_agent: bool = Field(default=True)
@@ -190,9 +195,15 @@ class Settings(BaseSettings):
     trial_max_brief_chars: int = Field(default=50_000)
 
     def resolve_model_id(self, model_id: Optional[str]) -> str:
-        """Zwraca zaktualizowane ID modelu, obsługując deprecację."""
+        """Zwraca zaktualizowane ID modelu, obsługując deprecację i zbanowane modele."""
         if not model_id:
-            return self.default_models[0] if self.default_models else ""
+            return self.default_models[0] if self.default_models else "google/gemini-3.7-flash"
+
+        mid_lower = model_id.lower().strip()
+        banned_patterns = ("nemotron", "nvidia") # Usunięto bana na sol, opus, fable itd.
+        if any(kw in mid_lower for kw in banned_patterns):
+            return "google/gemini-3.7-flash"
+
         return self.deprecated_model_aliases.get(model_id, model_id)
 
 

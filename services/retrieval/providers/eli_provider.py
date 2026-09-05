@@ -1,11 +1,33 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 from typing import Any
 
 import httpx
 
 from services.retrieval.types import RetrievalItem, normalize_retrieval_rows
+
+# Szybki cache na dysku
+CACHE_FILE = "cache/eli_cache.json"
+
+def _load_cache() -> dict:
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+def _save_cache(cache: dict):
+    os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
 
 def _as_text(value: Any) -> str:
@@ -46,6 +68,13 @@ async def fetch_eli_once(
         query_text = re.sub(abbrev, full_name, query_text, flags=re.IGNORECASE)
 
 
+    # Sprawdzanie cache przed wysłaniem żądania
+    cache_key = f"{query_text}::{limit}"
+    disk_cache = _load_cache()
+    if cache_key in disk_cache:
+        # Rekonstrukcja obiektów RetrievalItem z dict
+        return normalize_retrieval_rows(disk_cache[cache_key])
+
     headers = {
         "Accept": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -82,4 +111,16 @@ async def fetch_eli_once(
             }
         )
 
-    return normalize_retrieval_rows(results)
+    final_results = normalize_retrieval_rows(results)
+    
+    # Zapis do cache (konwersja do dict dla serializacji)
+    cache_to_save = []
+    for r in final_results:
+        if isinstance(r, dict): cache_to_save.append(r)
+        elif hasattr(r, 'model_dump'): cache_to_save.append(r.model_dump())
+        else: cache_to_save.append(dict(r))
+        
+    disk_cache[cache_key] = cache_to_save
+    _save_cache(disk_cache)
+    
+    return final_results

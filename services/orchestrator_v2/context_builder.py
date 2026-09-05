@@ -53,7 +53,7 @@ class LegalContextBuilder:
         self.CHUNK_OVERLAP_CHARS = 200
         self.briefing_engine = BriefingEngine()
 
-    async def build_context(self, params: OrchestratorInputParams, llm_service: Any) -> InvestigationContext:
+    async def build_context(self, params: OrchestratorInputParams, llm_service: Any, status_callback: Optional[Any] = None) -> InvestigationContext:
         logger.info("[ContextBuilder] Rozpoczynam kompletowanie wiedzy...")
         
         # 1. Przetworzenie historii czatu i załączników
@@ -112,11 +112,12 @@ class LegalContextBuilder:
                             temperature=temperature,
                             timeout=timeout,
                             log_context="QueryPlanner",
+                            status_callback=status_callback
                         )
 
                     fallback_kw = fast_path_keywords(params.user_query) or params.user_query[:120]
-                    from database import get_setting
-                    raw_planner = params.selected_model or get_setting("assigned_model_query_planner")
+                    assigned_planner = params.assigned_models.get('query_planner') if params.assigned_models else None
+                    raw_planner = assigned_planner or params.selected_model
                     planner_model = settings.resolve_model_id(raw_planner)
                     query_plan = await plan_query(
                         call_llm=_planner_llm,
@@ -165,7 +166,7 @@ class LegalContextBuilder:
             logger.info("[ContextBuilder] Wykorzystano Kartę Sprawy z semantic cache.")
         else:
             try:
-                case_brief = await self.briefing_engine.generate_brief(params, llm_service, raw_materials)
+                case_brief = await self.briefing_engine.generate_brief(params, llm_service, raw_materials, status_callback=status_callback)
             except Exception as e:
                 logger.error(f"[ContextBuilder] Błąd generowania Karty Sprawy: {e}. Zwracam pustą Kartę Sprawy.")
                 from services.orchestrator_v2.briefing_engine import CaseBrief
@@ -473,58 +474,68 @@ class LegalContextBuilder:
         """
         tools_to_call = get_tools_for_tags(problem_tags)
         
-        # Jeśli użytkownik włączył przycisk 'Lexminde MCP Server' w UI — dodaj podstawowe narzędzia MCP
+        # Jeśli użytkownik włączył przycisk 'Lexminde MCP Server' w UI, dodaj internet_search
         if getattr(params, "use_lexminde_mcp", False):
-            for default_tool in ["isap_search_acts", "saos_search_judgments", "sejm_search_interpellations", "internet_search"]:
-                if default_tool not in tools_to_call:
-                    tools_to_call.append(default_tool)
+            if "internet_search" not in tools_to_call:
+                tools_to_call.append("internet_search")
 
-        # Zawsze dodaj CBOSA dla spraw administracyjnych/podatkowych
-        if any(t in problem_tags for t in ["tax", "procedural"]) and "cbosa_search_judgments" not in tools_to_call:
-            tools_to_call.append("cbosa_search_judgments")
-        
         # Wykryj numery KRS w tekście
         from services.retrieval.providers.krs_provider import extract_krs_numbers
         krs_numbers = extract_krs_numbers(params.user_query + " " + (params.document_text or ""))
         if krs_numbers and "krs_get_company" not in tools_to_call:
             tools_to_call.append("krs_get_company")
-        
         if not tools_to_call:
             return "", []
         
         logger.info(f"[MCP Bridge] Wykryto tagi: {problem_tags} → wywołuję narzędzia: {tools_to_call}")
         
         tool_results: Dict[str, Any] = {}
-        tasks = []
+        task_args = []
         
         for tool_name in tools_to_call:
             if tool_name == "krs_get_company":
                 if krs_numbers:
                     for krs_num in krs_numbers[:2]:
-                        tasks.append((f"{tool_name}_{krs_num}", call_mcp_tool(tool_name, krs=krs_num)))
+                        task_args.append((f"{tool_name}_{krs_num}", tool_name, {"krs": krs_num}))
                 continue  # Skip if krs_numbers is empty, do not fall back to query
             elif tool_name in ("cbosa_search_judgments", "tsue_search_judgments", "kio_search_judgments", "uodo_search_decisions"):
-                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords)))
-            elif tool_name == "sejm_list_prints":
-                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords, limit=5)))
-            elif tool_name == "sejm_search_interpellations":
-                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords, limit=5)))
+                task_args.append((tool_name, tool_name, {"query": keywords}))
+            elif tool_name in ("sejm_list_prints", "sejm_search_interpellations"):
+                task_args.append((tool_name, tool_name, {"query": keywords, "limit": 5}))
+            elif tool_name in ("saos_cite_check", "cbosa_search_by_case", "prawmi_verify_ruling"):
+                continue # We shouldn't call these with random keywords from extracted statutory terms
+            elif tool_name in ("cbosa_get_judgment", "saos_get_judgment_details"):
+                continue # Require specific IDs, skip
+            # Nowe narzędzia prawne (karny/narkotykowy pipeline)
+            elif tool_name in ("saos_search_judgments", "saos_search_by_article"):
+                task_args.append((tool_name, tool_name, {"query": keywords, "limit": 20}))
+            elif tool_name in ("prawmi_search_rulings", "prawmi_search_rulings_by_article"):
+                task_args.append((tool_name, tool_name, {"query": keywords, "limit": 15}))
+            elif tool_name in ("nalegalu_article_lookup", "isap_search_acts"):
+                task_args.append((tool_name, tool_name, {"query": keywords, "limit": 10}))
             else:
-                tasks.append((tool_name, call_mcp_tool(tool_name, query=keywords)))
+                task_args.append((tool_name, tool_name, {"query": keywords}))
         
-        if not tasks:
+        if not task_args:
             return "", []
         
-        # Wykonaj równolegle z timeoutem
-        async def _safe_call(name: str, coro):
-            try:
-                return name, await asyncio.wait_for(coro, timeout=12.0)
-            except Exception as e:
-                logger.warning(f"[MCP Bridge] Tool '{name}' error: {e}")
-                return name, {"status": "error", "message": str(e)}
+        # Wykonaj równolegle z timeoutem i prostym retry
+        async def _safe_call(name: str, real_tool_name: str, kwargs: dict):
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    res = await asyncio.wait_for(call_mcp_tool(real_tool_name, **kwargs), timeout=15.0)
+                    return name, res
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"[MCP Bridge] Tool '{name}' failed (attempt {attempt+1}/{max_retries}): {e}. Retrying...")
+                        await asyncio.sleep(1)
+                    else:
+                        logger.error(f"[MCP Bridge] Tool '{name}' failed completely: {e}")
+                        return name, {"status": "error", "message": str(e)}
         
         gathered = await asyncio.gather(
-            *[_safe_call(name, coro) for name, coro in tasks],
+            *[_safe_call(name, tname, kwargs) for name, tname, kwargs in task_args],
             return_exceptions=True,
         )
         

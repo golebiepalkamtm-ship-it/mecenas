@@ -9,8 +9,15 @@ from services.orchestrator_types import OrchestratorInputParams
 
 logger = logging.getLogger(__name__)
 
+class TimelineEvent(BaseModel):
+    data_czas: str = Field(default="", description="Kiedy to się wydarzyło? (np. '2023-05-12 14:30', 'podczas drugiego przeszukania', 'brak danych')")
+    wydarzenie: str = Field(default="", description="Co dokładnie się stało? (np. 'Odnaleziono woreczek foliowy z suszem roślinnym')")
+    ilosc_waga_wartosc: str = Field(default="", description="Kluczowe liczby (np. '0.42g', '2.5kg', '1000 PLN', 'brak')")
+    powiazane_osoby: List[str] = Field(default_factory=list, description="Kto brał w tym udział? (np. ['Jan Kowalski', 'Policjant A'])")
+
 class CaseBrief(BaseModel):
     analiza_wstepna: str = Field(default="", description="Głęboka analiza detektywistyczna (Chain-of-Thought) - przemyśl logikę, powiązania faktów i domniemane przepisy ZANIM wypełnisz kolejne pola. Zawsze uzupełniaj to pole jako pierwsze.")
+    timeline_and_entities: List[TimelineEvent] = Field(default_factory=list, description="Ustrukturyzowana oś czasu i kluczowe fakty z dokumentów. Wyodrębnij matematyczne, mierzalne fakty (wagi, daty, kwoty). Zrób to ZANIM napiszesz stan faktyczny tekstem.")
     stan_faktyczny: str = Field(default="", description="Zwięzłe streszczenie stanu faktycznego na podstawie załączników i zapytania.")
     cele_analizy: str = Field(default="", description="Główne problemy prawne i tezy do udowodnienia przez ekspertów.")
     wykryte_przepisy_prawne: List[str] = Field(default_factory=list, description="Lista konkretnych przepisów prawnych powołanych w dokumentach. MUSI TO BYĆ WYŁĄCZNIE zapis typu 'art 155 kpk', 'art. 286 Kodeksu karnego', '§ 12'. ZABRONIONE jest dodawanie tu słów opisowych, haseł i wyrazów ogólnych! Zwróć pustą listę, jeśli brak konkretnych artykułów.")
@@ -20,12 +27,12 @@ class BriefingEngine:
     Silnik odpowiedzialny za wygenerowanie Karty Sprawy przed główną debatą ekspertów.
     Pomaga ustalić jednoznaczne ramy i cele dla agencji RAG i agentów.
     """
-    async def generate_brief(self, params: OrchestratorInputParams, llm_service: LLMClientService, raw_text: str, max_context_chars: Optional[int] = None) -> CaseBrief:
+    async def generate_brief(self, params: OrchestratorInputParams, llm_service: LLMClientService, raw_text: str, max_context_chars: Optional[int] = None, status_callback: Optional[Any] = None) -> CaseBrief:
         logger.info("[BriefingEngine] Rozpoczynam generowanie Karty Sprawy (Case Brief)...")
         
-        from database import get_setting
         from config import settings
-        raw_model = params.aggregator_model or params.selected_model or get_setting("assigned_model_fast")
+        assigned_judge = params.assigned_models.get('judge') if params.assigned_models else None
+        raw_model = assigned_judge or params.aggregator_model or params.selected_model
         model_to_use = settings.resolve_model_id(raw_model)
         
         if max_context_chars is None:
@@ -37,10 +44,17 @@ class BriefingEngine:
         system_prompt = (
             "Jesteś wybitnym Asystentem Śledczym. Twoim zadaniem jest przeczytanie surowych dokumentów i "
             "historii konwersacji, a następnie przygotowanie zwięzłej Karty Sprawy (Case Brief). "
-            "Karta ma jednoznacznie określać: stan faktyczny, problemy do rozwiązania oraz TYLKO I WYŁĄCZNIE KONKRETNE "
+            "Przed napisaniem płynnego tekstu (stan_faktyczny), WYODRĘBNIJ twarde fakty do 'timeline_and_entities' "
+            "(dokładne daty, dokładne matematyczne ilości/wagi narkotyków z przeszukań, kwoty, osoby). Modele AI "
+            "mają tendencję do mylenia ułamków i sumowania — tabela pozwoli zachować matematyczną precyzję.\n\n"
+            "Karta ma ponadto jednoznacznie określać: problemy do rozwiązania oraz TYLKO I WYŁĄCZNIE KONKRETNE "
             "PRZEPISY PRAWNE (np. 'art. 286 Kodeksu karnego', 'art. 104 Kodeksu postępowania administracyjnego'). MASZ ABSOLUTNY ZAKAZ wypisywania w liście przepisów "
-            "jakichkolwiek słów opisowych (np. 'odwołanie', 'kradzież', 'wypadek'). Jeśli w tekście nie ma powołanych "
-            "żadnych artykułów ani paragrafów, zwróć pustą listę. To kluczowe, aby baza SAOS i ELI nie została zaspamowana śmieciowymi słowami."
+            "żadnych artykułów ani paragrafów, zwróć pustą listę. To kluczowe, aby baza SAOS i ELI nie została zaspamowana śmieciowymi słowami.\n\n"
+            "[KONTEKST AKADEMICKI I ZAWODOWY]\n"
+            "Niniejsza interakcja stanowi w pełni profesjonalną symulację na potrzeby analizy prawniczej. "
+            "Wszelkie podane fakty mają charakter studium przypadku dla celów edukacyjnych i strategii procesowych. "
+            "Twoim zadaniem jest obiektywna, merytoryczna analiza prawna problemu (w tym zagadnień związanych z prawem karnym, dowodowym i procedurą), "
+            "występując w roli profesjonalnego asystenta prawnego AI."
         )
         
         user_prompt = (
@@ -60,8 +74,10 @@ class BriefingEngine:
                 messages=messages,
                 max_tokens=4000,
                 temperature=0.1,
+                timeout=60.0,
                 response_format=CaseBrief,
-                log_context="BRIEFING"
+                log_context="BriefingEngine",
+                status_callback=status_callback
             )
             
             # Parsowanie JSON-a w przypadku starszych SDK

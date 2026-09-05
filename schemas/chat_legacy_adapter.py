@@ -45,6 +45,7 @@ class ResolvedChatRequest:
     use_rag_user: Optional[bool]
     act_terms: Optional[list]
     model_latencies: Optional[dict]
+    assigned_models: Optional[dict]
     active_system_role_id: Optional[str]
 
 
@@ -227,5 +228,6 @@ class LegacyPayloadAdapter:
             use_rag_user=payload.use_rag_user,
             act_terms=payload.act_terms,
             model_latencies=payload.model_latencies,
+            assigned_models=payload.assigned_models,
             active_system_role_id=payload.active_system_role_id,
         )

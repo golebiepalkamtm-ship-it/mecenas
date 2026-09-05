@@ -85,5 +85,11 @@ export function useTrialStream() {
     [],
   );
 
-  return { runPosition, runHearing, runVerdict };
+  const runExtract = useCallback(
+    async (payload: Record<string, unknown>, handlers: StreamHandlers) =>
+      postTrialStream('/trial/extract', payload, handlers),
+    [],
+  );
+
+  return { runPosition, runHearing, runVerdict, runExtract };
 }

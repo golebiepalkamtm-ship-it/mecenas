@@ -134,7 +134,7 @@ async def saos_search_by_article(law_clause: str, limit: int = 10) -> str:
 @mcp.tool()
 async def saos_list_courts() -> str:
     try:
-        data = await _http_get(f"{SAOS_API_BASE}/commonCourts", headers={"Referer": "https://www.saos.org.pl/"})
+        data = await _http_get(f"{SAOS_API_BASE}/courts", headers={"Referer": "https://www.saos.org.pl/"})
         items = data.get("items", data) if isinstance(data, dict) else data if isinstance(data, list) else []
         return _json_resp({"status": "ok", "courts": items})
     except Exception as e:
@@ -214,18 +214,23 @@ async def sejm_get_voting_details(sitting: int, voting_number: int, term: int = 
 async def krs_get_company(krs: str) -> str:
     try:
         clean_krs = krs.strip().zfill(10)
-        data = await _http_get(f"{KRS_API_BASE}/OdpisAktualny/{clean_krs}?rejestr=P&format=json")
-        return _json_resp({"status": "ok", "krs": clean_krs, "company": data})
+        try:
+            data = await _http_get(f"{KRS_API_BASE}/OdpisAktualny/{clean_krs}?rejestr=P&format=json")
+            return _json_resp({"status": "ok", "krs": clean_krs, "company": data})
+        except httpx.HTTPStatusError as http_err:
+            if http_err.response.status_code == 404:
+                return _json_resp({"status": "ok", "krs": clean_krs, "company": None, "message": "Nie znaleziono podmiotu w KRS"})
+            raise
     except Exception as e:
         return _json_resp({"status": "error", "message": str(e)})
 
 @mcp.tool()
-async def ceidg_search_business(query: str) -> str:
+async def ceidg_search_business(nip: str) -> str:
     try:
-        data = await _http_get(f"{CEIDG_BASE}/firmy", params={"nip": query})
-        return _json_resp({"status": "ok", "query": query, "data": data})
+        data = await _http_get(f"{CEIDG_BASE}/firmy", params={"nip": nip})
+        return _json_resp({"status": "ok", "query": nip, "data": data})
     except Exception as e:
-        return _json_resp({"status": "ok", "query": query, "data": {"firmy": []}, "message": str(e)})
+        return _json_resp({"status": "ok", "query": nip, "data": {"firmy": []}, "message": str(e)})
 
 # ==============================================================================
 #  5. CBOSA
@@ -324,9 +329,10 @@ def calculate_expression(expression: str) -> str:
             ast.Div: op.truediv, ast.Pow: op.pow, ast.USub: op.neg, ast.UAdd: op.pos
         }
         def eval_node(node):
-            if isinstance(node, ast.Num):
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return node.value
+            elif hasattr(ast, 'Num') and isinstance(node, getattr(ast, 'Num')):
                 return node.n
-            elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
                 return node.value
             elif isinstance(node, ast.BinOp):
                 return allowed_operators[type(node.op)](eval_node(node.left), eval_node(node.right))

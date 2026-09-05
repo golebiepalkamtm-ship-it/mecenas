@@ -15,10 +15,7 @@ MIN_OCR_CHARS = 200
 
 
 def _processed_image_fingerprint(file_bytes: bytes) -> str:
-    from utils.image_preprocessor import preprocess_image_for_ocr
-
-    processed = preprocess_image_for_ocr(file_bytes)
-    return hashlib.sha256(processed).hexdigest()
+    return hashlib.sha256(file_bytes).hexdigest()
 
 
 def get_cached_ocr_for_image(file_bytes: bytes) -> Optional[str]:

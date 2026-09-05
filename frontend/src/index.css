@@ -2787,12 +2787,8 @@ body.lex-doc-reader main.app-main-mobile-offset {
 
 /* Allow custom/active states to override icon stroke & color */
 .btn-convex-prestige.active svg,
-.btn-convex-prestige[class*="text-gold"] svg,
-.btn-convex-prestige[class*="text-amber"] svg,
-.btn-convex-prestige[class*="text-red"] svg,
-.btn-convex-prestige svg[class*="text-gold"],
-.btn-convex-prestige svg[class*="text-amber"],
-.btn-convex-prestige svg[class*="text-red"] {
+.btn-convex-prestige[class*="text-"] svg,
+.btn-convex-prestige svg[class*="text-"] {
   stroke: currentColor !important;
   color: currentColor !important;
 }
@@ -2979,12 +2975,8 @@ button.lex-btn-primary,
 .glass-liquid-convex button.active svg,
 .glass-liquid-convex button[class*="bg-gold"] svg,
 .glass-liquid-convex button[class*="bg-gold-primary"] svg,
-.btn-convex-prestige[class*="text-gold"] svg,
-.btn-convex-prestige[class*="text-amber"] svg,
-.btn-convex-prestige[class*="text-red"] svg,
-.btn-convex-prestige svg[class*="text-gold"],
-.btn-convex-prestige svg[class*="text-amber"],
-.btn-convex-prestige svg[class*="text-red"] {
+.btn-convex-prestige[class*="text-"] svg,
+.btn-convex-prestige svg[class*="text-"] {
   stroke: currentColor !important;
   color: currentColor !important;
 }
@@ -3280,6 +3272,14 @@ button.lex-btn-primary,
     max-width: 14rem;
   }
 }
+
+/* ── Explicit overrides for AdvancedModelsModal icon colors ── */
+.btn-convex-prestige svg.text-sky-500 { stroke: #0ea5e9 !important; color: #0ea5e9 !important; }
+.btn-convex-prestige svg.text-orange-500 { stroke: #f97316 !important; color: #f97316 !important; }
+.btn-convex-prestige svg.text-amber-800 { stroke: #92400e !important; color: #92400e !important; }
+.btn-convex-prestige svg.text-emerald-500 { stroke: #10b981 !important; color: #10b981 !important; }
+.btn-convex-prestige svg.text-yellow-600 { stroke: #ca8a04 !important; color: #ca8a04 !important; }
+.btn-convex-prestige svg.text-indigo-500 { stroke: #6366f1 !important; color: #6366f1 !important; }
 
 
 

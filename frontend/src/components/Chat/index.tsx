@@ -40,6 +40,13 @@ import {
 } from "../Library/shared";
 
 import React from "react";
+import {
+  hasTrialEligibleChat,
+  formatChatMessagesForTrial,
+  deriveTrialQuestionFromChat,
+} from "../../utils/chatContextForTrial";
+import { AdvancedModelsModal } from './components/AdvancedModelsModal';
+import { useTrialRoomStore } from "../../store/useTrialRoomStore";
 
 interface ChatViewProps {
   onNavigate?: (tab: Tab) => void;
@@ -111,6 +118,7 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
   const [actTerms, setActTerms] = useState<string[]>([]);
   const [isActSelectorOpen, setIsActSelectorOpen] = useState(false);
   const [isLexmindeMcpModalOpen, setIsLexmindeMcpModalOpen] = useState(false);
+  const [isAdvancedModelsOpen, setIsAdvancedModelsOpen] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<string>("");
   
   // Refs
@@ -548,6 +556,14 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
     const timer = setTimeout(() => setAttachmentWarning(null), 4000);
     return () => clearTimeout(timer);
   }, [attachmentWarning]);
+
+  const canOpenTrialRoom = hasTrialEligibleChat(messages);
+  const handleOpenTrialRoom = useCallback(() => {
+    if (!canOpenTrialRoom) return;
+    const store = useTrialRoomStore.getState();
+    store.importFromChat(messages, sessionId || '');
+    goToTab('trial');
+  }, [canOpenTrialRoom, messages, sessionId, goToTab]);
 
   const activeSessionTitle = useMemo(() => {
     const current = sessions.find((s) => s.id === sessionId);
@@ -1051,6 +1067,9 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
                   useLexmindeMcp={useLexmindeMcp}
                   setUseLexmindeMcp={setUseLexmindeMcp}
                   onOpenLexmindeMcpModal={() => setIsLexmindeMcpModalOpen(true)}
+                  onOpenTrialRoom={handleOpenTrialRoom}
+                  canOpenTrialRoom={canOpenTrialRoom}
+                  onOpenAdvancedModels={() => setIsAdvancedModelsOpen(true)}
                   onOpenLibrary={(mode) => {
                     setLibraryMode(mode);
                     setIsLibraryOpen(true);
@@ -1077,8 +1096,9 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
               </div>
             </div>
           </div>
+        </div>
 
-          <LexmindeMcpModal
+        <LexmindeMcpModal
             isOpen={isLexmindeMcpModalOpen}
             onClose={() => setIsLexmindeMcpModalOpen(false)}
             useLexmindeMcp={useLexmindeMcp}
@@ -1091,6 +1111,11 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
                 inputEl.focus();
               }
             }}
+          />
+
+          <AdvancedModelsModal
+            isOpen={isAdvancedModelsOpen}
+            onClose={() => setIsAdvancedModelsOpen(false)}
           />
 
           <LibrarySelectionModal 
@@ -1180,7 +1205,6 @@ export const ChatView = React.memo(function ChatView({ onNavigate }: ChatViewPro
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
       </div>
 
       <AnimatePresence>

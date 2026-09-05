@@ -48,8 +48,8 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
         if hasattr(openai_client, "_client") and not hasattr(openai_client, "chat"):
             openai_client = openai_client._client
         from database import get_setting
-        from config import settings
-        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
+        # Tutaj nie mamy łatwo dostępu do przypisań per-chat, zostawiamy fallback do domyślnego
+        fast_model = settings.resolve_model_id("")
         res = await openai_client.chat.completions.create(
             model=fast_model,
             messages=[
@@ -61,11 +61,22 @@ async def _extract_fast_metadata(file_bytes: bytes, client: Any, filename: str) 
             temperature=0.0
         )
         import json
+        import re
         content = res.choices[0].message.content
-        if content:
-            return json.loads(content)
+        if content and content.strip():
+            # Szukamy bloku JSON-a w tekście, aby uodpornić się na halucynacje markdownowe
+            match = re.search(r"\{.*\}", content.strip(), re.DOTALL)
+            if match:
+                clean_content = match.group(0)
+            else:
+                clean_content = content.strip()
+                if clean_content.startswith("```json"):
+                    clean_content = clean_content.replace("```json", "", 1).strip()
+                if clean_content.endswith("```"):
+                    clean_content = clean_content[: -3].strip()
+            return json.loads(clean_content)
     except Exception as e:
-        logger.warning(f"Fast metadata extraction failed: {e}")
+        logger.warning(f"Fast metadata extraction failed: {e}. Output was: {content if 'content' in locals() else 'None'}")
     return {}
 
 async def extract_single_attachment(att: Dict[str, Any] | Any, client: Any):

@@ -459,6 +459,11 @@ def delete_session(session_id: str):
     except Exception as e:
         print(f"DB Error (delete_session): {e}")
 
+# Backward-compatible aliases
+get_recent_sessions = get_sessions
+get_session_messages = get_messages
+
 if __name__ == "__main__":
     init_db()
     print("Database initialized successfully.")
+

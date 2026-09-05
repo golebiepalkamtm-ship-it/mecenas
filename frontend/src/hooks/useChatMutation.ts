@@ -213,6 +213,14 @@ export const useChatMutation = () => {
               throw new Error(errText);
             }
 
+            if (chunkType === 'action_required' && chunkData.action === 'select_model') {
+              // IMR: Wstrzymujemy proces i powiadamiamy UI (np. ModelRecoveryModal)
+              window.dispatchEvent(
+                new CustomEvent('imr_action_required', { detail: chunkData })
+              );
+              return; // Nie zamykamy strumienia, po prostu ignorujemy ten kawałek w głównym oknie czatu
+            }
+
             if (chunkType === 'metadata' || chunkType === 'final_metadata') {
               const { urgency_alerts, ...restChunkData } = chunkData;
               const normalizedChunkData: ChatMetadata = {

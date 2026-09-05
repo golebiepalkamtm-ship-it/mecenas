@@ -5,14 +5,14 @@ import type { TrialSide } from './types';
 const STYLES = {
   defense: {
     icon: Shield,
-    accent: 'border-emerald-500/40 bg-emerald-50/80',
-    text: 'text-emerald-900',
+    accent: 'border-emerald-500/50 bg-black/40 backdrop-blur-md shadow-[0_0_15px_rgba(16,185,129,0.1)]',
+    text: 'text-emerald-400',
     label: 'Obrona',
   },
   prosecution: {
     icon: Scale,
-    accent: 'border-rose-500/40 bg-rose-50/80',
-    text: 'text-rose-900',
+    accent: 'border-rose-500/50 bg-black/40 backdrop-blur-md shadow-[0_0_15px_rgba(244,63,94,0.1)]',
+    text: 'text-rose-400',
     label: 'Oskarżenie',
   },
 } as const;
@@ -36,7 +36,7 @@ function BriefCard({
           {s.label}
         </span>
       </div>
-      <p className="text-[11px] leading-relaxed text-black/80 whitespace-pre-wrap flex-1 font-medium">
+      <p className="text-[11px] leading-relaxed text-white/80 whitespace-pre-wrap flex-1 font-medium drop-shadow-md">
         {text.trim() || empty}
       </p>
     </div>
@@ -59,7 +59,7 @@ export function TrialBriefCards({ defenseText, prosecutionText }: TrialBriefCard
       <div className="hidden lg:flex flex-col items-center justify-center px-2 py-8">
         <div className="w-px flex-1 bg-gradient-to-b from-transparent via-gold-primary/40 to-transparent" />
         <Gavel className="my-4 text-gold-primary shrink-0" size={28} />
-        <p className="text-[8px] font-black uppercase tracking-[0.35em] text-black/40 text-center max-w-[80px]">
+        <p className="text-[8px] font-black uppercase tracking-[0.35em] text-gold-primary/60 text-center max-w-[80px] drop-shadow-md">
           Trybunał
         </p>
         <div className="w-px flex-1 bg-gradient-to-b from-transparent via-gold-primary/40 to-transparent" />

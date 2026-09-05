@@ -23,21 +23,21 @@ export function TrialHearingStenograph({
   roundsLocked = false,
 }: TrialHearingStenographProps) {
   return (
-    <section className="rounded-2xl border border-black/10 bg-neutral-50/90 p-5">
+    <section className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md p-5 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="text-[10px] font-black uppercase tracking-[0.25em] text-black/60">
+        <h2 className="text-[10px] font-black uppercase tracking-[0.25em] text-white/80 drop-shadow-md">
           Protokół sali
         </h2>
-        <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-black/50">
+        <label className="flex items-center gap-2 text-[9px] font-bold uppercase text-white/70 drop-shadow-md">
           Tury
           {roundsLocked ? (
-            <span className="text-[9px] font-black text-black/60">{roundsCount} tur</span>
+            <span className="text-[9px] font-black text-white">{roundsCount} tur</span>
           ) : (
             <select
               value={roundsCount}
               onChange={(e) => onRoundsCountChange(Number(e.target.value))}
               disabled={running}
-              className="rounded-lg border border-black/10 px-2 py-1 bg-white text-black"
+              className="rounded-lg border border-white/10 px-2 py-1 bg-black/60 text-white backdrop-blur-sm"
               aria-label="Liczba tur symulacji"
             >
               {[2, 4, 6].map((n) => (
@@ -52,7 +52,7 @@ export function TrialHearingStenograph({
           type="button"
           disabled={running || !canStart}
           onClick={onStart}
-          className="px-4 py-2 rounded-xl bg-black text-gold-primary text-[9px] font-black uppercase tracking-widest disabled:opacity-40"
+          className="px-4 py-2 rounded-xl bg-black text-gold-primary border border-gold-primary/30 hover:border-gold-primary/70 text-[9px] font-black uppercase tracking-widest disabled:opacity-40 transition-colors shadow-lg"
         >
           {running ? 'Trwa symulacja…' : 'Uruchom symulację sali'}
         </button>
@@ -60,7 +60,7 @@ export function TrialHearingStenograph({
 
       <div className="max-h-[320px] overflow-y-auto custom-scrollbar space-y-3">
         {rounds.length === 0 && !running && (
-          <p className="text-[10px] text-black/40 italic text-center py-6">
+          <p className="text-[10px] text-white/40 italic text-center py-6 drop-shadow-md">
             Po uruchomieniu tury oskarżenia i obrony pojawią się naprzemiennie.
           </p>
         )}
@@ -73,13 +73,13 @@ export function TrialHearingStenograph({
             >
               <div
                 className={cn(
-                  'max-w-[92%] rounded-2xl px-4 py-3 border text-[11px] leading-relaxed whitespace-pre-wrap',
+                  'max-w-[92%] rounded-2xl px-4 py-3 border text-[11px] leading-relaxed whitespace-pre-wrap shadow-lg backdrop-blur-md',
                   isDef
-                    ? 'bg-emerald-50/90 border-emerald-500/25 text-emerald-950'
-                    : 'bg-rose-50/90 border-rose-500/25 text-rose-950',
+                    ? 'bg-black/60 border-emerald-500/40 text-emerald-100'
+                    : 'bg-black/60 border-rose-500/40 text-rose-100',
                 )}
               >
-                <p className="text-[8px] font-black uppercase tracking-widest mb-1.5 opacity-60">
+                <p className="text-[8px] font-black uppercase tracking-widest mb-1.5 opacity-60 drop-shadow-md">
                   Tura {r.round} · {SIDE_META[r.side].title}
                 </p>
                 {r.text}

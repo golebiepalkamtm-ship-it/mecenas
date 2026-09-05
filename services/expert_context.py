@@ -40,6 +40,9 @@ def expert_context_with_chunk(
     return (
         f"{base_context}\n\n"
         f"[DOKUMENT — fragment {assigned['index']}/{assigned['total']} | {chunk_focus}]\n"
+        f"[UWAGA: Masz fragment {assigned['index']} z {assigned['total']}. "
+        f"Nie zakładaj faktów z fragmentów, których nie widzisz. "
+        f"Jeśli potrzebujesz informacji spoza swojego fragmentu — napisz 'BRAK DANYCH'.]\n"
         f"{assigned['text']}\n\n"
         f"[SKRÓT CAŁEGO PISMA — kontekst globalny]\n{overview[:3500]}"
     )

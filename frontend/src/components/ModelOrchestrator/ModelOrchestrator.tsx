@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { useModelOrchestratorState } from '../../hooks/chatSettingsSelectors';
+import { useModelOrchestratorState, useAssignedModelsState } from '../../hooks/chatSettingsSelectors';
 import { useModels, type Model, readEnabledModels } from '../../hooks/useConfig';
 import { useApiManagement } from '../../hooks';
 import { getBrand } from '../Chat/constants';
@@ -108,16 +108,7 @@ export function ModelOrchestrator() {
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
 
   const [activeSubTab, setActiveSubTab] = useState<'favorites' | 'assignments'>('favorites');
-  const [assignments, setAssignments] = useState<Record<string, string>>({
-    embedding: '',
-    ocr: '',
-    judge: '',
-    drafter: '',
-    fast: '',
-    long_context: '',
-    query_planner: '',
-    retrieval: '',
-  });
+  const { assignedModels, setAssignedModels, setAssignedModel } = useAssignedModelsState();
   const [loadingAssignments, setLoadingAssignments] = useState(false);
   const [savingAssignments, setSavingAssignments] = useState(false);
 
@@ -128,7 +119,7 @@ export function ModelOrchestrator() {
       fetch(`${API_BASE}/models/assigned`)
         .then(res => res.json())
         .then(data => {
-          setAssignments(data);
+          setAssignedModels(data);
           setLoadingAssignments(false);
         })
         .catch(err => {
@@ -148,7 +139,7 @@ export function ModelOrchestrator() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ assignments }),
+        body: JSON.stringify({ assignments: assignedModels }),
       });
       if (!res.ok) throw new Error('Nie udało się zapisać przypisań');
       setSuccessMsg('ZAPISANO PRZYPISANIA!');
@@ -174,14 +165,24 @@ export function ModelOrchestrator() {
   const { providers } = useApiManagement();
   const deferredSearch = useDeferredValue(searchQuery);
 
+  // Admin-selected models (hierarchia dostępu)
+  const adminSelectedModels = readEnabledModels();
+
   const sortedModelsForSelect = useMemo(() => {
-    return [...rawModels].sort((a, b) => {
+    // Użytkownik widzi wyłącznie modele ze swojej puli (do 20 modeli)
+    const basePool = favoriteModelIds.length > 0
+      ? rawModels.filter(m => favoriteModelIds.includes(m.id) && (adminSelectedModels.length === 0 || adminSelectedModels.includes(m.id)))
+      : (adminSelectedModels.length > 0
+          ? rawModels.filter(m => adminSelectedModels.includes(m.id))
+          : rawModels);
+
+    return [...basePool].sort((a, b) => {
       const providerA = (a.provider || '').toUpperCase();
       const providerB = (b.provider || '').toUpperCase();
       if (providerA !== providerB) return providerA.localeCompare(providerB);
       return a.name.localeCompare(b.name);
     });
-  }, [rawModels]);
+  }, [rawModels, favoriteModelIds, adminSelectedModels]);
 
   const activeProviders = useMemo(() => 
     providers
@@ -189,9 +190,6 @@ export function ModelOrchestrator() {
       .map(p => p.id.toLowerCase()),
     [providers]
   );
-
-  // Admin-selected models (hierarchia dostępu)
-  const adminSelectedModels = readEnabledModels();
 
   const handleSaveModels = async () => {
     setIsSaving(true);
@@ -472,7 +470,7 @@ export function ModelOrchestrator() {
                 {/* Vendor Selection (Compact Grid) */}
                 <div className="space-y-3">
                     <span className="text-[7px] font-black uppercase tracking-[0.4em] text-white/20 ml-1">Wybierz Firmę</span>
-                    <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto no-scrollbar pr-1">
+                    <div className="flex flex-wrap gap-1.5 max-h-30 overflow-y-auto no-scrollbar pr-1">
                         <button
                             onClick={() => setFilterVendor('all')}
                             className={cn(
@@ -668,16 +666,37 @@ export function ModelOrchestrator() {
                     </div>
                     <div className="w-full md:w-80 shrink-0">
                       <select
-                        value={assignments[func.id] || ''}
-                        onChange={(e) => setAssignments(prev => ({ ...prev, [func.id]: e.target.value }))}
-                        className="w-full bg-white/5 border border-white/10 focus:border-white/20 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-white outline-none transition-all"
+                        value={assignedModels[func.id] || ''}
+                        onChange={(e) => setAssignedModel(func.id, e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 focus:border-gold-primary/50 rounded-xl px-4 py-3 text-[10px] font-black uppercase tracking-[0.15em] text-white outline-none transition-all cursor-pointer"
                       >
-                        <option value="" disabled className="bg-[#0b0c10] text-white/30">Wybierz model...</option>
-                        {sortedModelsForSelect.map((model) => (
-                          <option key={model.id} value={model.id} className="bg-[#0b0c10] text-white">
-                            {model.name} ({model.id})
-                          </option>
-                        ))}
+                        <option value="" className="bg-[#0b0c10] text-white/30">
+                          {sortedModelsForSelect.length === 0 ? '(Brak modeli w Twojej puli - wybierz w zakładce Ulubione)' : 'Wybierz model z Twojej puli (do 20)...'}
+                        </option>
+                        {sortedModelsForSelect.map((model) => {
+                          const assignedRole = Object.entries(assignedModels || {}).find(([rId, mId]) => mId === model.id && rId !== func.id)?.[0];
+                          const isAssignedToOther = !!assignedRole;
+                          
+                          // Funkcja pomocnicza do mapowania ID roli na czytelną etykietę (uproszczona)
+                          const getRoleLabel = (rId: string) => {
+                            const labels: Record<string, string> = {
+                              'embedding': 'Embedding', 'ocr': 'OCR', 'judge': 'Sędzia', 'drafter': 'Pisma', 
+                              'fast': 'Szybki', 'long_context': 'Długi Kontekst', 'query_planner': 'Planner', 'retrieval': 'Wyszukiwanie'
+                            };
+                            return labels[rId] || rId;
+                          };
+
+                          return (
+                            <option 
+                              key={model.id} 
+                              value={model.id} 
+                              className="bg-[#0b0c10] text-white"
+                              disabled={isAssignedToOther}
+                            >
+                              {model.name} ({model.id}) {isAssignedToOther ? `(przypisany: ${getRoleLabel(assignedRole)})` : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   </div>
@@ -699,7 +718,7 @@ function ModelMiniTile({ model, isFavorite, onToggle, health }: { model: Orchest
     <button
       onClick={onToggle}
       className={cn(
-        'group flex items-center gap-4 p-4 px-6 rounded-2xl border relative overflow-hidden min-h-[64px] h-auto w-full text-left transition-none no-shimmer',
+        'group flex items-center gap-4 p-4 px-6 rounded-2xl border relative overflow-hidden min-h-16 h-auto w-full text-left transition-none no-shimmer',
         isFavorite 
             ? cn(brand.bg, brand.border, "shadow-[0_12px_24px_rgba(0,0,0,0.4)] ring-1 ring-white/20") 
             : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/15'

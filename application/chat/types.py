@@ -28,6 +28,7 @@ class ChatStreamInput:
     process_side: Optional[str] = None
     judge_system_prompt: Optional[str] = None
     model_latencies: Any = None
+    assigned_models: Any = None
     document_text: Optional[str] = None
     chat_history: Any = None
     session_id: str = ""

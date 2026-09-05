@@ -20,17 +20,19 @@ class VerificationAgent:
         expert_opinions: List[Dict[str, Any]],
         user_query: str,
         context_text: str,
-        llm_service: Any
+        llm_service: Any,
+        params: Any = None,
+        status_callback: Any = None
     ) -> List[Dict[str, Any]]:
         """
         Ocenia argumentację każdego eksperta. Jeśli wykryje krytyczny błąd merytoryczny,
         dodaje informację o błędzie do opinii eksperta (tzw. "Red Flag").
         """
-        logger.info("[VerificationAgent] Weryfikacja logiczno-prawna argumentów ekspertów...")
-        from database import get_setting
-        from config import settings
         import asyncio
-        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
+        assigned_fast = params.assigned_models.get('fast') if (params and getattr(params, 'assigned_models', None)) else None
+        selected_m = getattr(params, 'selected_model', '') if params else ''
+        from config import settings
+        fast_model = settings.resolve_model_id(assigned_fast or selected_m or "google/gemini-3.7-flash")
         
         async def verify_single(op: Dict[str, Any]) -> Dict[str, Any]:
             prompt = (
@@ -50,10 +52,11 @@ class VerificationAgent:
                             "content": f"ZAPYTANIE KLIENTA:\n{user_query}\n\nKONTEKST SPRAWY:\n{context_text[:3000]}\n\nOPINIA EKSPERTA:\n{op.get('response', '')[:4000]}"
                         }
                     ],
-                    max_tokens=250,
+                    max_tokens=100, # Optymalizacja: zmniejszamy z 250 do 100 tokenów
                     temperature=0.1,
                     timeout=20.0,
-                    log_context="VerificationAgent"
+                    log_context="VerificationAgent",
+                    status_callback=status_callback
                 )
                 res_upper = res.upper()
                 import re

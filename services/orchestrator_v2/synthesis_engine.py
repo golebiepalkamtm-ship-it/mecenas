@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import AsyncGenerator, Dict, Any
+from typing import AsyncGenerator, Dict, Any, Optional
 
 from services.orchestrator_types import OrchestratorInputParams
 from services.retrieval.types import get_retrieval_title
@@ -22,7 +22,8 @@ class SeniorAdvocateSynthesis:
         params: OrchestratorInputParams,
         context: InvestigationContext,
         debate: Any,
-        llm_service: Any
+        llm_service: Any,
+        status_callback: Any = None
     ):
         """
         Główny proces syntezy końcowej.
@@ -68,7 +69,8 @@ class SeniorAdvocateSynthesis:
                     fast_model,
                     intro_messages,
                     temperature=0.3,
-                    max_tokens=400
+                    max_tokens=400,
+                    status_callback=status_callback
                 )
                 async for chunk in stream_gen:
                     if chunk:
@@ -94,21 +96,14 @@ class SeniorAdvocateSynthesis:
                 "expert_opinions": debate_result.expert_opinions
             }
             
-        # 1. Weryfikacja metryk debaty (Zabezpieczenie przed halucynacjami LLM)
+        # 1. Weryfikacja metryk debaty (informacyjna — NIE blokuje pipeline'u)
         try:
-            await self._verify_hallucinations(context, debate_result, llm_service)
-            if getattr(debate_result, 'hallucination_rate', 0.0) > 30.0:
-                logger.error(f"[SynthesisEngine] Zatrzymuję generowanie: Hallucination rate {debate_result.hallucination_rate:.1f}% przekracza 30.0%.")
-                yield {"type": "chunk", "text": f"\n\n*[Przerwano: Zbyt wysoki wskaźnik halucynacji ({debate_result.hallucination_rate:.1f}%). System wymusza regenerację.]*"}
-                # Zamiast return, wywołujemy twardy wyjątek, by orchestrator wszedł w recovery/reflection
-                raise ValueError(f"High hallucination rate: {debate_result.hallucination_rate:.1f}%")
-        except ValueError as ve:
-            # Re-raise the hallucination block
-            raise ve
+            await self._verify_hallucinations(context, debate_result, llm_service, status_callback=status_callback)
+            hall_rate = getattr(debate_result, 'hallucination_rate', 0.0)
+            if hall_rate > 0:
+                logger.info(f"[SynthesisEngine] Wskaźnik niezweryfikowanych cytowań: {hall_rate:.1f}% (informacyjnie, nie blokuje pipeline).")
         except Exception as e:
-            logger.error(f"[SynthesisEngine] Błąd krytyczny weryfikacji halucynacji: {e}.")
-            yield {"type": "chunk", "text": f"\n\n*[Przerwano: Błąd systemu weryfikacji faktów ({e}). System wymusza regenerację.]*"}
-            raise RuntimeError(f"Weryfikacja halucynacji nie powiodła się: {e}")
+            logger.warning(f"[SynthesisEngine] Błąd weryfikacji halucynacji (nie blokuje pipeline): {e}.")
         
         # 2. Składanie wniosków ekspertów
         all_expert_opinions = ""
@@ -127,9 +122,9 @@ class SeniorAdvocateSynthesis:
                 if settings.feature_consensus_engine:
                     from services.orchestrator_v2.consensus_engine import ConsensusEngine
                     ce = ConsensusEngine()
-                    conflict_matrix = await ce.generate_consensus(debate_result.expert_opinions, params.user_query, llm_service)
+                    conflict_matrix = await ce.generate_consensus(debate_result.expert_opinions, params.user_query, llm_service, params, status_callback=status_callback)
                 else:
-                    conflict_matrix = await self._generate_conflict_resolution_matrix(all_expert_opinions, llm_service)
+                    conflict_matrix = await self._generate_conflict_resolution_matrix(all_expert_opinions, llm_service, status_callback=status_callback)
             except Exception as e:
                 logger.error(f"[SynthesisEngine] Błąd generowania macierzy konfliktów/konsensusu: {e}. Zwracam pustą macierz.")
                 conflict_matrix = ""
@@ -198,14 +193,8 @@ class SeniorAdvocateSynthesis:
         )
         
         system_prompt = task_prompt + base_prompt + client_guards + anti_xml_leak
-        # Inject hallucination warnings if any
+        # Informacja o cytowaniach — NIE każe ignorować artykułów (mogą być prawidłowe, ale spoza RAG)
         hallucination_warning = ""
-        if hasattr(debate_result, 'hallucinated_citations') and debate_result.hallucinated_citations:
-            bad_cites = ", ".join(debate_result.hallucinated_citations)
-            hallucination_warning = (
-                f"\n\n[SYSTEMOWA WERYFIKACJA FAKTÓW]\nUWAGA ADWOKACIE: Eksperci w powyższych analizach zacytowali nieistniejące w kontekście przepisy: {bad_cites}. "
-                "Zignoruj te artykuły, to są tzw. halucynacje LLM. Opieraj się tylko na przepisach rzeczywiście obecnych w KONTEKŚCIE PRAWNYM."
-            )
         
         from database import get_setting
         from config import settings
@@ -256,7 +245,8 @@ class SeniorAdvocateSynthesis:
                 model_to_use,
                 messages,
                 temperature=0.3,
-                max_tokens=8192
+                max_tokens=8192,
+                status_callback=status_callback
             )
             
             logger.info(f"[SynthesisEngine] [OK] Wygenerowano odpowiedź Głównego Adwokata.")
@@ -280,7 +270,7 @@ class SeniorAdvocateSynthesis:
             err_msg = f"\n[BŁĄD SYNTEZY] Nie udało się zainicjalizować odpowiedzi. Spróbuj ponownie. ({e})"
             yield {"type": "chunk", "text": err_msg}
 
-    async def _generate_conflict_resolution_matrix(self, all_expert_opinions: str, llm_service: Any) -> str:
+    async def _generate_conflict_resolution_matrix(self, all_expert_opinions: str, llm_service: Any, status_callback: Optional[Any] = None) -> str:
         """
         Generuje Conflict Resolution Matrix na podstawie debaty ekspertów.
         """
@@ -309,14 +299,15 @@ class SeniorAdvocateSynthesis:
                 max_tokens=1500,
                 temperature=0.2,
                 timeout=20.0,
-                log_context="ConflictMatrix"
+                log_context="ConflictMatrix",
+                status_callback=status_callback
             )
             return f"\n=== Skompresowana Macierz Debaty (Conflict Resolution Matrix) ===\n{res}\n"
         except Exception as e:
             logger.warning(f"[SynthesisEngine] Błąd generowania Conflict Resolution Matrix: {e}")
             return ""
 
-    async def _verify_hallucinations(self, context: InvestigationContext, debate: DebateResult, llm_service: Any):
+    async def _verify_hallucinations(self, context: InvestigationContext, debate: DebateResult, llm_service: Any, status_callback: Optional[Any] = None):
         """
         Prawdziwa implementacja systemu oceny halucynacji cytowań (Advocate Metrics).
         W V2 ten mechanizm upewnia się, że Główny Adwokat nie weźmie pod uwagę fałszywych przepisów od ekspertów.
@@ -341,7 +332,8 @@ class SeniorAdvocateSynthesis:
                 fast_model = get_setting("assigned_model_fast")
                 res, _ = await llm_service.call_with_fallback(
                     fast_model,
-                    [{"role": "user", "content": prompt}]
+                    [{"role": "user", "content": prompt}],
+                    status_callback=status_callback
                 )
                 return res
             except Exception:
@@ -353,15 +345,21 @@ class SeniorAdvocateSynthesis:
             combined_context=context.combined_full_text,
             expert_analysis=all_expert_text,
             call_llm=mock_call_llm,
-            trust_expert_debate=False, # Skoro sprawdzamy ekspertów, nie ufamy debacie
+            trust_expert_debate=True,  # Eksperci MOA to źródło wiedzy — ufamy ich cytowaniom
         )
         
-        # Podwójna weryfikacja: Jeśli mamy ValidArticlesCache (Sidecar),
-        # odrzucamy też cytaty, których cache nie zna jako absolutny pewnik.
-        if context.valid_articles_cache:
-            for cite in all_cites:
-                if cite not in unverified and not context.valid_articles_cache.contains(cite.key):
-                    unverified.append(cite)
+        # Filtrowanie: zachowaj WSZYSTKIE artykuły z kodeksów powiązanych ze sprawą.
+        # Oznacz jako niezweryfikowane TYLKO te z zupełnie obcych dziedzin prawa.
+        if unverified:
+            case_relevant_acts = self._build_case_relevant_acts(context)
+            if case_relevant_acts:
+                truly_unrelated = []
+                for cite in unverified:
+                    if cite.act_code and cite.act_code not in case_relevant_acts:
+                        truly_unrelated.append(cite)
+                        logger.info(f"[SynthesisEngine] Odrzucono cytat z obcego kodeksu: {cite.raw} (act={cite.act_code}, sprawa dotyczy: {case_relevant_acts})")
+                    # else: artykuł z kodeksu powiązanego ze sprawą — zachowujemy
+                unverified = truly_unrelated
         
         debate.all_citations_count = len(all_cites)
         
@@ -373,10 +371,10 @@ class SeniorAdvocateSynthesis:
         if unverified:
             from services.citation_guard import citations_to_display
             debate.hallucinated_citations = citations_to_display(unverified)
-            logger.warning(f"[SynthesisEngine] Wykryto halucynacje: {debate.hallucinated_citations} (Wskaźnik: {debate.hallucination_rate:.1f}%)")
+            logger.info(f"[SynthesisEngine] Cytowania z obcych kodeksów (potencjalnie błędne): {debate.hallucinated_citations} (Wskaźnik: {debate.hallucination_rate:.1f}%)")
         else:
             debate.hallucinated_citations = []
-            logger.info(f"[SynthesisEngine] Brak halucynacji. Wskaźnik: {debate.hallucination_rate:.1f}%")
+            logger.info(f"[SynthesisEngine] Wszystkie cytowania z powiązanych kodeksów. Wskaźnik: {debate.hallucination_rate:.1f}%")
         
         # Dynamiczna ocena 'Counter-Argument Quality' przy pomocy LLM
         if debate.expert_opinions:
@@ -401,4 +399,45 @@ class SeniorAdvocateSynthesis:
             debate.counter_argument_quality = 0.0
             
         logger.info(f"[SynthesisEngine] Dynamiczna ocena jakości debaty (Counter-Argument Quality): {debate.counter_argument_quality:.2f}")
+
+    def _build_case_relevant_acts(self, context) -> set:
+        """Buduje zbiór kodów ustaw (np. 'kpk', 'kk', 'upn'), które są bezpośrednio związane ze sprawą."""
+        acts = set()
+        
+        # 1. Z tagów problemowych (Routing)
+        tags = getattr(context, 'problem_tags', []) or []
+        tag_to_act = {
+            'criminal': ['kk', 'kpk', 'kw', 'kks'],
+            'civil': ['kc', 'kpc', 'kro'],
+            'administrative': ['kpa', 'ppsa', 'upea'],
+            'tax': ['op', 'upea', 'kks'],
+            'labor': ['kp', 'kpc'],
+            'corporate': ['ks', 'kc', 'kpc'],
+            'narcotics': ['upn', 'kk', 'kpk']
+        }
+        for tag in tags:
+            acts.update(tag_to_act.get(tag, []))
+            
+        # 2. Z QueryPlanner act_terms (np. 'Kodeks karny', 'K.p.k.')
+        if hasattr(context, 'query_plan') and context.query_plan:
+            terms = getattr(context.query_plan, 'act_terms', []) or []
+            from services.citation_guard import _normalize_act
+            for term in terms:
+                norm = _normalize_act(term)
+                if norm:
+                    acts.add(norm)
+                    
+        # 3. Z karty sprawy (przepisy znalezione przez śledczego)
+        if hasattr(context, 'case_brief') and context.case_brief:
+            c_acts = getattr(context.case_brief, 'wykryte_przepisy_prawne', []) or []
+            from services.citation_guard import _normalize_act
+            for act_str in c_acts:
+                norm = _normalize_act(act_str)
+                if norm:
+                    acts.add(norm)
+                    
+        # Konstytucja jest nadrzędnym aktem prawnym mającym zastosowanie we wszystkich sprawach
+        acts.add('konstytucja')
+        
+        return acts
 

@@ -15,7 +15,7 @@ class ConsensusEngine:
     def __init__(self):
         pass
 
-    async def generate_consensus(self, expert_opinions: List[Dict[str, Any]], user_query: str, llm_service: Any) -> str:
+    async def generate_consensus(self, expert_opinions: List[Dict[str, Any]], user_query: str, llm_service: Any, params: Any = None, status_callback: Optional[Any] = None) -> str:
         """
         Generuje Consensus Report na podstawie debaty.
         """
@@ -24,9 +24,7 @@ class ConsensusEngine:
             
         logger.info("[ConsensusEngine] Generowanie Consensus Report z opinii ekspertów...")
             
-        from database import get_setting
-        from config import settings
-        fast_model = settings.resolve_model_id(get_setting("assigned_model_fast"))
+        fast_model = params.selected_model if params and getattr(params, "selected_model", None) else settings.resolve_model_id("")
         
         # Przygotowanie wsadu
         expert_texts = []
@@ -60,12 +58,12 @@ class ConsensusEngine:
                     {"role": "user", "content": f"PYTANIE KLIENTA:\n{user_query}\n\nDEBATA EKSPERTÓW:\n{all_expert_opinions}"}
                 ],
                 max_tokens=2500,
-                temperature=0.15,
-                timeout=45.0,
-                log_context="ConsensusEngine"
+                temperature=0.2,
+                timeout=30.0,
+                log_context="ConsensusReport",
+                status_callback=status_callback
             )
-            return f"\n=== RAPORT KONSENSUSU (Consensus Engine) ===\n{res}\n"
+            return f"\n=== Protokół Pojednania Debaty (Consensus Report) ===\n{res}\n"
         except Exception as e:
             logger.warning(f"[ConsensusEngine] Błąd generowania raportu: {e}")
             return ""
-

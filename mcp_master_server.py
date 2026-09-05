@@ -1,21 +1,22 @@
 """
-LexMind AI Master MCP Server — Ultimate Edition (32 MCP Tools)
-Uniwersalny, rozbudowany serwer MCP integrujący WSZYSTKIE 32 narzędzia prawne i systemowe w jednym module.
+LexMind AI Master MCP Server — Ultimate Edition (40 MCP Tools)
+Uniwersalny, rozbudowany serwer MCP integrujący WSZYSTKIE 40 narzędzi prawnych i systemowych w jednym module.
 
 Obsługiwane kategorie narzędzi:
   1. ISAP / ELI (Akty Prawne, Dzienniki Ustaw, teksty ustaw) — 4 narzędzia
   2. SAOS (Sądy Powszechne: apelacyjne, okręgowe, rejonowe) — 4 narzędzia
   3. SEJM RP (Prace legislacyjne, druki, posłowie, interpelacje, komisje, głosowania) — 7 narzędzi
-  4. REGESTRY GOSPODARCZE (KRS spółki, CEIDG jednoosobowe firmy) — 2 narzędzia
-  5. NSA / WSA (CBOSA Sądownictwo Administracyjne) — 1 narzędzie
+  4. REGESTRY GOSPODARCZE (KRS spółki, CEIDG jednoosobowe firmy, Biała Lista VAT) — 4 narzędzia
+  5. NSA / WSA (CBOSA Sądownictwo Administracyjne) — 3 narzędzia
   6. UODO (Ochrona danych osobowych / RODO / kary) — 1 narzędzie
   7. KIO (Zamówienia publiczne / przetargi) — 1 narzędzie
   8. TSUE (Orzecznictwo Unii Europejskiej / sprawy frankowe) — 1 narzędzie
-  9. INTERNET SEARCH (Wyszukiwanie informacji na żywo via DuckDuckGo) — 1 narzędzie
-  10. LEXMIND RAG & KNOWLEDGE (Supabase hybrid vector search, baza aktów) — 3 narzędzia
-  11. CHAT HISTORY (Baza SQLite z historią konwersacji) — 2 narzędzia
-  12. FILE & CODE NAVIGATOR (Zarządzanie PDF, plikami i kodem) — 4 narzędzia
-  13. CALCULATOR (Bezpieczny kalkulator opłat, terminów i odsetek) — 1 narzędzie
+  9. PRAWMi AI & ANTI-HALLUCINATION (Weryfikacja orzeczeń, artykułów, audyt cytowań, treść aktów) — 8 narzędzi
+  10. INTERNET SEARCH (Wyszukiwanie informacji na żywo via DuckDuckGo) — 1 narzędzie
+  11. LEXMIND RAG & KNOWLEDGE (Supabase hybrid vector search, baza aktów) — 3 narzędzia
+  12. CHAT HISTORY (Baza SQLite z historią konwersacji) — 2 narzędzia
+  13. FILE & CODE NAVIGATOR (Zarządzanie PDF, plikami i kodem) — 4 narzędzia
+  14. CALCULATOR (Bezpieczny kalkulator opłat, terminów i odsetek) — 1 narzędzie
 
 Wspiera dwa tryby transportu:
   - stdio (domyślny dla Claude Desktop, Cursor, Antigravity, Windsurf, Continue)
@@ -40,7 +41,7 @@ ROOT_DIR = Path(__file__).parent.resolve()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-mcp = FastMCP("LexMind Master MCP (32 Tools)")
+mcp = FastMCP("LexMind Master MCP (40 Tools)")
 
 # Helper for formatted JSON response
 def _json_resp(data: Any) -> str:
@@ -501,6 +502,162 @@ async def nalegalu_article_lookup(citation: str, fetch_judgments: bool = True, l
 
 
 # ==============================================================================
+#  9. PRAWMi AI & ANTI-HALLUCINATION TOOLS (PRAWMi.PL)
+# ==============================================================================
+
+@mcp.tool()
+async def prawmi_search_rulings(query: str = "", case_number: str = "", court_filter: str = "", limit: int = 5) -> str:
+    """Wyszukuje orzeczenia sądów polskich (SN, SA, SO, NSA, WSA) w PrawMi semantycznie lub po sygnaturze.
+    
+    Args:
+        query: Opis problemu prawnego w języku naturalnym
+        case_number: Sygnatura orzeczenia (np. 'III CZP 8/22')
+        court_filter: Opcjonalny filtr sądu ('SN', 'SA', 'SO', 'NSA', 'WSA')
+        limit: Maksymalna liczba orzeczeń (1-20, domyślnie 5)
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.search_rulings(
+            query=query or None,
+            case_number=case_number or None,
+            court_filter=court_filter or None,
+            limit=limit,
+        )
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_verify_ruling(case_number: str, skip_external: bool = False) -> str:
+    """Weryfikuje autentyczność sygnatury orzeczenia w bazie PrawMi oraz publicznych źródłach (SAOS, NSA, SN).
+    
+    Args:
+        case_number: Sygnatura orzeczenia do weryfikacji (np. 'III CZP 8/22')
+        skip_external: Jeśli True, sprawdza tylko lokalną bazę PrawMi bez zewnętrznych zapytań
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.verify_ruling(case_number=case_number, skip_external=skip_external)
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_get_article(act_shortname: str, article_number: str, include_regulations: bool = False) -> str:
+    """Pobiera autorytatywny tekst artykułu z ustawy/kodeksu (np. KK, KC, KPC, KSH, KPA, KRO) z pełną strukturą ustępów.
+    
+    Args:
+        act_shortname: Skrót ustawy (KK, KC, KPC, KSH, KPA...) lub pełny tytuł
+        article_number: Numer artykułu (np. '148', '415', '286')
+        include_regulations: Czy dołączyć powiązane rozporządzenia wykonawcze
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.get_article(
+            act_shortname=act_shortname,
+            article_number=article_number,
+            include_regulations=include_regulations,
+        )
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_get_ruling_text(ruling_link: str) -> str:
+    """Pobiera pełny tekst orzeczenia sądowego na podstawie linku/ID z prawmi_search_rulings.
+    
+    Args:
+        ruling_link: Link lub identyfikator orzeczenia zwrócony w search_rulings
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.get_ruling_text(ruling_link=ruling_link)
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_search_acts(query: str, limit: int = 5) -> str:
+    """Wyszukuje ustawy i kodeksy według tematu w PrawMi (zapobiega halucynowaniu błędnych nazw ustaw).
+    
+    Args:
+        query: Temat / zagadnienie prawne
+        limit: Maksymalna liczba aktów (domyślnie 5)
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.search_acts(query=query, limit=limit)
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_search_rulings_by_article(act_shortname: str, article_number: str, court_filter: str = "", limit: int = 5) -> str:
+    """Wyszukuje orzeczenia sądowe cytujące dany artykuł ustawy (potwierdzenie linii orzeczniczej).
+    
+    Args:
+        act_shortname: Skrót ustawy (np. 'KC', 'KK', 'KPC')
+        article_number: Numer artykułu (np. '415')
+        court_filter: Opcjonalny filtr sądu ('SN', 'SA', 'SO', 'NSA', 'WSA')
+        limit: Maksymalna liczba wyników
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.search_rulings_by_article(
+            act_shortname=act_shortname,
+            article_number=article_number,
+            court_filter=court_filter or None,
+            limit=limit,
+        )
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_search_act_articles(topic: str, act_unified: str = "", act_title: str = "", limit: int = 5) -> str:
+    """Wyszukuje konkretne artykuły w ramach ustawy powiązane z danym zagadnieniem.
+    
+    Args:
+        topic: Temat / zagadnienie w ramach ustawy
+        act_unified: Opcjonalny URL ISAP aktu prawnego (szybka ścieżka)
+        act_title: Tytuł lub skrót ustawy (np. 'KC', 'Kodeks karny')
+        limit: Maksymalna liczba artykułów
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.search_act_articles(
+            topic=topic,
+            act_unified=act_unified or None,
+            act_title=act_title or None,
+            limit=limit,
+        )
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+@mcp.tool()
+async def prawmi_verify_article_reference(fragment: str) -> str:
+    """Audytuje fragment tekstu prawnego pod kątem nieistniejących lub zmyślonych artykułów i sygnatur wyroków (Anti-Hallucination Scan).
+    
+    Args:
+        fragment: Tekst prawny do weryfikacji i audytu
+    """
+    try:
+        from services.prawmi_client import prawmi_client
+        res = await prawmi_client.verify_article_reference(fragment=fragment)
+        return _json_resp(res)
+    except Exception as e:
+        return _json_resp({"status": "error", "message": str(e)})
+
+
+# ==============================================================================
 #  10. INTERNET SEARCH — WYSZUKIWANIE NA ŻYWO (DUCKDUCKGO)
 # ==============================================================================
 
@@ -593,6 +750,7 @@ def list_sessions(limit: int = 10) -> str:
     except Exception as e:
         return _json_resp({"status": "error", "message": str(e)})
 
+
 @mcp.tool()
 def get_session_messages(session_id: str) -> str:
     """Pobiera historię wiadomości z danej sesji czatu.
@@ -601,8 +759,8 @@ def get_session_messages(session_id: str) -> str:
         session_id: ID sesji czatu
     """
     try:
-        from database import get_session_messages as db_get_messages
-        messages = db_get_messages(session_id)
+        from database import get_messages
+        messages = get_messages(session_id=session_id)
         return _json_resp({"status": "ok", "session_id": session_id, "messages": messages})
     except Exception as e:
         return _json_resp({"status": "error", "message": str(e)})
@@ -705,7 +863,7 @@ def search_code(keyword: str, file_pattern: str = "**/*.py") -> str:
 
 
 # ==============================================================================
-#  13. MATH & CALCULATIONS
+#  14. MATH & CALCULATIONS
 # ==============================================================================
 
 @mcp.tool()
@@ -719,35 +877,46 @@ def calculate_expression(expression: str) -> str:
         import ast
         import operator as op
 
-        allowed_operators = {
-            ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul,
-            ast.Div: op.truediv, ast.Pow: op.pow, ast.USub: op.neg, ast.UAdd: op.pos
+        bin_ops: Dict[Any, Any] = {
+            ast.Add: op.add,
+            ast.Sub: op.sub,
+            ast.Mult: op.mul,
+            ast.Div: op.truediv,
+            ast.Pow: op.pow,
+        }
+        un_ops: Dict[Any, Any] = {
+            ast.USub: op.neg,
+            ast.UAdd: op.pos,
         }
 
-        def eval_node(node):
-            if isinstance(node, ast.Num):
-                return node.n
-            elif isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        def eval_node(node: ast.AST) -> Any:
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
                 return node.value
             elif isinstance(node, ast.BinOp):
                 left = eval_node(node.left)
                 right = eval_node(node.right)
-                return allowed_operators[type(node.op)](left, right)
+                op_cls = type(node.op)
+                if op_cls in bin_ops:
+                    return bin_ops[op_cls](left, right)
+                raise ValueError(f"Niedozwolony operator: {op_cls}")
             elif isinstance(node, ast.UnaryOp):
                 operand = eval_node(node.operand)
-                return allowed_operators[type(node.op)](operand)
+                op_cls = type(node.op)
+                if op_cls in un_ops:
+                    return un_ops[op_cls](operand)
+                raise ValueError(f"Niedozwolony operator jednoargumentowy: {op_cls}")
             else:
                 raise ValueError("Niedozwolony element w wyrażeniu")
 
-        node = ast.parse(expression.strip(), mode='eval').body
-        res = eval_node(node)
+        parsed_ast = ast.parse(expression.strip(), mode='eval').body
+        res = eval_node(parsed_ast)
         return _json_resp({"status": "ok", "expression": expression, "result": res})
     except Exception as e:
         return _json_resp({"status": "error", "message": f"Błąd kalkulatora: {str(e)}"})
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="LexMind Master MCP Server — 32 Tools")
+    parser = argparse.ArgumentParser(description="LexMind Master MCP Server — 40 Tools")
     parser.add_argument("--transport", choices=["stdio", "sse"], default="stdio", help="Transport mode (stdio or sse)")
     parser.add_argument("--host", default="0.0.0.0", help="Host for SSE transport")
     default_port = int(os.environ.get("PORT", 8005))
@@ -755,7 +924,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.transport == "sse":
-        print(f"[LEXMIND MCP] Starting Ultimate SSE HTTP server on {args.host}:{args.port} with 32 tools...")
+        print(f"[LEXMIND MCP] Starting Ultimate SSE HTTP server on {args.host}:{args.port} with 40 tools...")
         mcp.run(transport="sse", host=args.host, port=args.port)
     else:
         mcp.run(transport="stdio")

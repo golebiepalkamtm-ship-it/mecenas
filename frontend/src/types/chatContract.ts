@@ -68,6 +68,7 @@ export interface ChatPayloadV2 {
   use_rag_legal?: boolean;
   use_rag_user?: boolean;
   use_lexminde_mcp?: boolean;
+  assigned_models?: Record<string, string>;
   model_latencies?: Record<string, number>;
   stream?: boolean;
   active_prompt_preset_id?: string;
@@ -95,6 +96,7 @@ export interface ChatMutationExtras {
   use_rag_user?: boolean;
   use_lexminde_mcp?: boolean;
   act_terms?: string[];
+  assigned_models?: Record<string, string>;
 }
 
 export interface StreamMetadataEvent {

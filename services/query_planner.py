@@ -94,9 +94,9 @@ async def plan_query(
     prompt = (
         "Zaplanuj wyszukiwanie prawne (PL). Zwróć WYŁĄCZNIE JSON:\n"
         '{"intent":"article_explain|case_analysis|litigation_strategy|draft_pleading",'
-        '"keywords":"fraza1, fraza2, fraza3",'
-        '"act_terms":["KPA"],'
-        '"use_saos":true,"use_eli":true,"skip_debate":false,'
+        '"keywords":"fraza1, fraza2, fraza3",\n'
+        '"act_terms":["Skrót aktu (np. KK, KPK, KPA, UPN). UWAGA: Bądź absolutnie precyzyjny co do gałęzi prawa! Sprawa karna to TYLKO KK/KPK/KKS, absolutnie NIE ustawy podatkowe czy budowlane. Podawaj tylko akty bezspornie powiązane!"],\n'
+        '"use_saos":true,"use_eli":true,"skip_debate":false,\n'
         '"rag_match_count":5,"saos_limit":5,"eli_limit":5,'
         '"estimated_complexity":"low|medium|high"}\n\n'
         f"Zapytanie: {user_query[:8000]}\n"

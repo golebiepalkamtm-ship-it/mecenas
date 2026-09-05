@@ -39,6 +39,7 @@ class ChatRequest(BaseModel):
     prompt_overrides: Optional[PromptOverrides] = None
     moa_options: Optional[MoaOptions] = None
     model_latencies: Optional[Dict[str, float]] = None
+    assigned_models: Optional[Dict[str, str]] = None
     document_text: Optional[str] = None
     history: Optional[List[ChatHistoryMessage]] = None
 

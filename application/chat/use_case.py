@@ -7,8 +7,9 @@ from services.orchestrator_v2.service import orchestrator_v2_service
 
 
 class ChatStreamUseCase:
-    async def execute(self, params: ChatStreamInput) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute(self, params: ChatStreamInput, status_callback: Any = None) -> AsyncGenerator[Dict[str, Any], None]:
         async for chunk in orchestrator_v2_service.process_user_request_stream_v2(
+            status_callback=status_callback,
             user_query=params.user_query,
             attachments=params.attachments,
             selected_model=params.selected_model,
